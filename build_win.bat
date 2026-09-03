@@ -420,8 +420,16 @@ if "%build_deps%%build_slicer%" == "" goto :cmake_ready
 
 cmake --version >nul 2>nul
 if not !errorlevel! == 0 (
-    echo CMake was not found. Have you installed the system dependencies?
-    exit /b 1
+    for /f "tokens=*" %%i in ('%VSWHERE% -nologo -prerelease -products * -latest -property resolvedInstallationPath 2^>nul') do (
+        if exist "%%i\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" (
+            set "PATH=%%i\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;!PATH!"
+        )
+    )
+    cmake --version >nul 2>nul
+    if not !errorlevel! == 0 (
+        echo CMake was not found. Have you installed the system dependencies?
+        exit /b 1
+    )
 )
 
 REM Strawberry Perl ships a c/bin full of GNU tools, and the top-level
@@ -1022,7 +1030,7 @@ REM echo_var <variable>
 	)
 
 	echo Detecting Visual Studio version using vswhere...
-	for /f "tokens=1 delims=." %%i in ('%VSWHERE% -nologo -products * -latest -property catalog_productDisplayVersion') do (
+	for /f "tokens=1 delims=." %%i in ('%VSWHERE% -nologo -prerelease -products * -latest -property installationVersion') do (
 		set "VS_MAJOR=%%i"
 		goto :version_found
 	)
@@ -1077,7 +1085,7 @@ REM echo_var <variable>
 		exit /b 0
 	)
 
-	for /f "tokens=*" %%i in ('%VSWHERE% -nologo -products * -latest -property resolvedInstallationPath') do (
+	for /f "tokens=*" %%i in ('%VSWHERE% -nologo -prerelease -products * -latest -property resolvedInstallationPath') do (
 		set "VS_PATH=%%i"
 		goto :vs_path_found
 	)
@@ -1117,7 +1125,7 @@ REM so a standalone LLVM already there shadows it. Name a full path.
 	set "found="
 	%VSWHERE% -nologo >nul 2>nul
 	if !errorlevel! == 0 (
-		for /f "tokens=*" %%i in ('%VSWHERE% -nologo -products * -latest -property resolvedInstallationPath') do (
+		for /f "tokens=*" %%i in ('%VSWHERE% -nologo -prerelease -products * -latest -property resolvedInstallationPath') do (
 			if exist "%%i\VC\Tools\Llvm\!llvm_host!\bin\clang-cl.exe" (
 				set "found=%%i\VC\Tools\Llvm\!llvm_host!\bin\clang-cl.exe"
 			)

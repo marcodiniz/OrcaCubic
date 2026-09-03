@@ -45,6 +45,18 @@ if "%USE_NINJA%"=="1" (
     goto :generator_ready
 )
 
+where msbuild >nul 2>nul
+if not %errorlevel% == 0 (
+    if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" (
+        for /f "tokens=*" %%i in ('"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -nologo -prerelease -products * -latest -property resolvedInstallationPath') do (
+            if exist "%%i\Common7\Tools\VsDevCmd.bat" (
+                echo Initializing Visual Studio environment from %%i...
+                call "%%i\Common7\Tools\VsDevCmd.bat" -arch=%arch% >nul 2>nul
+            )
+        )
+    )
+)
+
 @REM Detect Visual Studio version using msbuild
 echo Detecting Visual Studio version using msbuild...
 
