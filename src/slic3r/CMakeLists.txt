@@ -686,6 +686,8 @@ set(SLIC3R_GUI_SOURCES
     Utils/CrealityHostDiscovery.hpp
     Utils/Duet.cpp
     Utils/Duet.hpp
+    Utils/AnycubicLink.cpp
+    Utils/AnycubicLink.hpp
     Utils/ElegooLink.cpp
     Utils/ElegooLink.hpp
     Utils/EmbossStyleManager.cpp

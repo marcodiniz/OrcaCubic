@@ -302,6 +302,68 @@ private:
     std::thread       upload_thread;
 };
 
+class AnycubicPrinterWebViewHandler final : public PrinterWebViewHandler {
+public:
+    explicit AnycubicPrinterWebViewHandler(PrinterWebView& owner)
+        : PrinterWebViewHandler(owner)
+    {
+    }
+
+    void on_loaded(wxWebViewEvent &evt) override
+    {
+        sync_filaments_to_webview();
+    }
+
+    void on_script_message(wxWebViewEvent &evt) override
+    {
+        const wxString message = evt.GetString();
+        if (message.empty())
+            return;
+
+        json root = json::parse(message.ToUTF8().data(), nullptr, false);
+        if (root.is_discarded() || !root.is_object())
+            return;
+
+        std::string command = json_string(root, "command");
+        if (command == "get_active_filaments") {
+            sync_filaments_to_webview();
+        }
+    }
+
+private:
+    void sync_filaments_to_webview()
+    {
+        if (browser() == nullptr || wxGetApp().preset_bundle == nullptr)
+            return;
+
+        json filament_list = json::array();
+        auto full_cfg = wxGetApp().preset_bundle->full_config();
+        if (full_cfg.has("filament_colour") && full_cfg.has("filament_type")) {
+            const auto* colors = full_cfg.option<ConfigOptionStrings>("filament_colour");
+            const auto* types  = full_cfg.option<ConfigOptionStrings>("filament_type");
+            size_t count = colors ? colors->values.size() : 0;
+            for (size_t i = 0; i < count; ++i) {
+                json item = json::object();
+                item["index"] = i + 1;
+                item["color"] = colors->values[i];
+                item["type"]  = (types && i < types->values.size()) ? types->values[i] : "PLA";
+                filament_list.push_back(item);
+            }
+        }
+
+        json payload = {
+            {"type", "orcacubic_filament_sync"},
+            {"filaments", filament_list}
+        };
+
+        const wxString script = "window.postMessage(" + wxString::FromUTF8(dump_json(payload)) + ", '*');";
+        wxGetApp().CallAfter([this, script]() {
+            if (browser() != nullptr)
+                WebView::RunScript(browser(), script);
+        });
+    }
+};
+
 } // namespace
 
 std::unique_ptr<PrinterWebViewHandler> create_printer_webview_handler(PrinterWebView& owner)
@@ -314,6 +376,8 @@ std::unique_ptr<PrinterWebViewHandler> create_printer_webview_handler(PrinterWeb
     {
         case PrintHostType::htElegooLink:
             return std::make_unique<ElegooPrinterWebViewHandler>(owner);
+        case PrintHostType::htAnycubic:
+            return std::make_unique<AnycubicPrinterWebViewHandler>(owner);
         default:
             return nullptr;
     }

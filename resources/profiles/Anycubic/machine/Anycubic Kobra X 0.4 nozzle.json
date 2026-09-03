@@ -25,7 +25,7 @@
 		"0x260"
 	],
 	"printable_height": "260",
-	"thumbnails": "230x110/PNG",
+	"thumbnails": "260x260/PNG",
 	"thumbnails_format": "PNG",
 	"thumbnails_internal": "512x512/PNG/top",
 	"thumbnails_internal_switch": "1",
@@ -65,7 +65,7 @@
 	"fan_speedup_time": "0",
 	"head_wrap_detect_zone": [],
 	"high_current_on_filament_swap": "0",
-	"host_type": "octoprint",
+	"host_type": "anycubic",
 	"layer_change_gcode": "; AFTER_LAYER_CHANGE [layer_num] @ [layer_z]mm",
 	"long_retractions_when_cut": [
 		"0"

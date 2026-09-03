@@ -162,7 +162,8 @@ static t_config_enum_values s_keys_map_PrintHostType {
     { "simplyprint",    htSimplyPrint },
     { "elegoolink",     htElegooLink },
     { "3dprinteros",    ht3DPrinterOS },
-    { "moonraker",      htMoonraker }
+    { "moonraker",      htMoonraker },
+    { "anycubic",       htAnycubic }
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PrintHostType)
 
