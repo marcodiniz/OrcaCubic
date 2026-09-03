@@ -48,7 +48,7 @@ std::string safe_config_str(DynamicPrintConfig* config, const char* key)
     return {};
 }
 
-std::string sanitize_filename(const std::string& filename)
+std::string sanitize_anycubic_filename(const std::string& filename)
 {
     std::string base = fs::path(filename).filename().string();
     if (base.empty())
@@ -258,7 +258,7 @@ public:
 
         m_ssl = SSL_new(m_ctx);
         #if defined(_WIN32)
-        SSL_set_fd(m_ssl, static_cast<int>(reinterpret_cast<uintptr_t>(m_socket->native_handle())));
+        SSL_set_fd(m_ssl, static_cast<int>(m_socket->native_handle()));
         #else
         SSL_set_fd(m_ssl, m_socket->native_handle());
         #endif
@@ -429,7 +429,8 @@ bool AnycubicLink::query_info(wxString& error_msg) const
 
     auto http = Http::get(url);
     http.header("User-Agent", "AnycubicSlicerNext/2.0.0.2")
-        .timeout(5)
+        .timeout_connect(5)
+        .timeout_max(15)
         .on_complete([&](std::string body, unsigned status) {
             if (status == 200) {
                 response_body = std::move(body);
@@ -490,7 +491,8 @@ bool AnycubicLink::fetch_credentials(wxString& error_msg) const
 
     auto http = Http::post(ctrl_url);
     http.header("User-Agent", "AnycubicSlicerNext/2.0.0.2")
-        .timeout(5)
+        .timeout_connect(5)
+        .timeout_max(15)
         .set_post_body(std::string("{}"))
         .on_complete([&](std::string body, unsigned status) {
             if (status == 200) {
@@ -746,7 +748,7 @@ bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, E
         upload_token = m_token;
     }
 
-    std::string upload_filename = sanitize_filename(upload_data.upload_path.string());
+    std::string upload_filename = sanitize_anycubic_filename(upload_data.upload_path.string());
     std::string file_size_str;
     try {
         file_size_str = std::to_string(fs::file_size(upload_data.source_path));
@@ -796,13 +798,13 @@ bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, E
         return false;
 
     if (upload_data.post_action == PrintHostPostUploadAction::StartPrint) {
-        info_fn(GUI::from_u8((boost::format(_utf8(L("File uploaded. Triggering print on %1%..."))) % m_device_name).str()));
+        info_fn("AnycubicLink", GUI::from_u8((boost::format(_utf8(L("File uploaded. Triggering print on %1%..."))) % m_device_name).str()));
         wxString start_err;
         if (!start_print(start_err, upload_filename, upload_data)) {
             error_fn(GUI::from_u8((boost::format(_utf8(L("File uploaded, but failed to start print: %1%"))) % start_err.ToUTF8().data()).str()));
             return false;
         }
-        info_fn(GUI::from_u8((boost::format(_utf8(L("Print started successfully on %1%."))) % m_device_name).str()));
+        info_fn("AnycubicLink", GUI::from_u8((boost::format(_utf8(L("Print started successfully on %1%."))) % m_device_name).str()));
     }
 
     return true;
