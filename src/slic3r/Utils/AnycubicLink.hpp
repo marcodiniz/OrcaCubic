@@ -41,6 +41,16 @@ public:
 
     bool fetch_material_slots(std::vector<AnycubicMaterialSlot>& slots, wxString& msg) const;
 
+    const std::string& get_device_id() const { return m_device_id; }
+    const std::string& get_mode_id() const { return m_mode_id; }
+    const std::string& get_token() const { return m_token; }
+    const std::string& get_broker() const { return m_broker; }
+    const std::string& get_username() const { return m_username; }
+
+    bool fetch_credentials(wxString& error_msg) const;
+    bool fetch_upload_url_via_mqtt(std::string& upload_token, wxString& error_msg) const;
+    bool start_print(wxString& error_msg, const std::string& filename, const PrintHostUpload& upload_data) const;
+
 private:
     std::string m_host;
     std::string m_port;
@@ -48,6 +58,14 @@ private:
     std::string m_device_id;
     std::string m_mode_id;
     std::string m_device_name;
+    std::string m_cn;
+    std::string m_ctrl_url;
+    std::string m_broker;
+    std::string m_username;
+    std::string m_password;
+    std::string m_device_crt;
+    std::string m_device_pk;
+    std::string m_upload_token;
 
     std::string make_url(const std::string& path) const;
     bool query_info(wxString& error_msg) const;
