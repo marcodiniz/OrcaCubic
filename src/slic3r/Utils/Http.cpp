@@ -462,7 +462,10 @@ void Http::priv::http_perform()
 		::curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
 	}
 
-	if (!postfields.empty()) {
+	if (method == "POST" && form == nullptr && mime == nullptr) {
+		::curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postfields.c_str());
+		::curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)postfields.size());
+	} else if (!postfields.empty()) {
 		::curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postfields.c_str());
 		::curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, postfields.size());
 	}

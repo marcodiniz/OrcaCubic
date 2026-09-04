@@ -491,9 +491,9 @@ bool AnycubicLink::fetch_credentials(wxString& error_msg) const
 
     auto http = Http::post(ctrl_url);
     http.header("User-Agent", "AnycubicSlicerNext/2.0.0.2")
+        .header("Content-Length", "0")
         .timeout_connect(5)
         .timeout_max(15)
-        .set_post_body(std::string("{}"))
         .on_complete([&](std::string body, unsigned status) {
             if (status == 200) {
                 response_body = std::move(body);
