@@ -96,6 +96,19 @@ def on_mqtt_connect(c, userdata, flags, rc, properties=None):
     telemetry["connected"] = True
     c.subscribe(f"anycubic/anycubicCloud/v1/printer/public/{model_id}/{device_id}/#")
     query_all()
+    # Trigger video startCapture
+    try:
+        v_topic = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/video"
+        v_msg = {
+            "type": "video",
+            "action": "startCapture",
+            "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+            "timestamp": int(time.time() * 1000),
+            "data": None
+        }
+        c.publish(v_topic, json.dumps(v_msg))
+    except:
+        pass
 
 def on_mqtt_message(c, userdata, msg):
     global telemetry, pending_cleanup
@@ -309,21 +322,35 @@ class BridgeServer(BaseHTTPRequestHandler):
 
             elif action == "light":
                 status = int(data.get("status", 1))
-                topic = f"anycubic/anycubicCloud/v1/slicer/printer/{model_id}/{device_id}/light"
+                topic = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/light"
                 msg = {
                     "type": "light",
-                    "action": "set",
+                    "action": "control",
                     "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
                     "timestamp": int(time.time() * 1000),
                     "data": {
-                        "brightness": 100,
+                        "type": 3,
                         "status": status,
-                        "type": 3
+                        "brightness": 100 if status == 1 else 0
                     }
                 }
                 if mqtt_client:
                     mqtt_client.publish(topic, json.dumps(msg))
+                    print(f"[Bridge] Published light {status} to {topic}")
                 telemetry["light"] = status
+
+            elif action == "start_capture" or action == "video_start":
+                topic = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/video"
+                msg = {
+                    "type": "video",
+                    "action": "startCapture",
+                    "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                    "timestamp": int(time.time() * 1000),
+                    "data": None
+                }
+                if mqtt_client:
+                    mqtt_client.publish(topic, json.dumps(msg))
+                    print(f"[Bridge] Published startCapture to {topic}")
 
             elif action == "speed":
                 mode = int(data.get("mode", 2))
@@ -340,6 +367,14 @@ class BridgeServer(BaseHTTPRequestHandler):
                 if mqtt_client:
                     mqtt_client.publish(topic, json.dumps(msg))
                 telemetry["speed_mode"] = mode
+
+        elif self.path.endswith("/mach_mqtt/publish"):
+            topic = data.get("topic", "")
+            payload_raw = data.get("payload", "")
+            if topic and mqtt_client:
+                mqtt_client.publish(topic, payload_raw)
+                print(f"[Bridge] Proxy-published to {topic}")
+            result = {"code": 200, "data": None, "msg": "ok"}
 
         elif self.path.startswith("/run_gcode"):
             gcode = data.get("gcode", "")

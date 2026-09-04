@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OrcaCubic Workbench</title>
+    <script src="flv.min.js"></script>
     <style>
         :root {
             --bg-base: #0f1117;
@@ -679,21 +680,21 @@
             <div class="card">
                 <div class="card-header">
                     <h2>📹 Live Camera Stream</h2>
-                    <span class="tag">Port 18088</span>
+                    <span class="tag">Port 18088 FLV</span>
                 </div>
                 <div class="camera-container" id="cam-box">
-                    <img id="cam-feed" src="http://192.168.1.133:18088/live/Hw29TQkP" onerror="handleCamError()" alt="Camera Feed" />
+                    <video id="cam-video" autoplay muted playsinline controls style="width:100%; height:100%; object-fit:contain; background:#000; display:block;"></video>
                     <div class="camera-placeholder" id="cam-placeholder" style="display:none;">
-                        <span>📷 Camera Stream Offline / Loading</span>
-                        <button class="btn btn-sm" onclick="retryCam()">Retry</button>
+                        <span>📷 Camera Stream Offline / Initializing</span>
+                        <button class="btn btn-sm" onclick="startCameraStream()">▶ Connect Camera</button>
                     </div>
                     <div class="camera-top-controls">
                         <button class="btn btn-sm" id="btn-light" onclick="toggleLight()">💡 Light: On</button>
+                        <button class="btn btn-sm" id="btn-cam-stream" onclick="startCameraStream()">▶ Start Stream</button>
                     </div>
                     <div class="camera-controls">
-                        <button class="btn btn-sm" onclick="toggleCameraView()">👁 Toggle Feed</button>
-                        <button class="btn btn-sm" onclick="openCamFull()">⛶ Fullscreen</button>
-                        <button class="btn btn-sm" onclick="retryCam()">🔄 Reload</button>
+                        <button class="btn btn-sm" onclick="openCamFull()">⛶ Open Feed</button>
+                        <button class="btn btn-sm" onclick="startCameraStream()">🔄 Reconnect</button>
                     </div>
                 </div>
             </div>
@@ -899,43 +900,91 @@
         ];
         let currentSpeedMode = 2;
         let lightStatus = 1;
-        let cameraVisible = true;
         let jogStep = 10;
-        let currentPrinterState = "printing";
+        let currentPrinterState = "idle";
+        let flvPlayer = null;
+        let activeCameraUrl = "http://192.168.1.133:18088/live/Hw29TQkP";
 
-        function handleCamError() {
-            document.getElementById("cam-feed").style.display = "none";
-            document.getElementById("cam-placeholder").style.display = "flex";
-        }
-
-        function retryCam() {
-            const feed = document.getElementById("cam-feed");
-            feed.style.display = cameraVisible ? "block" : "none";
-            document.getElementById("cam-placeholder").style.display = "none";
-            feed.src = feed.src.split('?')[0] + "?t=" + Date.now();
-        }
-
-        function toggleCameraView() {
-            cameraVisible = !cameraVisible;
-            const feed = document.getElementById("cam-feed");
-            feed.style.display = cameraVisible ? "block" : "none";
-        }
-
-        function openCamFull() {
-            const feed = document.getElementById("cam-feed");
-            window.open(feed.src, "_blank");
-        }
-
-        async function toggleLight() {
-            lightStatus = lightStatus === 1 ? 0 : 1;
-            document.getElementById("btn-light").innerText = lightStatus === 1 ? "💡 Light: On" : "💡 Light: Off";
+        async function startCameraStream() {
             try {
                 await fetch("http://127.0.0.1:18988/control", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action: "light", status: lightStatus })
+                    body: JSON.stringify({ action: "start_capture" })
                 });
             } catch(e) {}
+            setTimeout(() => {
+                initFlvVideo(activeCameraUrl);
+            }, 800);
+        }
+
+        function initFlvVideo(url) {
+            if (!url) return;
+            activeCameraUrl = url;
+            const videoElement = document.getElementById("cam-video");
+            if (!videoElement) return;
+
+            if (typeof flvjs !== "undefined" && flvjs.isSupported()) {
+                if (flvPlayer) {
+                    try {
+                        flvPlayer.pause();
+                        flvPlayer.unload();
+                        flvPlayer.detachMediaElement();
+                        flvPlayer.destroy();
+                    } catch(e) {}
+                    flvPlayer = null;
+                }
+                try {
+                    flvPlayer = flvjs.createPlayer({
+                        type: "flv",
+                        isLive: true,
+                        url: url,
+                        cors: true,
+                        hasAudio: false
+                    }, {
+                        enableWorker: false,
+                        enableStashBuffer: false,
+                        reuseRedirectedURL: true,
+                        autoCleanupSourceBuffer: true,
+                        stashInitialSize: 128
+                    });
+                    flvPlayer.attachMediaElement(videoElement);
+                    flvPlayer.load();
+                    flvPlayer.play().then(() => {
+                        document.getElementById("cam-placeholder").style.display = "none";
+                        videoElement.style.display = "block";
+                    }).catch(e => {
+                        console.log("Play catch:", e);
+                    });
+
+                    flvPlayer.on(flvjs.Events.ERROR, (errType, errDetail, errInfo) => {
+                        console.warn("FLV Error:", errType, errDetail, errInfo);
+                    });
+                } catch(e) {
+                    console.error("Failed to init flv player:", e);
+                }
+            } else {
+                console.warn("flvjs not supported");
+            }
+        }
+
+        function openCamFull() {
+            window.open(activeCameraUrl, "_blank");
+        }
+
+        async function toggleLight() {
+            const nextStatus = lightStatus === 1 ? 0 : 1;
+            try {
+                await fetch("http://127.0.0.1:18988/control", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "light", status: nextStatus })
+                });
+                lightStatus = nextStatus;
+                document.getElementById("btn-light").innerText = lightStatus === 1 ? "💡 Light: On" : "💡 Light: Off";
+            } catch(e) {
+                console.error("Error toggling light:", e);
+            }
         }
 
         async function setSpeed(mode) {
@@ -1139,10 +1188,9 @@
                         document.getElementById("conn-state").innerText = "LAN Live (18910/9883)";
                     }
                     if (data.camera_url && data.camera_url.startsWith("http")) {
-                        const cam = document.getElementById("cam-feed");
-                        if (cam.src !== data.camera_url && !cam.dataset.loaded) {
-                            cam.src = data.camera_url;
-                            cam.dataset.loaded = "true";
+                        activeCameraUrl = data.camera_url;
+                        if (!flvPlayer) {
+                            initFlvVideo(data.camera_url);
                         }
                     }
                     if (data.filaments && Array.isArray(data.filaments) && data.filaments.length > 0) {
