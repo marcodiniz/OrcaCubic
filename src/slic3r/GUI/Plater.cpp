@@ -1990,6 +1990,18 @@ void Sidebar::priv::update_extruder_separator_icon(bool show, bool ready)
 
 bool Sidebar::priv::sync_extruder_list(bool &only_external_material, bool is_manual)
 {
+    PresetBundle *bundle = wxGetApp().preset_bundle;
+    if (bundle != nullptr) {
+        const Preset &cur_printer = bundle->printers.get_selected_preset();
+        std::string host_type = cur_printer.config.opt_string("host_type");
+        if (host_type == "anycubic") {
+            BOOST_LOG_TRIVIAL(info) << "[Sidebar::sync_extruder_list] Anycubic printer detected, navigating to Device Workbench";
+            if (wxGetApp().mainframe != nullptr)
+                wxGetApp().mainframe->select_tab(MainFrame::tpMonitor);
+            return true;
+        }
+    }
+
     MachineObject *obj = wxGetApp().getDeviceManager()->get_selected_machine();
     auto           printer_name = plater->get_selected_printer_name_in_combox();
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << __LINE__ << " begin sync_extruder_list";

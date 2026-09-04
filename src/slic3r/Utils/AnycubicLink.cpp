@@ -412,7 +412,14 @@ std::string AnycubicLink::get_print_host_webui(DynamicPrintConfig *config)
     if (!webui.empty())
         return webui;
 
-    // Default to official Anycubic Workbench web UI
+    boost::filesystem::path local_html = boost::filesystem::path(Slic3r::resources_dir()) / "web" / "anycubic" / "workbench.html";
+    if (boost::filesystem::exists(local_html)) {
+        std::string p = local_html.generic_string();
+        if (!p.empty() && p[0] != '/')
+            p = "/" + p;
+        return "file://" + p;
+    }
+
     return "https://cloud-universe.anycubic.com/w/p/AcOrcaWeb/workbench/";
 }
 

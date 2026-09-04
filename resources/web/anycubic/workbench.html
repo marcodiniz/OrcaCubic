@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OrcaCubic Workbench</title>
+    <style>
+        :root {
+            --bg-base: #0f1117;
+            --bg-surface: #171b24;
+            --bg-card: #1f2430;
+            --bg-card-hover: #262c3b;
+            --border: #2d3345;
+            --border-highlight: #3e475e;
+            --primary: #00d2ff;
+            --primary-glow: rgba(0, 210, 255, 0.2);
+            --accent: #00b4d8;
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.2);
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --text-dim: #6b7280;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-base);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 16px;
+            overflow-x: hidden;
+        }
+
+        /* Top Header */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            margin-bottom: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, #00d2ff 0%, #0077b6 100%);
+            border-radius: var(--radius-md);
+            color: #000;
+            font-weight: 800;
+            font-size: 18px;
+            box-shadow: 0 0 12px var(--primary-glow);
+        }
+
+        .header-title h1 {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: 0.3px;
+        }
+
+        .header-title p {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #34d399;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.85); }
+        }
+
+        .btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 7px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+        }
+
+        .btn:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-highlight);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00b4d8 0%, #0077b6 100%);
+            border-color: #0096c7;
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #00c4ea 0%, #0088cc 100%);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.4);
+            color: #f87171;
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: rgba(239, 68, 68, 0.6);
+        }
+
+        /* Layout Grid */
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1.15fr 1fr;
+            gap: 16px;
+        }
+
+        @media (max-width: 900px) {
+            .grid-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        .card-header h2 {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-header .tag {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: rgba(0, 210, 255, 0.12);
+            color: var(--primary);
+            border: 1px solid rgba(0, 210, 255, 0.25);
+        }
+
+        /* Camera Box */
+        .camera-container {
+            position: relative;
+            width: 100%;
+            height: 260px;
+            background: #090a0f;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .camera-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .camera-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-dim);
+            font-size: 13px;
+        }
+
+        .camera-controls {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            display: flex;
+            gap: 6px;
+        }
+
+        .camera-controls .btn-sm {
+            padding: 4px 8px;
+            font-size: 11px;
+            background: rgba(15, 17, 23, 0.75);
+            backdrop-filter: blur(4px);
+        }
+
+        /* Temperatures Card */
+        .temp-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .temp-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .temp-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .temp-val {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .temp-target {
+            font-size: 13px;
+            color: var(--text-dim);
+            font-weight: 400;
+        }
+
+        .temp-bar-bg {
+            width: 100%;
+            height: 6px;
+            background: #12141c;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .temp-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.4s ease;
+        }
+
+        .bar-nozzle {
+            background: linear-gradient(90deg, #ff7b00, #ff3d00);
+            width: 0%;
+        }
+
+        .bar-bed {
+            background: linear-gradient(90deg, #00b4d8, #0077b6);
+            width: 0%;
+        }
+
+        /* Filament ACE Pro (4 slots) */
+        .slots-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .slot-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            transition: all 0.15s ease;
+        }
+
+        .slot-card.active {
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .slot-badge {
+            position: absolute;
+            top: 6px;
+            left: 8px;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-dim);
+        }
+
+        .slot-color-circle {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.25);
+            margin-top: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+
+        .slot-material {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .slot-temp {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .slot-level {
+            font-size: 10px;
+            color: #34d399;
+            background: rgba(16, 185, 129, 0.12);
+            padding: 2px 6px;
+            border-radius: 8px;
+        }
+
+        /* Job Card */
+        .job-card {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .job-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .job-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-main);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 240px;
+        }
+
+        .job-progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #12141c;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .job-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00b4d8 0%, #00e5ff 100%);
+            border-radius: 5px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .job-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            text-align: center;
+        }
+
+        .job-stat-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 4px;
+        }
+
+        .job-stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .job-stat-val {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-top: 2px;
+        }
+
+        .job-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .job-actions .btn {
+            flex: 1;
+            justify-content: center;
+        }
+
+        /* Preset Chips */
+        .preset-chips {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .chip {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .chip:hover {
+            border-color: var(--primary);
+            color: var(--text-main);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="header-left">
+            <div class="logo-badge">K</div>
+            <div class="header-title">
+                <h1>Anycubic Kobra X</h1>
+                <p id="sub-info">IP: 192.168.1.133 · Model: 20030 · CN: 7526-2504-37CE-E5A2</p>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="status-pill">
+                <div class="status-dot"></div>
+                <span id="conn-state">LAN Connected (18910)</span>
+            </div>
+            <button class="btn" onclick="refreshStatus()">🔄 Refresh</button>
+        </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="grid-container">
+        
+        <!-- Left Column: Camera & Live Job -->
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            
+            <!-- Live Camera -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>📹 Live Camera Stream</h2>
+                    <span class="tag">Port 18088</span>
+                </div>
+                <div class="camera-container" id="cam-box">
+                    <img id="cam-feed" src="http://192.168.1.133:18088/" onerror="handleCamError()" alt="Camera Feed" />
+                    <div class="camera-placeholder" id="cam-placeholder" style="display:none;">
+                        <span>📷 Camera Stream Offline</span>
+                        <button class="btn btn-sm" onclick="retryCam()">Retry</button>
+                    </div>
+                    <div class="camera-controls">
+                        <button class="btn btn-sm" onclick="openCamFull()">⛶ Fullscreen</button>
+                        <button class="btn btn-sm" onclick="retryCam()">🔄 Reload</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Print Job -->
+            <div class="card job-card">
+                <div class="card-header">
+                    <h2>🖨️ Active Print Job</h2>
+                    <span class="tag" id="print-state">Idle</span>
+                </div>
+                <div class="job-title-row">
+                    <div class="job-name" id="job-name">Ready for Next Print</div>
+                    <div style="font-weight: 700; font-size: 15px; color: var(--primary);" id="job-pct">0%</div>
+                </div>
+                <div class="job-progress-bar">
+                    <div class="job-progress-fill" id="job-progress-fill"></div>
+                </div>
+                <div class="job-stats-grid">
+                    <div class="job-stat-box">
+                        <div class="job-stat-label">Layer</div>
+                        <div class="job-stat-val" id="stat-layer">0 / 0</div>
+                    </div>
+                    <div class="job-stat-box">
+                        <div class="job-stat-label">Elapsed</div>
+                        <div class="job-stat-val" id="stat-elapsed">0m</div>
+                    </div>
+                    <div class="job-stat-box">
+                        <div class="job-stat-label">Remaining</div>
+                        <div class="job-stat-val" id="stat-remaining">--</div>
+                    </div>
+                </div>
+                <div class="job-actions">
+                    <button class="btn" onclick="sendControl('pause')">⏸ Pause</button>
+                    <button class="btn" onclick="sendControl('resume')">▶ Resume</button>
+                    <button class="btn btn-danger" onclick="sendControl('stop')">⏹ Cancel</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Filament ACE Pro & Temperatures -->
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            
+            <!-- ACE Pro Multi-Color Hub -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>🎨 ACE Pro Filament Hub</h2>
+                    <button class="btn btn-primary" style="padding: 4px 10px; font-size: 11px;" onclick="syncFilamentsToSlicer()">
+                        🔄 Sync to Slicer
+                    </button>
+                </div>
+                <div class="slots-container" id="slots-container">
+                    <!-- Slot 1 -->
+                    <div class="slot-card active" id="slot-0">
+                        <span class="slot-badge">1</span>
+                        <div class="slot-color-circle" style="background: #00d2ff;"></div>
+                        <div class="slot-material">PLA</div>
+                        <div class="slot-temp">210°C</div>
+                        <div class="slot-level">Ready</div>
+                    </div>
+                    <!-- Slot 2 -->
+                    <div class="slot-card" id="slot-1">
+                        <span class="slot-badge">2</span>
+                        <div class="slot-color-circle" style="background: #ff3366;"></div>
+                        <div class="slot-material">PLA</div>
+                        <div class="slot-temp">210°C</div>
+                        <div class="slot-level">Ready</div>
+                    </div>
+                    <!-- Slot 3 -->
+                    <div class="slot-card" id="slot-2">
+                        <span class="slot-badge">3</span>
+                        <div class="slot-color-circle" style="background: #ffd600;"></div>
+                        <div class="slot-material">PETG</div>
+                        <div class="slot-temp">235°C</div>
+                        <div class="slot-level">Ready</div>
+                    </div>
+                    <!-- Slot 4 -->
+                    <div class="slot-card" id="slot-3">
+                        <span class="slot-badge">4</span>
+                        <div class="slot-color-circle" style="background: #9d4edd;"></div>
+                        <div class="slot-material">PLA</div>
+                        <div class="slot-temp">210°C</div>
+                        <div class="slot-level">Ready</div>
+                    </div>
+                </div>
+                <p style="font-size: 11px; color: var(--text-dim); text-align: center;">
+                    Click "Sync to Slicer" to sync these filaments with OrcaSlicer's plate.
+                </p>
+            </div>
+
+            <!-- Temperatures -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>🔥 Temperatures</h2>
+                    <span class="tag">Real-time</span>
+                </div>
+                <div class="temp-grid">
+                    <div class="temp-item">
+                        <div class="temp-label">
+                            <span>Nozzle</span>
+                            <span class="temp-target">Target: <span id="target-nozzle">210</span>°C</span>
+                        </div>
+                        <div class="temp-val"><span id="cur-nozzle">24</span>°C</div>
+                        <div class="temp-bar-bg">
+                            <div class="temp-bar-fill bar-nozzle" id="bar-nozzle" style="width: 10%;"></div>
+                        </div>
+                    </div>
+                    <div class="temp-item">
+                        <div class="temp-label">
+                            <span>Heatbed</span>
+                            <span class="temp-target">Target: <span id="target-bed">60</span>°C</span>
+                        </div>
+                        <div class="temp-val"><span id="cur-bed">23</span>°C</div>
+                        <div class="temp-bar-bg">
+                            <div class="temp-bar-fill bar-bed" id="bar-bed" style="width: 25%;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="preset-chips">
+                    <div class="chip" onclick="preheat(205, 60)">PLA (205/60)</div>
+                    <div class="chip" onclick="preheat(235, 75)">PETG (235/75)</div>
+                    <div class="chip" onclick="preheat(255, 90)">ABS (255/90)</div>
+                    <div class="chip" onclick="preheat(0, 0)">Cooldown</div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        let printerIP = "192.168.1.133";
+        let filaments = [
+            { slot: 1, color: "#00d2ff", type: "PLA", temp: 210 },
+            { slot: 2, color: "#ff3366", type: "PLA", temp: 210 },
+            { slot: 3, color: "#ffd600", type: "PETG", temp: 235 },
+            { slot: 4, color: "#9d4edd", type: "PLA", temp: 210 }
+        ];
+
+        function handleCamError() {
+            document.getElementById("cam-feed").style.display = "none";
+            document.getElementById("cam-placeholder").style.display = "flex";
+        }
+
+        function retryCam() {
+            const feed = document.getElementById("cam-feed");
+            feed.style.display = "block";
+            document.getElementById("cam-placeholder").style.display = "none";
+            feed.src = "http://" + printerIP + ":18088/?t=" + Date.now();
+        }
+
+        function openCamFull() {
+            window.open("http://" + printerIP + ":18088/", "_blank");
+        }
+
+        function sendToSlicer(command, data) {
+            const payload = JSON.stringify({ command: command, data: data });
+            if (window.wx && typeof window.wx.postMessage === 'function') {
+                window.wx.postMessage(payload);
+            } else if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+                window.chrome.webview.postMessage(payload);
+            } else {
+                console.log("[Workbench JS] PostMessage to host:", payload);
+            }
+        }
+
+        function syncFilamentsToSlicer() {
+            sendToSlicer("sync_filaments_to_slicer", filaments);
+            alert("Filament profiles pushed to OrcaSlicer!");
+        }
+
+        function sendControl(action) {
+            sendToSlicer("device_control", { action: action });
+        }
+
+        function preheat(nozzle, bed) {
+            document.getElementById("target-nozzle").innerText = nozzle;
+            document.getElementById("target-bed").innerText = bed;
+            sendToSlicer("set_temperatures", { nozzle: nozzle, bed: bed });
+        }
+
+        function refreshStatus() {
+            sendToSlicer("request_printer_status", {});
+            retryCam();
+        }
+
+        // Bridge handler invoked by C++ host: HandleStudio or postMessage
+        window.HandleStudio = function(msg) {
+            try {
+                let data = typeof msg === 'string' ? JSON.parse(msg) : msg;
+                if (data.command === "orcacubic_filament_sync" && data.filaments) {
+                    updateFilamentUI(data.filaments);
+                } else if (data.command === "orcacubic_telemetry") {
+                    updateTelemetryUI(data);
+                }
+            } catch(e) {
+                console.error("Error parsing message from OrcaCubic:", e);
+            }
+        };
+
+        window.addEventListener('message', function(event) {
+            if (event.data) {
+                window.HandleStudio(event.data);
+            }
+        });
+
+        function updateFilamentUI(newFilaments) {
+            filaments = newFilaments;
+            const container = document.getElementById("slots-container");
+            container.innerHTML = "";
+            newFilaments.forEach((f, idx) => {
+                const div = document.createElement("div");
+                div.className = "slot-card" + (idx === 0 ? " active" : "");
+                div.id = "slot-" + idx;
+                div.innerHTML = `
+                    <span class="slot-badge">${idx + 1}</span>
+                    <div class="slot-color-circle" style="background: ${f.color || '#00d2ff'};"></div>
+                    <div class="slot-material">${f.type || 'PLA'}</div>
+                    <div class="slot-temp">${f.nozzle_temp || f.temp || 210}°C</div>
+                    <div class="slot-level">Ready</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function updateTelemetryUI(data) {
+            if (data.nozzle_temp !== undefined) {
+                document.getElementById("cur-nozzle").innerText = Math.round(data.nozzle_temp);
+                document.getElementById("bar-nozzle").style.width = Math.min(100, (data.nozzle_temp / 300) * 100) + "%";
+            }
+            if (data.bed_temp !== undefined) {
+                document.getElementById("cur-bed").innerText = Math.round(data.bed_temp);
+                document.getElementById("bar-bed").style.width = Math.min(100, (data.bed_temp / 110) * 100) + "%";
+            }
+            if (data.print_state) {
+                document.getElementById("print-state").innerText = data.print_state;
+            }
+            if (data.progress !== undefined) {
+                document.getElementById("job-pct").innerText = Math.round(data.progress) + "%";
+                document.getElementById("job-progress-fill").style.width = data.progress + "%";
+            }
+            if (data.job_name) {
+                document.getElementById("job-name").innerText = data.job_name;
+            }
+        }
+    </script>
+</body>
+</html>
