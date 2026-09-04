@@ -931,9 +931,16 @@
         let alertDismissed = false;
         let lastSeenAlert = "";
 
-        function dismissAlert() {
+        async function dismissAlert() {
             alertDismissed = true;
             document.getElementById("printer-alert-banner").style.display = "none";
+            try {
+                await fetch("http://127.0.0.1:18988/control", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "clear_alert" })
+                });
+            } catch(e) {}
         }
 
         async function startCameraStream() {
@@ -1290,7 +1297,7 @@
                         print_time: data.print_time,
                         speed_mode: data.speed_mode,
                         light: data.light,
-                        axis_error: data.last_error || data.axis_error
+                        axis_error: data.axis_error || ""
                     });
                 }
             } catch (err) {}

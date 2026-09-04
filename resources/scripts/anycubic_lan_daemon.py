@@ -123,10 +123,15 @@ def on_mqtt_message(c, userdata, msg):
         # Always capture printer LCD warnings and error reports
         if (code != 200 and code != 0) or state_str in ["failed", "abnormal"]:
             if msg_str:
-                telemetry["last_error"] = msg_str
+                display_msg = msg_str
+                if code == 10901 or "home" in msg_str.lower():
+                    display_msg = "Home the axis before moving (Click 🏠 Home to calibrate zero position)."
+                elif code == 10111:
+                    display_msg = f"LCD Notice (10111): {msg_str}. Please click 🏠 Home before starting motion or print jobs."
+                telemetry["last_error"] = display_msg
                 telemetry["last_error_code"] = code
                 telemetry["last_error_time"] = int(time.time())
-                print(f"[Bridge] PRINTER LCD NOTICE ({code}): {msg_str}")
+                print(f"[Bridge] PRINTER LCD NOTICE ({code}): {display_msg}")
 
         data = payload.get("data")
 
@@ -361,6 +366,14 @@ class BridgeServer(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.startswith("/status") or self.path == "/" or self.path.startswith("/api/v1"):
+            # Auto-expire historical alerts after 20 seconds or when printing
+            if telemetry.get("last_error"):
+                err_age = time.time() - telemetry.get("last_error_time", 0)
+                st = telemetry.get("state", "").lower()
+                if err_age > 20 or st in ["printing", "auto_leveling", "heating", "busy"]:
+                    telemetry["last_error"] = ""
+                    telemetry["last_error_code"] = 0
+
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
@@ -483,6 +496,11 @@ class BridgeServer(BaseHTTPRequestHandler):
                 if mqtt_client:
                     mqtt_client.publish(topic, json.dumps(msg))
                     print(f"[Bridge] Published Home {axis_name}")
+
+            elif action == "clear_alert":
+                telemetry["last_error"] = ""
+                telemetry["last_error_code"] = 0
+                telemetry["axis_error"] = ""
 
             elif action == "motor_off" or action == "turnOff":
                 topic = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/axis"
