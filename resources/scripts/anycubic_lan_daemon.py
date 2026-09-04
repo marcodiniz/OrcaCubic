@@ -155,6 +155,14 @@ def on_mqtt_message(c, userdata, msg):
             if st:
                 telemetry["state"] = st
 
+        elif t == "axis":
+            code = payload.get("code", 0)
+            msg_str = payload.get("msg", "")
+            if code != 200 and msg_str:
+                telemetry["axis_error"] = msg_str
+            else:
+                telemetry["axis_error"] = ""
+
         elif t == "light":
             lights = data.get("lights", [])
             if lights and len(lights) > 0:
@@ -367,6 +375,61 @@ class BridgeServer(BaseHTTPRequestHandler):
                 if mqtt_client:
                     mqtt_client.publish(topic, json.dumps(msg))
                 telemetry["speed_mode"] = mode
+
+            elif action == "jog":
+                axis_name = data.get("axis", "X").upper()
+                axis_map = {"X": 1, "Y": 2, "Z": 3, "XY": 4, "XYZ": 5}
+                ax = axis_map.get(axis_name, 1)
+                direction = int(data.get("dir", 1))
+                move_type = 1 if direction > 0 else 0
+                dist = abs(float(data.get("dist", 10)))
+                topic = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/axis"
+                msg = {
+                    "type": "axis",
+                    "action": "move",
+                    "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                    "timestamp": int(time.time() * 1000),
+                    "data": {
+                        "axis": ax,
+                        "move_type": move_type,
+                        "distance": dist
+                    }
+                }
+                if mqtt_client:
+                    mqtt_client.publish(topic, json.dumps(msg))
+                    print(f"[Bridge] Published jog {axis_name} {direction} {dist}mm")
+
+            elif action == "home":
+                axis_name = data.get("axis", "XYZ").upper()
+                ax = 5 if axis_name == "XYZ" else (4 if axis_name == "XY" else (3 if axis_name == "Z" else 1))
+                topic = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/axis"
+                msg = {
+                    "type": "axis",
+                    "action": "move",
+                    "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                    "timestamp": int(time.time() * 1000),
+                    "data": {
+                        "axis": ax,
+                        "move_type": 2,
+                        "distance": 0
+                    }
+                }
+                if mqtt_client:
+                    mqtt_client.publish(topic, json.dumps(msg))
+                    print(f"[Bridge] Published Home {axis_name}")
+
+            elif action == "motor_off" or action == "turnOff":
+                topic = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/axis"
+                msg = {
+                    "type": "axis",
+                    "action": "turnOff",
+                    "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                    "timestamp": int(time.time() * 1000),
+                    "data": None
+                }
+                if mqtt_client:
+                    mqtt_client.publish(topic, json.dumps(msg))
+                    print("[Bridge] Published Motor Turn Off")
 
         elif self.path.endswith("/mach_mqtt/publish"):
             topic = data.get("topic", "")

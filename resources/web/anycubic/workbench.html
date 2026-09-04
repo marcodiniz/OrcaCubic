@@ -878,10 +878,10 @@
                         <div></div>
                         <button class="jog-btn" id="jog-y-minus" onclick="jog('Y', -1)">Y-</button>
                         <div></div>
-                        <div></div>
+                        <button class="jog-btn" id="jog-unlock" onclick="motorOff()">🔓 Unlock</button>
                     </div>
                     <p id="jog-hint" style="font-size: 11px; color: var(--text-dim); text-align: center;">
-                        Jogging is enabled when printer is idle.
+                        Jogging ready. (Click 🏠 Home first if motors were reset).
                     </p>
                 </div>
             </div>
@@ -1016,9 +1016,15 @@
                 alert("Cannot jog axes while a print is actively running.");
                 return;
             }
-            const dist = jogStep * dir;
-            const gcode = `G91\nG1 ${axis}${dist} F3000\nG90\nM400`;
-            await runGcodeDirect(gcode, `Jog ${axis}${dist > 0 ? '+' : ''}${dist}mm`);
+            try {
+                const res = await fetch("http://127.0.0.1:18988/control", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "jog", axis: axis, dir: dir, dist: jogStep })
+                });
+            } catch(e) {
+                console.error("Jog error:", e);
+            }
         }
 
         async function homeAll() {
@@ -1026,9 +1032,27 @@
                 alert("Cannot home axes while a print is actively running.");
                 return;
             }
-            if (confirm("Home all axes (G28)?")) {
-                await runGcodeDirect("G28\nM400", "Home All (G28)");
+            if (confirm("Home all axes (XYZ)?")) {
+                try {
+                    await fetch("http://127.0.0.1:18988/control", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "home", axis: "XYZ" })
+                    });
+                } catch(e) {
+                    console.error("Home error:", e);
+                }
             }
+        }
+
+        async function motorOff() {
+            try {
+                await fetch("http://127.0.0.1:18988/control", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "motor_off" })
+                });
+            } catch(e) {}
         }
 
         async function runGcodeDirect(gcode, label = "Command") {
@@ -1146,7 +1170,17 @@
                 document.querySelectorAll(".jog-btn").forEach(btn => {
                     btn.disabled = isPrinting;
                 });
-                document.getElementById("jog-hint").innerText = isPrinting ? "⚠️ Jogging locked during active print." : "Jogging is ready.";
+                const hintEl = document.getElementById("jog-hint");
+                if (data.axis_error) {
+                    hintEl.innerText = "⚠️ " + data.axis_error;
+                    hintEl.style.color = "#f87171";
+                } else if (isPrinting) {
+                    hintEl.innerText = "⚠️ Jogging locked during active print.";
+                    hintEl.style.color = "var(--text-dim)";
+                } else {
+                    hintEl.innerText = "Jogging ready. (Click 🏠 Home first if motors were reset).";
+                    hintEl.style.color = "var(--text-dim)";
+                }
             }
             if (data.progress !== undefined) {
                 document.getElementById("job-pct").innerText = Math.round(data.progress) + "%";
@@ -1209,7 +1243,8 @@
                         remain_time: data.remain_time,
                         print_time: data.print_time,
                         speed_mode: data.speed_mode,
-                        light: data.light
+                        light: data.light,
+                        axis_error: data.axis_error
                     });
                 }
             } catch (err) {}
