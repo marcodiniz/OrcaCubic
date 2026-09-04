@@ -386,6 +386,13 @@ public:
             params = root["params"];
 
         // 1. Filament & spool synchronization
+        if (method == "sync_filaments_to_slicer") {
+            wxGetApp().CallAfter([]() {
+                wxGetApp().sidebar().sync_ams_list(true);
+            });
+            send_ipc_message("response", request_id, method, 0, "success");
+            return;
+        }
         if (method == "get_active_filaments" || method == "request_filament_list" ||
             method == "sync_filaments" || method == "get_filaments" ||
             method == "get_filament_info" || method == "request_3mf_info") {

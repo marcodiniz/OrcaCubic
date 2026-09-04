@@ -5819,6 +5819,59 @@ void Sidebar::load_ams_list(MachineObject* obj)
         filament_ams_list = build_filament_ams_list(obj);
     }
 
+    // Check if Anycubic printer is active or if filament_ams_list is empty
+    if (filament_ams_list.empty()) {
+        bool is_anycubic = false;
+        if (wxGetApp().preset_bundle) {
+            const auto& cur_printer = wxGetApp().preset_bundle->printers.get_selected_preset();
+            std::string host_type = cur_printer.config.opt_string("host_type");
+            if (host_type == "anycubic" || boost::icontains(cur_printer.name, "Anycubic") || boost::icontains(cur_printer.name, "Kobra")) {
+                is_anycubic = true;
+            }
+        }
+        if (is_anycubic) {
+            std::string status_body;
+            auto http = Http::get("http://127.0.0.1:18988/status");
+            http.timeout_connect(1)
+                .timeout_max(2)
+                .on_complete([&status_body](std::string body, unsigned status) {
+                    if (status == 200) status_body = std::move(body);
+                })
+                .perform_sync();
+
+            if (!status_body.empty()) {
+                try {
+                    auto j = json::parse(status_body);
+                    if (j.contains("filaments") && j["filaments"].is_array()) {
+                        int slot_idx = 0;
+                        for (const auto& item : j["filaments"]) {
+                            std::string col = item.value("color", "#00d2ff");
+                            std::string typ = item.value("type", "PLA");
+                            int key = 0x10000 + slot_idx;
+
+                            DynamicPrintConfig tray_cfg;
+                            tray_cfg.set_key_value("filament_id", new ConfigOptionStrings{""});
+                            tray_cfg.set_key_value("tag_uid", new ConfigOptionStrings{""});
+                            tray_cfg.set_key_value("ams_id", new ConfigOptionStrings{"0"});
+                            tray_cfg.set_key_value("slot_id", new ConfigOptionStrings{std::to_string(slot_idx)});
+                            tray_cfg.set_key_value("filament_type", new ConfigOptionStrings{typ});
+                            tray_cfg.set_key_value("tray_name", new ConfigOptionStrings{"ACE Pro Slot " + std::to_string(slot_idx + 1)});
+                            tray_cfg.set_key_value("filament_colour", new ConfigOptionStrings{col});
+                            tray_cfg.set_key_value("filament_multi_colour", new ConfigOptionStrings{});
+                            tray_cfg.set_key_value("filament_colour_type", new ConfigOptionStrings{"0"});
+                            tray_cfg.set_key_value("filament_exist", new ConfigOptionBools{true});
+                            tray_cfg.set_key_value("filament_slot_placeholder", new ConfigOptionBools{false});
+                            tray_cfg.set_key_value("filament_is_support", new ConfigOptionBools{false});
+
+                            filament_ams_list.emplace(key, std::move(tray_cfg));
+                            slot_idx++;
+                        }
+                    }
+                } catch (...) {}
+            }
+        }
+    }
+
     bool device_change     = false;
     const std::string& device = obj ? obj->get_dev_id() : "";
     if (p->ams_list_device != device) {
@@ -5847,14 +5900,38 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
     wxBusyCursor cursor;
     // Force load ams list
     auto obj = wxGetApp().getDeviceManager()->get_selected_machine();
-    if (!obj)
-        return;
     GUI::wxGetApp().sidebar().load_ams_list(obj);
+
+    bool is_anycubic = false;
+    if (wxGetApp().preset_bundle) {
+        const auto& cur_printer = wxGetApp().preset_bundle->printers.get_selected_preset();
+        std::string host_type = cur_printer.config.opt_string("host_type");
+        if (host_type == "anycubic" || boost::icontains(cur_printer.name, "Anycubic") || boost::icontains(cur_printer.name, "Kobra")) {
+            is_anycubic = true;
+        }
+    }
 
     auto & list = wxGetApp().preset_bundle->filament_ams_list;
     if (list.empty()) {
         auto printer_name = p->plater->get_selected_printer_name_in_combox();
         p->plater->pop_warning_and_go_to_device_page(printer_name, Plater::PrinterWarningType::NOT_CONNECTED, _L("Sync printer information"));
+        return;
+    }
+
+    if (is_anycubic) {
+        MergeFilamentInfo merge_info;
+        std::vector<std::pair<DynamicPrintConfig *,std::string>> unknowns;
+        auto enable_append  = wxGetApp().app_config->get_bool("enable_append_color_by_sync_ams");
+        auto sync_color_only = wxGetApp().app_config->get("sync_ams_filament_mode") == "1";
+        auto n = wxGetApp().preset_bundle->sync_ams_list(unknowns, false, {}, enable_append, merge_info, sync_color_only);
+        
+        if (!sync_color_only && n > 0) {
+            wxGetApp().plater()->on_filament_count_change(n);
+        }
+        for (auto& c : p->combos_filament)
+            c->update();
+        update_filaments_area_height();
+        wxGetApp().plater()->update();
         return;
     }
     bool exist_at_list_one_filament =false;
