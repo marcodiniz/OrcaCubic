@@ -5843,6 +5843,15 @@ void Sidebar::load_ams_list(MachineObject* obj)
 
 void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
 {
+    static bool in_sync = false;
+    if (in_sync)
+        return;
+    struct SyncGuard {
+        bool& flag;
+        SyncGuard(bool& f) : flag(f) { flag = true; }
+        ~SyncGuard() { flag = false; }
+    } guard(in_sync);
+
     wxBusyCursor cursor;
 
     // Check if Anycubic printer is active
