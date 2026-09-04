@@ -701,18 +701,22 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
 
 bool AnycubicLink::test(wxString &curl_msg) const
 {
+    BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] test() start for host " << m_host << ":" << m_port;
     wxString error;
     if (!query_info(error)) {
+        BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] query_info failed: " << error.ToUTF8().data();
         curl_msg = error;
         return false;
     }
 
     if (!fetch_credentials(error)) {
+        BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] fetch_credentials failed: " << error.ToUTF8().data();
         curl_msg = error;
         return false;
     }
 
     curl_msg = GUI::from_u8((boost::format("%1% (Model ID: %2%, Device ID: %3%, CN: %4%)") % m_device_name % m_mode_id % m_device_id % m_cn).str());
+    BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] test() success: " << curl_msg.ToUTF8().data();
     return true;
 }
 

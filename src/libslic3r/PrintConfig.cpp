@@ -5400,6 +5400,7 @@ void PrintConfigDef::init_fff_params()
     def->enum_values.push_back("elegoolink");
     def->enum_values.push_back("3dprinteros");
     def->enum_values.push_back("moonraker");
+    def->enum_values.push_back("anycubic");
     def->enum_labels.push_back("PrusaLink");
     def->enum_labels.push_back("PrusaConnect");
     def->enum_labels.push_back("Octo/Klipper");
@@ -5416,6 +5417,7 @@ void PrintConfigDef::init_fff_params()
     def->enum_labels.push_back("Elegoo Link");
     def->enum_labels.push_back("3DPrinterOS");
     def->enum_labels.push_back("Moonraker (Klipper)");
+    def->enum_labels.push_back("Anycubic");
     def->mode = comAdvanced;
     def->cli = ConfigOptionDef::nocli;
     def->set_default_value(new ConfigOptionEnum<PrintHostType>(htOctoPrint));

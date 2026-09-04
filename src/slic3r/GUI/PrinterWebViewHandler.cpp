@@ -14,6 +14,7 @@
 #include <atomic>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
+#include <boost/log/trivial.hpp>
 #include <map>
 #include <thread>
 #include <wx/filedlg.h>
@@ -352,6 +353,8 @@ public:
 
     void on_loaded(wxWebViewEvent &evt) override
     {
+        BOOST_LOG_TRIVIAL(info) << "[AnycubicPrinterWebViewHandler] on_loaded: " << evt.GetURL().ToUTF8().data();
+        inject_ac_localhost_interceptor();
         sync_filaments_to_webview();
         sync_login_info_to_webview();
     }
@@ -361,6 +364,8 @@ public:
         const wxString message = evt.GetString();
         if (message.empty())
             return;
+
+        BOOST_LOG_TRIVIAL(info) << "[AnycubicPrinterWebViewHandler] on_script_message: " << message.ToUTF8().data();
 
         json root = json::parse(message.ToUTF8().data(), nullptr, false);
         if (root.is_discarded() || !root.is_object())
@@ -508,10 +513,52 @@ private:
         });
     }
 
+    void inject_ac_localhost_interceptor()
+    {
+        if (browser() == nullptr) return;
+        const wxString shim = R"(
+        (function() {
+            if (window._orcacubic_fetch_hooked) return;
+            window._orcacubic_fetch_hooked = true;
+            console.log('[OrcaCubic] Intercepting fetch for ac.localhost');
+            const origFetch = window.fetch;
+            window.fetch = async function(resource, init) {
+                let urlStr = typeof resource === 'string' ? resource : (resource && resource.url ? resource.url : '');
+                if (urlStr.includes('ac.localhost') || urlStr.includes('/api/v1/')) {
+                    console.log('[OrcaCubic] Intercepted ac.localhost call:', urlStr);
+                    if (urlStr.includes('/account/')) {
+                        return new Response(JSON.stringify({ code: 200, data: { logged: true, name: "OrcaCubic User", token: "valid" }, message: "success" }), {
+                            status: 200,
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    }
+                    if (urlStr.includes('get_filaments') || urlStr.includes('filament')) {
+                        return new Response(JSON.stringify({ code: 200, data: window.orcacubic_filaments || [], message: "success" }), {
+                            status: 200,
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    }
+                    return new Response(JSON.stringify({ code: 200, data: {}, message: "success" }), {
+                        status: 200,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+                return origFetch.apply(this, arguments);
+            };
+        })();
+        )";
+        wxGetApp().CallAfter([this, shim]() {
+            if (browser() != nullptr)
+                WebView::RunScript(browser(), shim);
+        });
+    }
+
     void sync_filaments_to_webview(const std::string& request_id = "")
     {
         if (browser() == nullptr || wxGetApp().preset_bundle == nullptr)
             return;
+
+        BOOST_LOG_TRIVIAL(info) << "[AnycubicPrinterWebViewHandler] sync_filaments_to_webview enter";
 
         auto full_cfg = wxGetApp().preset_bundle->full_config();
         const auto* colors             = full_cfg.option<ConfigOptionStrings>("filament_colour");
@@ -638,6 +685,8 @@ private:
             "window.orcacubic_multi_color_box = %s.multi_color_box;"
             "try { window.dispatchEvent(new CustomEvent('orcacubic_filament_sync', { detail: %s })); } catch(e) {}",
             payload_str, payload_str, payload_str, payload_str, payload_str);
+
+        BOOST_LOG_TRIVIAL(info) << "[AnycubicPrinterWebViewHandler] Synced " << count << " filaments to webview";
 
         wxGetApp().CallAfter([this, script]() {
             if (browser() != nullptr)
