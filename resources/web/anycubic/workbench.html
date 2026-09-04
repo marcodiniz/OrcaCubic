@@ -43,7 +43,6 @@
             overflow-x: hidden;
         }
 
-        /* Top Header */
         header {
             display: flex;
             align-items: center;
@@ -163,7 +162,12 @@
             border-color: rgba(239, 68, 68, 0.6);
         }
 
-        /* Layout Grid */
+        .btn-active {
+            border-color: var(--primary) !important;
+            background: rgba(0, 210, 255, 0.15) !important;
+            color: var(--primary) !important;
+        }
+
         .grid-container {
             display: grid;
             grid-template-columns: 1.15fr 1fr;
@@ -253,8 +257,16 @@
         .camera-controls .btn-sm {
             padding: 4px 8px;
             font-size: 11px;
-            background: rgba(15, 17, 23, 0.75);
+            background: rgba(15, 17, 23, 0.85);
             backdrop-filter: blur(4px);
+        }
+
+        .camera-top-controls {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            display: flex;
+            gap: 6px;
         }
 
         /* Temperatures Card */
@@ -318,7 +330,7 @@
             width: 0%;
         }
 
-        /* Filament ACE Pro (4 slots) */
+        /* Filament ACE Pro */
         .slots-container {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -456,7 +468,164 @@
             justify-content: center;
         }
 
-        /* Preset Chips */
+        /* Speed buttons row */
+        .speed-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 6px 10px;
+        }
+
+        .speed-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-right: 4px;
+        }
+
+        .speed-btn {
+            flex: 1;
+            padding: 4px 6px;
+            font-size: 11px;
+            font-weight: 600;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.15s ease;
+        }
+
+        .speed-btn:hover {
+            border-color: var(--border-highlight);
+            color: var(--text-main);
+        }
+
+        .speed-btn.active {
+            background: rgba(0, 210, 255, 0.15);
+            border-color: var(--primary);
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        /* Jog Control Panel */
+        .jog-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .jog-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .jog-step-chips {
+            display: flex;
+            gap: 6px;
+        }
+
+        .jog-step-chip {
+            padding: 3px 8px;
+            font-size: 11px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .jog-step-chip.active {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: rgba(0, 210, 255, 0.15);
+            font-weight: 700;
+        }
+
+        .jog-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            align-items: center;
+        }
+
+        .jog-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 10px 4px;
+            font-size: 12px;
+            font-weight: 700;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.15s ease;
+        }
+
+        .jog-btn:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-highlight);
+            color: var(--primary);
+        }
+
+        .jog-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            border-color: var(--border);
+            color: var(--text-dim);
+        }
+
+        .jog-home {
+            background: rgba(0, 210, 255, 0.1);
+            border-color: rgba(0, 210, 255, 0.3);
+            color: var(--primary);
+        }
+
+        /* Run G-code Panel */
+        .gcode-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .gcode-textarea {
+            width: 100%;
+            height: 85px;
+            background: #090a0f;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: #a5f3fc;
+            font-family: Consolas, Monaco, "Courier New", Courier, monospace;
+            font-size: 12px;
+            padding: 8px;
+            resize: vertical;
+            outline: none;
+            user-select: text;
+        }
+
+        .gcode-textarea:focus {
+            border-color: var(--primary);
+        }
+
+        .gcode-bottom {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .gcode-status {
+            font-size: 11px;
+            color: #34d399;
+            font-family: monospace;
+        }
+
         .preset-chips {
             display: flex;
             gap: 6px;
@@ -494,7 +663,7 @@
         <div class="header-right">
             <div class="status-pill">
                 <div class="status-dot"></div>
-                <span id="conn-state">LAN Connected (18910)</span>
+                <span id="conn-state">LAN Live (18910/9883)</span>
             </div>
             <button class="btn" onclick="refreshStatus()">🔄 Refresh</button>
         </div>
@@ -503,7 +672,7 @@
     <!-- Main Grid -->
     <div class="grid-container">
         
-        <!-- Left Column: Camera & Live Job -->
+        <!-- Left Column: Camera, Job, & G-code Console -->
         <div style="display: flex; flex-direction: column; gap: 16px;">
             
             <!-- Live Camera -->
@@ -513,30 +682,34 @@
                     <span class="tag">Port 18088</span>
                 </div>
                 <div class="camera-container" id="cam-box">
-                    <img id="cam-feed" src="http://192.168.1.133:18088/" onerror="handleCamError()" alt="Camera Feed" />
+                    <img id="cam-feed" src="http://192.168.1.133:18088/live/Hw29TQkP" onerror="handleCamError()" alt="Camera Feed" />
                     <div class="camera-placeholder" id="cam-placeholder" style="display:none;">
-                        <span>📷 Camera Stream Offline</span>
+                        <span>📷 Camera Stream Offline / Loading</span>
                         <button class="btn btn-sm" onclick="retryCam()">Retry</button>
                     </div>
+                    <div class="camera-top-controls">
+                        <button class="btn btn-sm" id="btn-light" onclick="toggleLight()">💡 Light: On</button>
+                    </div>
                     <div class="camera-controls">
+                        <button class="btn btn-sm" onclick="toggleCameraView()">👁 Toggle Feed</button>
                         <button class="btn btn-sm" onclick="openCamFull()">⛶ Fullscreen</button>
                         <button class="btn btn-sm" onclick="retryCam()">🔄 Reload</button>
                     </div>
                 </div>
             </div>
 
-            <!-- Active Print Job -->
+            <!-- Active Print Job & Speed -->
             <div class="card job-card">
                 <div class="card-header">
                     <h2>🖨️ Active Print Job</h2>
-                    <span class="tag" id="print-state">Idle</span>
+                    <span class="tag" id="print-state">Printing</span>
                 </div>
                 <div class="job-title-row">
-                    <div class="job-name" id="job-name">Ready for Next Print</div>
+                    <div class="job-name" id="job-name">Loading Active Job...</div>
                     <div style="font-weight: 700; font-size: 15px; color: var(--primary);" id="job-pct">0%</div>
                 </div>
                 <div class="job-progress-bar">
-                    <div class="job-progress-fill" id="job-progress-fill"></div>
+                    <div class="job-progress-fill" id="job-progress-fill" style="width: 0%;"></div>
                 </div>
                 <div class="job-stats-grid">
                     <div class="job-stat-box">
@@ -552,16 +725,47 @@
                         <div class="job-stat-val" id="stat-remaining">--</div>
                     </div>
                 </div>
+
+                <!-- Print Speed Selector -->
+                <div class="speed-row">
+                    <span class="speed-label">⚡ Speed:</span>
+                    <button class="speed-btn" id="speed-1" onclick="setSpeed(1)">Quiet 50%</button>
+                    <button class="speed-btn active" id="speed-2" onclick="setSpeed(2)">Std 100%</button>
+                    <button class="speed-btn" id="speed-3" onclick="setSpeed(3)">Sport 125%</button>
+                    <button class="speed-btn" id="speed-4" onclick="setSpeed(4)">Ludicrous 150%</button>
+                </div>
+
                 <div class="job-actions">
                     <button class="btn" onclick="sendControl('pause')">⏸ Pause</button>
                     <button class="btn" onclick="sendControl('resume')">▶ Resume</button>
-                    <button class="btn btn-danger" onclick="sendControl('stop')">⏹ Cancel</button>
+                    <button class="btn btn-danger" onclick="sendControl('stop')">⏹ Cancel Job</button>
+                </div>
+            </div>
+
+            <!-- Run G-code File Block -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>⌨️ Run G-code File</h2>
+                    <span class="tag">LAN Exec</span>
+                </div>
+                <div class="gcode-container">
+                    <textarea class="gcode-textarea" id="gcode-input" placeholder="; Enter G-code lines (e.g. M104 S200, G28, M106 S255)...&#10;G28&#10;M400"></textarea>
+                    <div class="gcode-bottom">
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" id="chk-delete-after" checked /> Auto-delete file after execution
+                        </label>
+                        <div style="display: flex; gap: 6px;">
+                            <button class="btn btn-sm" onclick="clearGcode()">Clear</button>
+                            <button class="btn btn-primary btn-sm" onclick="runGcodeFile()">▶ Run on Printer</button>
+                        </div>
+                    </div>
+                    <div class="gcode-status" id="gcode-status"></div>
                 </div>
             </div>
 
         </div>
 
-        <!-- Right Column: Filament ACE Pro & Temperatures -->
+        <!-- Right Column: Filament ACE Pro, Temperatures, & Axis Jog -->
         <div style="display: flex; flex-direction: column; gap: 16px;">
             
             <!-- ACE Pro Multi-Color Hub -->
@@ -574,9 +778,9 @@
                 </div>
                 <div class="slots-container" id="slots-container">
                     <!-- Slot 1 -->
-                    <div class="slot-card active" id="slot-0">
+                    <div class="slot-card" id="slot-0">
                         <span class="slot-badge">1</span>
-                        <div class="slot-color-circle" style="background: #00d2ff;"></div>
+                        <div class="slot-color-circle" style="background: #009639;"></div>
                         <div class="slot-material">PLA</div>
                         <div class="slot-temp">210°C</div>
                         <div class="slot-level">Ready</div>
@@ -584,23 +788,23 @@
                     <!-- Slot 2 -->
                     <div class="slot-card" id="slot-1">
                         <span class="slot-badge">2</span>
-                        <div class="slot-color-circle" style="background: #ff3366;"></div>
+                        <div class="slot-color-circle" style="background: #75787b;"></div>
                         <div class="slot-material">PLA</div>
                         <div class="slot-temp">210°C</div>
                         <div class="slot-level">Ready</div>
                     </div>
                     <!-- Slot 3 -->
-                    <div class="slot-card" id="slot-2">
+                    <div class="slot-card active" id="slot-2">
                         <span class="slot-badge">3</span>
-                        <div class="slot-color-circle" style="background: #ffd600;"></div>
-                        <div class="slot-material">PETG</div>
+                        <div class="slot-color-circle" style="background: #fddb27;"></div>
+                        <div class="slot-material">PLA+</div>
                         <div class="slot-temp">235°C</div>
-                        <div class="slot-level">Ready</div>
+                        <div class="slot-level" style="color:#10b981;font-weight:700;">● Active</div>
                     </div>
                     <!-- Slot 4 -->
                     <div class="slot-card" id="slot-3">
                         <span class="slot-badge">4</span>
-                        <div class="slot-color-circle" style="background: #9d4edd;"></div>
+                        <div class="slot-color-circle" style="background: #ff8da1;"></div>
                         <div class="slot-material">PLA</div>
                         <div class="slot-temp">210°C</div>
                         <div class="slot-level">Ready</div>
@@ -621,11 +825,11 @@
                     <div class="temp-item">
                         <div class="temp-label">
                             <span>Nozzle</span>
-                            <span class="temp-target">Target: <span id="target-nozzle">210</span>°C</span>
+                            <span class="temp-target">Target: <span id="target-nozzle">235</span>°C</span>
                         </div>
-                        <div class="temp-val"><span id="cur-nozzle">24</span>°C</div>
+                        <div class="temp-val"><span id="cur-nozzle">235</span>°C</div>
                         <div class="temp-bar-bg">
-                            <div class="temp-bar-fill bar-nozzle" id="bar-nozzle" style="width: 10%;"></div>
+                            <div class="temp-bar-fill bar-nozzle" id="bar-nozzle" style="width: 78%;"></div>
                         </div>
                     </div>
                     <div class="temp-item">
@@ -633,9 +837,9 @@
                             <span>Heatbed</span>
                             <span class="temp-target">Target: <span id="target-bed">60</span>°C</span>
                         </div>
-                        <div class="temp-val"><span id="cur-bed">23</span>°C</div>
+                        <div class="temp-val"><span id="cur-bed">60</span>°C</div>
                         <div class="temp-bar-bg">
-                            <div class="temp-bar-fill bar-bed" id="bar-bed" style="width: 25%;"></div>
+                            <div class="temp-bar-fill bar-bed" id="bar-bed" style="width: 55%;"></div>
                         </div>
                     </div>
                 </div>
@@ -647,6 +851,40 @@
                 </div>
             </div>
 
+            <!-- Motion & Jog Controls -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>🕹️ Axis Motion & Jog</h2>
+                    <div class="jog-step-chips">
+                        <div class="jog-step-chip" onclick="setJogStep(0.1, this)">0.1</div>
+                        <div class="jog-step-chip" onclick="setJogStep(1, this)">1</div>
+                        <div class="jog-step-chip active" onclick="setJogStep(10, this)">10</div>
+                        <div class="jog-step-chip" onclick="setJogStep(50, this)">50</div>
+                    </div>
+                </div>
+                <div class="jog-container">
+                    <div class="jog-grid">
+                        <div></div>
+                        <button class="jog-btn" id="jog-y-plus" onclick="jog('Y', 1)">Y+</button>
+                        <div></div>
+                        <button class="jog-btn" id="jog-z-plus" onclick="jog('Z', 1)">Z+ Up</button>
+
+                        <button class="jog-btn" id="jog-x-minus" onclick="jog('X', -1)">X-</button>
+                        <button class="jog-btn jog-home" id="jog-home" onclick="homeAll()">🏠 Home</button>
+                        <button class="jog-btn" id="jog-x-plus" onclick="jog('X', 1)">X+</button>
+                        <button class="jog-btn" id="jog-z-minus" onclick="jog('Z', -1)">Z- Down</button>
+
+                        <div></div>
+                        <button class="jog-btn" id="jog-y-minus" onclick="jog('Y', -1)">Y-</button>
+                        <div></div>
+                        <div></div>
+                    </div>
+                    <p id="jog-hint" style="font-size: 11px; color: var(--text-dim); text-align: center;">
+                        Jogging is enabled when printer is idle.
+                    </p>
+                </div>
+            </div>
+
         </div>
 
     </div>
@@ -654,11 +892,16 @@
     <script>
         let printerIP = "192.168.1.133";
         let filaments = [
-            { slot: 1, color: "#00d2ff", type: "PLA", temp: 210 },
-            { slot: 2, color: "#ff3366", type: "PLA", temp: 210 },
-            { slot: 3, color: "#ffd600", type: "PETG", temp: 235 },
-            { slot: 4, color: "#9d4edd", type: "PLA", temp: 210 }
+            {"slot": 1, "color": "#009639", "type": "PLA", "temp": 210, "loaded": false},
+            {"slot": 2, "color": "#75787b", "type": "PLA", "temp": 210, "loaded": false},
+            {"slot": 3, "color": "#fddb27", "type": "PLA+", "temp": 235, "loaded": true},
+            {"slot": 4, "color": "#ff8da1", "type": "PLA", "temp": 210, "loaded": false}
         ];
+        let currentSpeedMode = 2;
+        let lightStatus = 1;
+        let cameraVisible = true;
+        let jogStep = 10;
+        let currentPrinterState = "printing";
 
         function handleCamError() {
             document.getElementById("cam-feed").style.display = "none";
@@ -667,13 +910,111 @@
 
         function retryCam() {
             const feed = document.getElementById("cam-feed");
-            feed.style.display = "block";
+            feed.style.display = cameraVisible ? "block" : "none";
             document.getElementById("cam-placeholder").style.display = "none";
-            feed.src = "http://" + printerIP + ":18088/?t=" + Date.now();
+            feed.src = feed.src.split('?')[0] + "?t=" + Date.now();
+        }
+
+        function toggleCameraView() {
+            cameraVisible = !cameraVisible;
+            const feed = document.getElementById("cam-feed");
+            feed.style.display = cameraVisible ? "block" : "none";
         }
 
         function openCamFull() {
-            window.open("http://" + printerIP + ":18088/", "_blank");
+            const feed = document.getElementById("cam-feed");
+            window.open(feed.src, "_blank");
+        }
+
+        async function toggleLight() {
+            lightStatus = lightStatus === 1 ? 0 : 1;
+            document.getElementById("btn-light").innerText = lightStatus === 1 ? "💡 Light: On" : "💡 Light: Off";
+            try {
+                await fetch("http://127.0.0.1:18988/control", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "light", status: lightStatus })
+                });
+            } catch(e) {}
+        }
+
+        async function setSpeed(mode) {
+            currentSpeedMode = mode;
+            for (let i = 1; i <= 4; i++) {
+                const btn = document.getElementById("speed-" + i);
+                if (btn) {
+                    if (i === mode) btn.classList.add("active");
+                    else btn.classList.remove("active");
+                }
+            }
+            try {
+                await fetch("http://127.0.0.1:18988/control", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "speed", mode: mode })
+                });
+            } catch(e) {}
+        }
+
+        function setJogStep(step, el) {
+            jogStep = step;
+            document.querySelectorAll(".jog-step-chip").forEach(c => c.classList.remove("active"));
+            if (el) el.classList.add("active");
+        }
+
+        async function jog(axis, dir) {
+            if (currentPrinterState === "printing" || currentPrinterState === "busy") {
+                alert("Cannot jog axes while a print is actively running.");
+                return;
+            }
+            const dist = jogStep * dir;
+            const gcode = `G91\nG1 ${axis}${dist} F3000\nG90\nM400`;
+            await runGcodeDirect(gcode, `Jog ${axis}${dist > 0 ? '+' : ''}${dist}mm`);
+        }
+
+        async function homeAll() {
+            if (currentPrinterState === "printing" || currentPrinterState === "busy") {
+                alert("Cannot home axes while a print is actively running.");
+                return;
+            }
+            if (confirm("Home all axes (G28)?")) {
+                await runGcodeDirect("G28\nM400", "Home All (G28)");
+            }
+        }
+
+        async function runGcodeDirect(gcode, label = "Command") {
+            const statusEl = document.getElementById("gcode-status");
+            if (statusEl) statusEl.innerText = `Executing ${label}...`;
+            try {
+                const res = await fetch("http://127.0.0.1:18988/run_gcode", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ gcode: gcode, delete_after: true })
+                });
+                const data = await res.json();
+                if (data.status === "ok") {
+                    if (statusEl) statusEl.innerText = `✓ ${label} sent (${data.filename})`;
+                } else {
+                    if (statusEl) statusEl.innerText = `Error: ${data.message || 'failed'}`;
+                }
+            } catch(e) {
+                if (statusEl) statusEl.innerText = `Network error: ${e.message}`;
+            }
+        }
+
+        async function runGcodeFile() {
+            const text = document.getElementById("gcode-input").value.trim();
+            if (!text) {
+                alert("Please enter G-code commands.");
+                return;
+            }
+            const delAfter = document.getElementById("chk-delete-after").checked;
+            await runGcodeDirect(text, "Run G-code file");
+        }
+
+        function clearGcode() {
+            document.getElementById("gcode-input").value = "";
+            document.getElementById("gcode-status").innerText = "";
         }
 
         function sendToSlicer(command, data) {
@@ -682,8 +1023,6 @@
                 window.wx.postMessage(payload);
             } else if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
                 window.chrome.webview.postMessage(payload);
-            } else {
-                console.log("[Workbench JS] PostMessage to host:", payload);
             }
         }
 
@@ -692,40 +1031,28 @@
             alert("Filament profiles pushed to OrcaSlicer!");
         }
 
-        function sendControl(action) {
-            sendToSlicer("device_control", { action: action });
+        async function sendControl(action) {
+            if (action === "stop") {
+                if (!confirm("Are you sure you want to CANCEL this print job?")) return;
+            }
+            try {
+                await fetch("http://127.0.0.1:18988/control", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: action })
+                });
+            } catch(e) {}
         }
 
         function preheat(nozzle, bed) {
             document.getElementById("target-nozzle").innerText = nozzle;
             document.getElementById("target-bed").innerText = bed;
-            sendToSlicer("set_temperatures", { nozzle: nozzle, bed: bed });
         }
 
         function refreshStatus() {
-            sendToSlicer("request_printer_status", {});
+            pollTelemetry();
             retryCam();
         }
-
-        // Bridge handler invoked by C++ host: HandleStudio or postMessage
-        window.HandleStudio = function(msg) {
-            try {
-                let data = typeof msg === 'string' ? JSON.parse(msg) : msg;
-                if (data.command === "orcacubic_filament_sync" && data.filaments) {
-                    updateFilamentUI(data.filaments);
-                } else if (data.command === "orcacubic_telemetry") {
-                    updateTelemetryUI(data);
-                }
-            } catch(e) {
-                console.error("Error parsing message from OrcaCubic:", e);
-            }
-        };
-
-        window.addEventListener('message', function(event) {
-            if (event.data) {
-                window.HandleStudio(event.data);
-            }
-        });
 
         function updateFilamentUI(newFilaments) {
             filaments = newFilaments;
@@ -764,7 +1091,13 @@
                 document.getElementById("target-bed").innerText = Math.round(data.target_bed_temp);
             }
             if (data.print_state) {
+                currentPrinterState = data.print_state.toLowerCase();
                 document.getElementById("print-state").innerText = data.print_state;
+                const isPrinting = (currentPrinterState === "printing" || currentPrinterState === "busy");
+                document.querySelectorAll(".jog-btn").forEach(btn => {
+                    btn.disabled = isPrinting;
+                });
+                document.getElementById("jog-hint").innerText = isPrinting ? "⚠️ Jogging locked during active print." : "Jogging is ready.";
             }
             if (data.progress !== undefined) {
                 document.getElementById("job-pct").innerText = Math.round(data.progress) + "%";
@@ -781,6 +1114,19 @@
             }
             if (data.remain_time !== undefined) {
                 document.getElementById("stat-remaining").innerText = data.remain_time + "m";
+            }
+            if (data.speed_mode !== undefined) {
+                for (let i = 1; i <= 4; i++) {
+                    const btn = document.getElementById("speed-" + i);
+                    if (btn) {
+                        if (i === data.speed_mode) btn.classList.add("active");
+                        else btn.classList.remove("active");
+                    }
+                }
+            }
+            if (data.light !== undefined) {
+                lightStatus = data.light;
+                document.getElementById("btn-light").innerText = lightStatus === 1 ? "💡 Light: On" : "💡 Light: Off";
             }
         }
 
@@ -813,7 +1159,9 @@
                         curr_layer: data.curr_layer,
                         total_layers: data.total_layers,
                         remain_time: data.remain_time,
-                        print_time: data.print_time
+                        print_time: data.print_time,
+                        speed_mode: data.speed_mode,
+                        light: data.light
                     });
                 }
             } catch (err) {}
