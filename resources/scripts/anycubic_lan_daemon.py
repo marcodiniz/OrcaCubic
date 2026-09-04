@@ -115,40 +115,53 @@ def on_mqtt_message(c, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode("utf-8", errors="ignore"))
         t = msg.topic.split("/")[-2]
+
+        code = payload.get("code", 200)
+        msg_str = payload.get("msg", "")
+        state_str = payload.get("state", "")
+
+        # Always capture printer LCD warnings and error reports
+        if (code != 200 and code != 0) or state_str in ["failed", "abnormal"]:
+            if msg_str:
+                telemetry["last_error"] = msg_str
+                telemetry["last_error_code"] = code
+                telemetry["last_error_time"] = int(time.time())
+                print(f"[Bridge] PRINTER LCD NOTICE ({code}): {msg_str}")
+
         data = payload.get("data")
-        if not data:
-            return
 
         if t == "tempature" or t == "temp":
-            telemetry["nozzle_temp"] = data.get("curr_nozzle_temp", telemetry["nozzle_temp"])
-            telemetry["target_nozzle_temp"] = data.get("target_nozzle_temp", telemetry["target_nozzle_temp"])
-            telemetry["bed_temp"] = data.get("curr_hotbed_temp", telemetry["bed_temp"])
-            telemetry["target_bed_temp"] = data.get("target_hotbed_temp", telemetry["target_bed_temp"])
+            if data:
+                telemetry["nozzle_temp"] = data.get("curr_nozzle_temp", telemetry["nozzle_temp"])
+                telemetry["target_nozzle_temp"] = data.get("target_nozzle_temp", telemetry["target_nozzle_temp"])
+                telemetry["bed_temp"] = data.get("curr_hotbed_temp", telemetry["bed_temp"])
+                telemetry["target_bed_temp"] = data.get("target_hotbed_temp", telemetry["target_bed_temp"])
 
         elif t == "info":
-            temp = data.get("temp", {})
-            if temp:
-                telemetry["nozzle_temp"] = temp.get("curr_nozzle_temp", telemetry["nozzle_temp"])
-                telemetry["target_nozzle_temp"] = temp.get("target_nozzle_temp", telemetry["target_nozzle_temp"])
-                telemetry["bed_temp"] = temp.get("curr_hotbed_temp", telemetry["bed_temp"])
-                telemetry["target_bed_temp"] = temp.get("target_hotbed_temp", telemetry["target_bed_temp"])
+            if data:
+                temp = data.get("temp", {})
+                if temp:
+                    telemetry["nozzle_temp"] = temp.get("curr_nozzle_temp", telemetry["nozzle_temp"])
+                    telemetry["target_nozzle_temp"] = temp.get("target_nozzle_temp", telemetry["target_nozzle_temp"])
+                    telemetry["bed_temp"] = temp.get("curr_hotbed_temp", telemetry["bed_temp"])
+                    telemetry["target_bed_temp"] = temp.get("target_hotbed_temp", telemetry["target_bed_temp"])
 
-            project = data.get("project", {})
-            if project:
-                telemetry["state"] = project.get("state", telemetry["state"])
-                telemetry["progress"] = project.get("progress", telemetry["progress"])
-                telemetry["job_name"] = project.get("filename", telemetry["job_name"])
-                telemetry["curr_layer"] = project.get("curr_layer", telemetry["curr_layer"])
-                telemetry["total_layers"] = project.get("total_layers", telemetry["total_layers"])
-                telemetry["remain_time"] = project.get("remain_time", telemetry["remain_time"])
-                telemetry["print_time"] = project.get("print_time", telemetry["print_time"])
-                telemetry["speed_mode"] = project.get("print_speed_mode", telemetry["speed_mode"])
+                project = data.get("project", {})
+                if project:
+                    telemetry["state"] = project.get("state", telemetry["state"])
+                    telemetry["progress"] = project.get("progress", telemetry["progress"])
+                    telemetry["job_name"] = project.get("filename", telemetry["job_name"])
+                    telemetry["curr_layer"] = project.get("curr_layer", telemetry["curr_layer"])
+                    telemetry["total_layers"] = project.get("total_layers", telemetry["total_layers"])
+                    telemetry["remain_time"] = project.get("remain_time", telemetry["remain_time"])
+                    telemetry["print_time"] = project.get("print_time", telemetry["print_time"])
+                    telemetry["speed_mode"] = project.get("print_speed_mode", telemetry["speed_mode"])
 
-            urls = data.get("urls", {})
-            if "rtspUrl" in urls and urls["rtspUrl"]:
-                telemetry["camera_url"] = urls["rtspUrl"]
-            if "fileUploadurl" in urls and urls["fileUploadurl"]:
-                telemetry["upload_url"] = urls["fileUploadurl"]
+                urls = data.get("urls", {})
+                if "rtspUrl" in urls and urls["rtspUrl"]:
+                    telemetry["camera_url"] = urls["rtspUrl"]
+                if "fileUploadurl" in urls and urls["fileUploadurl"]:
+                    telemetry["upload_url"] = urls["fileUploadurl"]
 
         elif t == "status":
             st = payload.get("state", "")
@@ -156,17 +169,18 @@ def on_mqtt_message(c, userdata, msg):
                 telemetry["state"] = st
 
         elif t == "axis":
-            code = payload.get("code", 0)
-            msg_str = payload.get("msg", "")
             if code != 200 and msg_str:
-                telemetry["axis_error"] = msg_str
-            else:
-                telemetry["axis_error"] = ""
+                telemetry["last_error"] = msg_str
+                telemetry["last_error_code"] = code
+                telemetry["last_error_time"] = int(time.time())
+            elif code == 200 and telemetry.get("last_error") == "Home the axis before moving":
+                telemetry["last_error"] = ""
 
         elif t == "light":
-            lights = data.get("lights", [])
-            if lights and len(lights) > 0:
-                telemetry["light"] = lights[0].get("status", telemetry["light"])
+            if data:
+                lights = data.get("lights", [])
+                if lights and len(lights) > 0:
+                    telemetry["light"] = lights[0].get("status", telemetry["light"])
 
         elif t == "multiColorBox":
             box_list = data.get("multi_color_box", [])
@@ -243,8 +257,29 @@ def upload_and_run_gcode(gcode_text, delete_after=True):
     ts = int(time.time())
     rand_id = "".join(random.choices(string.ascii_lowercase + string.digits, k=4))
     fname = f"_orcacubic_command_{ts}_{rand_id}.gcode"
-    content = f"; generated by OrcaCubic Run G-code file\n; policy: run-gcode-v1\n; temporary: true\n{gcode_text.strip()}\nM400\n"
     
+    # Construct complete, compliant G-code with headers and statistics
+    content = (
+        "; HEADER_BLOCK_START\n"
+        "; generated by AnycubicSlicerNext 2.0.0.2\n"
+        "; total layer number: 1\n"
+        "; filament_density: 1.24\n"
+        "; filament_diameter: 1.75\n"
+        "; max_z_height: 10.0\n"
+        "; HEADER_BLOCK_END\n\n"
+        f"{gcode_text.strip()}\n"
+        "M400\n\n"
+        "; statistics = begin\n"
+        "; used_filament = 0.00\n"
+        "; print_time = 0m 10s\n"
+        "; model_size = 10.00,10.00,10.00\n"
+        "; total_layers = 1\n"
+        "; statistics = end\n"
+    )
+    content_bytes = content.encode("utf-8")
+    fmd5 = hashlib.md5(content_bytes).hexdigest().lower()
+    fsize = len(content_bytes)
+
     upload_url = telemetry.get("upload_url", f"http://{PRINTER_IP}:{PRINTER_HTTP_PORT}/gcode_upload")
     boundary = "----WebKitFormBoundary" + "".join(random.choices(string.ascii_letters + string.digits, k=16))
     
@@ -252,12 +287,15 @@ def upload_and_run_gcode(gcode_text, delete_after=True):
     part2 = f'--{boundary}\r\nContent-Disposition: form-data; name="gcode"; filename="{fname}"\r\nContent-Type: application/octet-stream\r\n\r\n'
     part3 = f'\r\n--{boundary}--\r\n'
     
-    body = part1.encode('utf-8') + part2.encode('utf-8') + content.encode('utf-8') + part3.encode('utf-8')
+    body = part1.encode('utf-8') + part2.encode('utf-8') + content_bytes + part3.encode('utf-8')
     
     headers = {
         "Content-Type": f"multipart/form-data; boundary={boundary}",
         "Content-Length": str(len(body)),
-        "X-File-Length": str(len(content.encode('utf-8'))),
+        "X-File-Length": str(fsize),
+        "X-BBL-Client-Name": "AnycubicSlicerNext",
+        "X-BBL-Client-Type": "slicer",
+        "X-BBL-Client-Version": "01.03.09.04",
         "User-Agent": "AnycubicSlicerNext/2.0.0.2"
     }
     
@@ -275,8 +313,36 @@ def upload_and_run_gcode(gcode_text, delete_after=True):
         "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
         "timestamp": int(time.time() * 1000),
         "data": {
-            "file_name": fname,
-            "use_ams": False
+            "taskid": "-1",
+            "filename": fname,
+            "url": "",
+            "md5": fmd5,
+            "filepath": None,
+            "filetype": 1,
+            "project_type": 1,
+            "filesize": fsize,
+            "ams_settings": {
+                "use_ams": True,
+                "ams_box_mapping": [
+                    {
+                        "ams_color": [253, 219, 39],
+                        "ams_index": 2,
+                        "material_type": "PLA+",
+                        "paint_color": [253, 219, 39],
+                        "paint_index": 0
+                    }
+                ]
+            },
+            "task_settings": {
+                "auto_leveling": 0,
+                "vibration_compensation": 0,
+                "flow_calibration": 0,
+                "dry_mode": 0,
+                "ai_settings": {"status": 0, "count": 0, "type": 0},
+                "timelapse": {"status": 0, "count": 0, "type": 0},
+                "drying_settings": {"status": 0, "target_temp": 0, "duration": 0, "remain_time": 0},
+                "model_objects_skip_parts": []
+            }
         }
     }
     if mqtt_client:

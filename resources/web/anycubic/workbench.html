@@ -670,6 +670,21 @@
         </div>
     </header>
 
+    <!-- Alert Banner for LCD notices -->
+    <div id="printer-alert-banner" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: var(--radius-md); padding: 10px 16px; margin-bottom: 16px; align-items: center; justify-content: space-between; color: #fca5a5;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 18px;">⚠️</span>
+            <div>
+                <strong style="color: #fff;">Printer LCD Notice:</strong>
+                <span id="printer-alert-text">Home the axis before moving</span>
+            </div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm btn-primary" id="btn-alert-home" onclick="homeAll()">🏠 Home Now</button>
+            <button class="btn btn-sm" onclick="dismissAlert()">✕ Dismiss</button>
+        </div>
+    </div>
+
     <!-- Main Grid -->
     <div class="grid-container">
         
@@ -878,7 +893,7 @@
                         <div></div>
                         <button class="jog-btn" id="jog-y-minus" onclick="jog('Y', -1)">Y-</button>
                         <div></div>
-                        <button class="jog-btn" id="jog-unlock" onclick="motorOff()">🔓 Unlock</button>
+                        <button class="jog-btn" id="jog-unlock" onclick="motorOff()">🔓 Release</button>
                     </div>
                     <p id="jog-hint" style="font-size: 11px; color: var(--text-dim); text-align: center;">
                         Jogging ready. (Click 🏠 Home first if motors were reset).
@@ -904,6 +919,13 @@
         let currentPrinterState = "idle";
         let flvPlayer = null;
         let activeCameraUrl = "http://192.168.1.133:18088/live/Hw29TQkP";
+        let alertDismissed = false;
+        let lastSeenAlert = "";
+
+        function dismissAlert() {
+            alertDismissed = true;
+            document.getElementById("printer-alert-banner").style.display = "none";
+        }
 
         async function startCameraStream() {
             try {
@@ -1230,6 +1252,21 @@
                     if (data.filaments && Array.isArray(data.filaments) && data.filaments.length > 0) {
                         updateFilamentUI(data.filaments);
                     }
+                    if (data.last_error && data.last_error.trim()) {
+                        if (data.last_error !== lastSeenAlert) {
+                            alertDismissed = false;
+                            lastSeenAlert = data.last_error;
+                        }
+                        if (!alertDismissed) {
+                            document.getElementById("printer-alert-text").innerText = data.last_error;
+                            document.getElementById("printer-alert-banner").style.display = "flex";
+                        }
+                    } else {
+                        document.getElementById("printer-alert-banner").style.display = "none";
+                        alertDismissed = false;
+                        lastSeenAlert = "";
+                    }
+
                     updateTelemetryUI({
                         nozzle_temp: data.nozzle_temp,
                         target_nozzle_temp: data.target_nozzle_temp,
@@ -1244,7 +1281,7 @@
                         print_time: data.print_time,
                         speed_mode: data.speed_mode,
                         light: data.light,
-                        axis_error: data.axis_error
+                        axis_error: data.last_error || data.axis_error
                     });
                 }
             } catch (err) {}
