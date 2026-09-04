@@ -733,14 +733,16 @@
             container.innerHTML = "";
             newFilaments.forEach((f, idx) => {
                 const div = document.createElement("div");
-                div.className = "slot-card" + (idx === 0 ? " active" : "");
+                div.className = "slot-card" + (f.loaded ? " active" : "");
                 div.id = "slot-" + idx;
                 div.innerHTML = `
-                    <span class="slot-badge">${idx + 1}</span>
+                    <span class="slot-badge">${f.slot || idx + 1}</span>
                     <div class="slot-color-circle" style="background: ${f.color || '#00d2ff'};"></div>
                     <div class="slot-material">${f.type || 'PLA'}</div>
-                    <div class="slot-temp">${f.nozzle_temp || f.temp || 210}°C</div>
-                    <div class="slot-level">Ready</div>
+                    <div class="slot-temp">${f.temp || 210}°C</div>
+                    <div class="slot-level" style="${f.loaded ? 'color:#10b981;font-weight:700;' : ''}">
+                        ${f.loaded ? '● Active' : 'Ready'}
+                    </div>
                 `;
                 container.appendChild(div);
             });
@@ -751,9 +753,15 @@
                 document.getElementById("cur-nozzle").innerText = Math.round(data.nozzle_temp);
                 document.getElementById("bar-nozzle").style.width = Math.min(100, (data.nozzle_temp / 300) * 100) + "%";
             }
+            if (data.target_nozzle_temp !== undefined && data.target_nozzle_temp > 0) {
+                document.getElementById("target-nozzle").innerText = Math.round(data.target_nozzle_temp);
+            }
             if (data.bed_temp !== undefined) {
                 document.getElementById("cur-bed").innerText = Math.round(data.bed_temp);
                 document.getElementById("bar-bed").style.width = Math.min(100, (data.bed_temp / 110) * 100) + "%";
+            }
+            if (data.target_bed_temp !== undefined && data.target_bed_temp > 0) {
+                document.getElementById("target-bed").innerText = Math.round(data.target_bed_temp);
             }
             if (data.print_state) {
                 document.getElementById("print-state").innerText = data.print_state;
@@ -765,7 +773,53 @@
             if (data.job_name) {
                 document.getElementById("job-name").innerText = data.job_name;
             }
+            if (data.curr_layer !== undefined && data.total_layers !== undefined) {
+                document.getElementById("stat-layer").innerText = data.curr_layer + " / " + data.total_layers;
+            }
+            if (data.print_time !== undefined) {
+                document.getElementById("stat-elapsed").innerText = data.print_time + "m";
+            }
+            if (data.remain_time !== undefined) {
+                document.getElementById("stat-remaining").innerText = data.remain_time + "m";
+            }
         }
+
+        async function pollTelemetry() {
+            try {
+                const res = await fetch("http://127.0.0.1:18988/status", { cache: "no-store" });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.connected) {
+                        document.getElementById("conn-state").innerText = "LAN Live (18910/9883)";
+                    }
+                    if (data.camera_url && data.camera_url.startsWith("http")) {
+                        const cam = document.getElementById("cam-feed");
+                        if (cam.src !== data.camera_url && !cam.dataset.loaded) {
+                            cam.src = data.camera_url;
+                            cam.dataset.loaded = "true";
+                        }
+                    }
+                    if (data.filaments && Array.isArray(data.filaments) && data.filaments.length > 0) {
+                        updateFilamentUI(data.filaments);
+                    }
+                    updateTelemetryUI({
+                        nozzle_temp: data.nozzle_temp,
+                        target_nozzle_temp: data.target_nozzle_temp,
+                        bed_temp: data.bed_temp,
+                        target_bed_temp: data.target_bed_temp,
+                        print_state: data.state ? (data.state.charAt(0).toUpperCase() + data.state.slice(1)) : "Printing",
+                        progress: data.progress,
+                        job_name: data.job_name,
+                        curr_layer: data.curr_layer,
+                        total_layers: data.total_layers,
+                        remain_time: data.remain_time,
+                        print_time: data.print_time
+                    });
+                }
+            } catch (err) {}
+        }
+        setInterval(pollTelemetry, 1500);
+        pollTelemetry();
     </script>
 </body>
 </html>
