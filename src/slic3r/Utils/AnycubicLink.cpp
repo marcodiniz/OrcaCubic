@@ -662,6 +662,29 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
         boost::algorithm::to_lower(file_md5);
     } catch (...) {}
 
+    bool use_ams = true;
+    json ams_box_mapping = json::array();
+
+    std::string custom_mapping = upload_data.extended("ams_mapping");
+    if (!custom_mapping.empty()) {
+        try {
+            ams_box_mapping = json::parse(custom_mapping);
+            use_ams = true;
+        } catch (...) {}
+    }
+
+    if (ams_box_mapping.empty()) {
+        // Map available material slots for ACE Pro feeder
+        json mapping_item = {
+            {"ams_index", 2},
+            {"paint_index", 0},
+            {"material_type", "PLA"},
+            {"ams_color", {253, 219, 39}},
+            {"paint_color", {253, 219, 39}}
+        };
+        ams_box_mapping.push_back(mapping_item);
+    }
+
     json payload = {
         {"type", "print"},
         {"action", "start"},
@@ -677,8 +700,8 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
             {"project_type", 1},
             {"filesize", file_size},
             {"ams_settings", {
-                {"use_ams", false},
-                {"ams_box_mapping", json::array()}
+                {"use_ams", use_ams},
+                {"ams_box_mapping", ams_box_mapping}
             }},
             {"task_settings", {
                 {"auto_leveling", 1},
