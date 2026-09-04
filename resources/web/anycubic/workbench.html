@@ -1268,7 +1268,11 @@
                     if (data.filaments && Array.isArray(data.filaments) && data.filaments.length > 0) {
                         updateFilamentUI(data.filaments);
                     }
-                    if (data.last_error && data.last_error.trim()) {
+                    const isBusyOrPrinting = (data.state && ["printing", "auto_leveling", "heating", "busy"].includes(data.state.toLowerCase()));
+                    if (isBusyOrPrinting) {
+                        document.getElementById("printer-alert-banner").style.display = "none";
+                        alertDismissed = true;
+                    } else if (data.last_error && data.last_error.trim()) {
                         if (data.last_error !== lastSeenAlert) {
                             alertDismissed = false;
                             lastSeenAlert = data.last_error;
