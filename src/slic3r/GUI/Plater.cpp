@@ -1997,7 +1997,7 @@ bool Sidebar::priv::sync_extruder_list(bool &only_external_material, bool is_man
         if (host_type == "anycubic") {
             BOOST_LOG_TRIVIAL(info) << "[Sidebar::sync_extruder_list] Anycubic printer detected, navigating to Device Workbench";
             if (wxGetApp().mainframe != nullptr)
-                wxGetApp().mainframe->select_tab(MainFrame::tpMonitor);
+                wxGetApp().mainframe->select_tab(TAB_ID_MONITOR);
             return true;
         }
     }
