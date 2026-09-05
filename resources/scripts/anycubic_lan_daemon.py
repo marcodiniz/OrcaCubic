@@ -548,7 +548,8 @@ class BridgeServer(BaseHTTPRequestHandler):
         elif self.path.startswith("/sync_to_printer"):
             slots_data = data.get("slots", [])
             if slots_data and mqtt_client:
-                mqtt_slots = []
+                # Kobra X firmware setInfo requires ONE slot per message in slots array
+                topic_web = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/multiColorBox"
                 for s in slots_data:
                     idx = int(s.get("index", 0))
                     m_type = s.get("type", "PLA")
@@ -564,31 +565,31 @@ class BridgeServer(BaseHTTPRequestHandler):
                     else:
                         rgb = [35, 163, 199]
 
-                    mqtt_slots.append({
+                    slot_obj = {
                         "index": idx,
                         "type": m_type,
                         "color": rgb,
                         "color_group": [rgb + [255]]
-                    })
-
-                topic = f"anycubic/anycubicCloud/v1/slicer/printer/{model_id}/{device_id}/multiColorBox"
-                msg = {
-                    "type": "multiColorBox",
-                    "action": "setInfo",
-                    "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
-                    "timestamp": int(time.time() * 1000),
-                    "data": {
-                        "multi_color_box": [
-                            {
-                                "id": -1,
-                                "slots": mqtt_slots
-                            }
-                        ]
                     }
-                }
-                mqtt_client.publish(topic, json.dumps(msg))
-                print(f"[Bridge] Published setInfo for {len(mqtt_slots)} slots to printer")
-                time.sleep(0.3)
+                    msg = {
+                        "type": "multiColorBox",
+                        "action": "setInfo",
+                        "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                        "timestamp": int(time.time() * 1000),
+                        "data": {
+                            "multi_color_box": [
+                                {
+                                    "id": -1,
+                                    "slots": [slot_obj]
+                                }
+                            ]
+                        }
+                    }
+                    mqtt_client.publish(topic_web, json.dumps(msg))
+                    print(f"[Bridge] Published setInfo for slot {idx} ({m_type}) to printer")
+                    time.sleep(0.15)
+
+                time.sleep(0.4)
                 query_all()
             result = {"status": "ok"}
 
