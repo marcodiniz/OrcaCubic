@@ -797,9 +797,14 @@
             <div class="card">
                 <div class="card-header">
                     <h2>🎨 ACE Pro Filament Hub</h2>
-                    <button class="btn btn-primary" style="padding: 4px 10px; font-size: 11px;" onclick="syncFilamentsToSlicer()">
-                        🔄 Sync to Slicer
-                    </button>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn btn-sm btn-primary" onclick="syncFromSlicerToPrinter()">
+                            📥 Sync from Slicer
+                        </button>
+                        <button class="btn btn-sm" onclick="syncFilamentsToSlicer()">
+                            📤 Sync to Slicer
+                        </button>
+                    </div>
                 </div>
                 <div class="slots-container" id="slots-container">
                     <!-- Slot 1 -->
@@ -1203,6 +1208,41 @@
         function syncFilamentsToSlicer() {
             sendToSlicer("sync_filaments_to_slicer", filaments);
             alert("Filament profiles pushed to OrcaSlicer!");
+        }
+
+        async function syncFromSlicerToPrinter() {
+            let slicerFilaments = window.orcacubic_filaments;
+            if (!slicerFilaments || slicerFilaments.length === 0) {
+                sendToSlicer("request_plate_filaments_to_printer", {});
+                alert("Requested filament profiles from Slicer. Please click 'Sync from Slicer' again in a moment.");
+                return;
+            }
+
+            let slots = [];
+            slicerFilaments.forEach((f, idx) => {
+                slots.push({
+                    index: idx,
+                    type: f.type || f.material || "PLA",
+                    color: f.color || "#00d2ff"
+                });
+            });
+
+            try {
+                const res = await fetch("http://127.0.0.1:18988/sync_to_printer", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ slots: slots })
+                });
+                const data = await res.json();
+                if (data.status === "ok") {
+                    alert("Filament profiles imported from Slicer into Kobra X ACE Pro successfully!");
+                    refreshStatus();
+                } else {
+                    alert("Error syncing to printer: " + (data.message || "failed"));
+                }
+            } catch(e) {
+                alert("Failed to send profiles to printer: " + e.message);
+            }
         }
 
         async function sendControl(action) {

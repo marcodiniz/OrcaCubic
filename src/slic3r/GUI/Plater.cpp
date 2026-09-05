@@ -5915,6 +5915,10 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
 
                         // Notify plater and sidebar of count change
                         wxGetApp().plater()->on_filament_count_change(num_filaments);
+                        for (size_t i = 0; i < num_filaments && i < p->combos_filament.size(); ++i) {
+                            std::string hex_col = filaments_array[i].value("color", "#00d2ff");
+                            p->combos_filament[i]->sync_colour_config({hex_col}, false);
+                        }
                         for (auto& c : p->combos_filament)
                             c->update();
                         update_filaments_area_height();

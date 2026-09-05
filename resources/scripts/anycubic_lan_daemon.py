@@ -545,6 +545,53 @@ class BridgeServer(BaseHTTPRequestHandler):
                 except Exception as e:
                     result = {"status": "error", "message": str(e)}
 
+        elif self.path.startswith("/sync_to_printer"):
+            slots_data = data.get("slots", [])
+            if slots_data and mqtt_client:
+                mqtt_slots = []
+                for s in slots_data:
+                    idx = int(s.get("index", 0))
+                    m_type = s.get("type", "PLA")
+                    col = s.get("color")
+                    if isinstance(col, str) and col.startswith("#"):
+                        c_hex = col.lstrip("#")
+                        r = int(c_hex[0:2], 16) if len(c_hex) >= 2 else 0
+                        g = int(c_hex[2:4], 16) if len(c_hex) >= 4 else 210
+                        b = int(c_hex[4:6], 16) if len(c_hex) >= 6 else 255
+                        rgb = [r, g, b]
+                    elif isinstance(col, list) and len(col) >= 3:
+                        rgb = [col[0], col[1], col[2]]
+                    else:
+                        rgb = [35, 163, 199]
+
+                    mqtt_slots.append({
+                        "index": idx,
+                        "type": m_type,
+                        "color": rgb,
+                        "color_group": [rgb + [255]]
+                    })
+
+                topic = f"anycubic/anycubicCloud/v1/slicer/printer/{model_id}/{device_id}/multiColorBox"
+                msg = {
+                    "type": "multiColorBox",
+                    "action": "setInfo",
+                    "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                    "timestamp": int(time.time() * 1000),
+                    "data": {
+                        "multi_color_box": [
+                            {
+                                "id": -1,
+                                "slots": mqtt_slots
+                            }
+                        ]
+                    }
+                }
+                mqtt_client.publish(topic, json.dumps(msg))
+                print(f"[Bridge] Published setInfo for {len(mqtt_slots)} slots to printer")
+                time.sleep(0.3)
+                query_all()
+            result = {"status": "ok"}
+
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
