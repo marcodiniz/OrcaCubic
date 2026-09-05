@@ -885,6 +885,8 @@
         .axis-steps { background:#1a1c22; border-radius:20px; padding:2px; display:flex; }
         .axis-steps button { border:0; background:transparent; color:#90949e; padding:4px 10px; border-radius:16px; font-size:10px; cursor:pointer; }
         .axis-steps button.active { background:#1677ff; color:white; }
+        #card-axis-move.axis-locked button { opacity:.34; cursor:not-allowed; pointer-events:none; }
+        #card-axis-move.axis-locked .axis-body { filter:saturate(.25); }
         .axis-body { display:grid; grid-template-columns:40px 130px 42px 1px 68px; align-items:center; justify-content:center; gap:9px; min-height:207px; }
         .axis-actions { display:flex; flex-direction:column; gap:12px; }
         .axis-actions button { width:38px; height:38px; border-radius:50%; background:#22252c; border:1px solid #383b44; color:#4f8cff; font-size:21px; cursor:pointer; }
@@ -1966,14 +1968,15 @@
             if (btnResume) btnResume.disabled = !isPaused;
             if (btnStop) btnStop.disabled = !hasActiveJob;
 
-            // Jog buttons & Extrusion buttons: disabled during active printing
-            document.querySelectorAll(".jog-btn").forEach(btn => {
-                btn.disabled = isPrinting;
-            });
-            const btnExtrude = document.getElementById("btn-extrude");
-            const btnRetract = document.getElementById("btn-retract");
-            if (btnExtrude) btnExtrude.disabled = isPrinting;
-            if (btnRetract) btnRetract.disabled = isPrinting;
+            // Lock every Axis Move action (steps, home/release, XYZ and extruder) while a job is active.
+            const axisCard = document.getElementById("card-axis-move");
+            if (axisCard) {
+                axisCard.classList.toggle("axis-locked", hasActiveJob);
+                axisCard.querySelectorAll("button").forEach(btn => {
+                    btn.disabled = hasActiveJob;
+                    btn.setAttribute("aria-disabled", hasActiveJob ? "true" : "false");
+                });
+            }
 
             const hintEl = document.getElementById("jog-hint");
             if (data.axis_error) {
