@@ -344,16 +344,7 @@ public:
     explicit AnycubicPrinterWebViewHandler(PrinterWebView& owner)
         : PrinterWebViewHandler(owner)
     {
-        if (browser() != nullptr) {
-            const std::string token_json = json(anycubic_lan_bridge_token()).dump();
-            const std::string source =
-                "(function(){const token=" + token_json + ";const original=window.fetch;window.fetch=function(resource,init){"
-                "const url=typeof resource==='string'?resource:(resource&&resource.url?resource.url:'');"
-                "if(url.indexOf('http://127.0.0.1:18988/')===0){init=Object.assign({},init||{});"
-                "const headers=new Headers((init&&init.headers)||(resource instanceof Request?resource.headers:undefined));"
-                "headers.set('X-OrcaCubic-Token',token);init.headers=headers;}return original.call(this,resource,init);};})();";
-            browser()->AddUserScript(wxString::FromUTF8(source), wxWEBVIEW_INJECT_AT_DOCUMENT_START);
-        }
+        owner.set_bridge_token(wxString::FromUTF8(anycubic_lan_bridge_token()));
     }
 
     ~AnycubicPrinterWebViewHandler() override

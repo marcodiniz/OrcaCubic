@@ -1101,6 +1101,18 @@
     </div>
 
 
+    <div id="feed-progress-modal" class="modal-backdrop" style="display:none; z-index:2200;">
+        <div class="modal-card" style="width:min(620px,92vw);">
+            <div class="modal-header"><h3>Material Management</h3><button class="modal-close" onclick="closeFeedProgress()">✕</button></div>
+            <div class="modal-body" style="padding:28px;">
+                <h2 id="feed-progress-title" style="margin:0 0 22px;">Unfeed</h2>
+                <div id="feed-progress-steps" style="display:grid; gap:16px;"></div>
+                <div id="feed-progress-error" style="display:none; color:#ff6b6b; margin-top:18px;"></div>
+            </div>
+            <div class="modal-actions" style="padding:14px 24px 20px;"><button class="btn" onclick="closeFeedProgress()">Exit</button></div>
+        </div>
+    </div>
+
     <!-- Alert Banner for LCD notices -->
     <div id="printer-alert-banner" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: var(--radius-md); padding: 10px 16px; margin-bottom: 16px; align-items: center; justify-content: space-between; color: #fca5a5;">
         <div style="display: flex; align-items: center; gap: 10px;">
@@ -1367,26 +1379,75 @@
             } catch(e) {}
         }
 
+        let activeFeedOperation = null;
+
+        function openFeedProgress(type, slotIndex) {
+            activeFeedOperation = { type, slotIndex, status: 1, error: "" };
+            document.getElementById("feed-progress-title").innerText = type === 1 ? "Feed" : "Unfeed";
+            document.getElementById("feed-progress-modal").style.display = "flex";
+            renderFeedProgress();
+        }
+
+        function closeFeedProgress() {
+            activeFeedOperation = null;
+            document.getElementById("feed-progress-modal").style.display = "none";
+        }
+
+        function renderFeedProgress() {
+            if (!activeFeedOperation) return;
+            const status = Number(activeFeedOperation.status) || 1;
+            const labels = activeFeedOperation.type === 1
+                ? [[1,"Preheat"],[2,"Retracting"],[3,"Feeding"],[10,"Loading Complete"]]
+                : [[1,"Preheat"],[2,"Retracting"],[10,"Unloading Complete"]];
+            const complete = status >= 10;
+            document.getElementById("feed-progress-steps").innerHTML = labels.map(([step,label], index) => {
+                const done = complete || status > step;
+                const active = !complete && status === step;
+                const mark = done ? "✓" : String(index + 1);
+                return `<div style="display:flex;align-items:center;gap:12px;color:${done||active?'#fff':'#6b7280'}"><span style="display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:${done?'#2563eb':active?'#1677ff':'#252831'};font-weight:700">${mark}</span><b>${label}</b></div>`;
+            }).join("");
+            const error = document.getElementById("feed-progress-error");
+            error.innerText = activeFeedOperation.error || "";
+            error.style.display = activeFeedOperation.error ? "block" : "none";
+        }
+
+        function updateFeedProgress(feedStatus) {
+            if (!feedStatus || !activeFeedOperation) return;
+            const reportedSlot = Number(feedStatus.slot_index);
+            if (reportedSlot >= 0 && reportedSlot !== activeFeedOperation.slotIndex) return;
+            const reportedType = Number(feedStatus.type);
+            if (reportedType === 1 || reportedType === 2) activeFeedOperation.type = reportedType;
+            activeFeedOperation.status = Number(feedStatus.current_status) || activeFeedOperation.status;
+            const code = Number(feedStatus.code) || 0;
+            activeFeedOperation.error = code >= 10000 ? "Printer reported error " + code : "";
+            renderFeedProgress();
+        }
+
+        async function sendFeedCommand(action, type) {
+            openFeedProgress(type, currentEditingSlot);
+            const response = await fetch("http://127.0.0.1:18988/control", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action, slot: currentEditingSlot, type: document.getElementById("modal-slot-type").value })
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || result.status !== "ok") throw new Error(result.message || "Printer bridge rejected the command");
+        }
+
         async function feedCurrentSlot() {
             try {
-                await fetch("http://127.0.0.1:18988/control", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action: "feed_filament", slot: currentEditingSlot, type: document.getElementById("modal-slot-type").value })
-                });
-                alert("Feed command sent for Slot " + (currentEditingSlot + 1));
-            } catch(e) { alert("Feed failed: " + e.message); }
+                await sendFeedCommand("feed_filament", 1);
+            } catch(e) {
+                if (activeFeedOperation) { activeFeedOperation.error = "Feed failed: " + e.message; renderFeedProgress(); }
+            }
         }
 
         async function unfeedCurrentSlot() {
             try {
-                await fetch("http://127.0.0.1:18988/control", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action: "unfeed_filament", slot: currentEditingSlot })
-                });
-                alert("Unfeed command sent for Slot " + (currentEditingSlot + 1));
-            } catch(e) { alert("Unfeed failed: " + e.message); }
+                await sendFeedCommand("unfeed_filament", 2);
+            } catch(e) {
+                if (activeFeedOperation) { activeFeedOperation.error = "Unfeed failed: " + e.message; renderFeedProgress(); }
+            }
         }
 
         function setBuildplateType(val) {
@@ -2102,6 +2163,7 @@
                     if (data.filaments && Array.isArray(data.filaments) && data.filaments.length > 0) {
                         updateFilamentUI(data.filaments);
                     }
+                    if (data.feed_status) updateFeedProgress(data.feed_status);
                     const isBusyOrPrinting = (data.state && ["printing", "auto_leveling", "heating", "busy"].includes(data.state.toLowerCase()));
                     if (isBusyOrPrinting) {
                         document.getElementById("printer-alert-banner").style.display = "none";

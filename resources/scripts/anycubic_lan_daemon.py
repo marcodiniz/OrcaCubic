@@ -58,7 +58,8 @@ telemetry = {
     "light": 1,
     "fan": 0,
     "speed_mode": 2,
-    "filaments": []
+    "filaments": [],
+    "feed_status": {"slot_index": -1, "type": 0, "current_status": 0, "code": 0}
 }
 
 mqtt_client = None
@@ -209,6 +210,14 @@ def on_mqtt_message(c, userdata, msg):
         elif t == "multiColorBox":
             box_list = data.get("multi_color_box", [])
             if box_list and len(box_list) > 0:
+                reported_feed = next((box.get("feed_status") for box in box_list if box.get("feed_status")), None)
+                if reported_feed:
+                    telemetry["feed_status"] = {
+                        "slot_index": int(reported_feed.get("slot_index", -1)),
+                        "type": int(reported_feed.get("type", 0) or 0),
+                        "current_status": int(reported_feed.get("current_status", 0) or 0),
+                        "code": int(reported_feed.get("code", code) or 0)
+                    }
                 box = box_list[0]
                 loaded_slot = box.get("loaded_slot", -1)
                 slots = box.get("slots", [])
@@ -689,6 +698,7 @@ class BridgeServer(BaseHTTPRequestHandler):
                 }
                 if mqtt_client:
                     mqtt_client.publish(topic_feed, json.dumps(msg))
+                    telemetry["feed_status"] = {"slot_index": slot_idx, "type": 1, "current_status": 1, "code": 0}
                     print(f"[Bridge] Published feedFilament slot {slot_idx} ({m_type})")
 
             elif action == "unfeed_filament":
@@ -702,12 +712,13 @@ class BridgeServer(BaseHTTPRequestHandler):
                     "data": {
                         "multi_color_box": [{
                             "id": -1,
-                            "feed_status": {"slot_index": slot_idx, "type": 0}
+                            "feed_status": {"slot_index": slot_idx, "type": 2}
                         }]
                     }
                 }
                 if mqtt_client:
                     mqtt_client.publish(topic_feed, json.dumps(msg))
+                    telemetry["feed_status"] = {"slot_index": slot_idx, "type": 2, "current_status": 1, "code": 0}
                     print(f"[Bridge] Published unfeed slot {slot_idx}")
 
             elif action == "fan":

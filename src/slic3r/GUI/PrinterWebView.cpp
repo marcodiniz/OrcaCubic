@@ -15,6 +15,7 @@
 
 #include <slic3r/GUI/Widgets/WebView.hpp>
 #include <wx/webview.h>
+#include <nlohmann/json.hpp>
 
 #ifdef __linux__
 #include <webkit2/webkit2.h>
@@ -188,6 +189,23 @@ void PrinterWebView::load_url(wxString& url, wxString apikey)
     }
     //m_browser->SetFocus();
     UpdateState();
+}
+
+void PrinterWebView::set_bridge_token(const wxString& token)
+{
+    if (m_browser == nullptr)
+        return;
+    const std::string token_json = nlohmann::json(token.ToStdString()).dump();
+    const std::string source =
+        "(function(){window.__orcacubicBridgeToken=" + token_json + ";"
+        "if(window.__orcacubicFetchHooked)return;window.__orcacubicFetchHooked=true;"
+        "const original=window.fetch;window.fetch=function(resource,init){"
+        "const url=typeof resource==='string'?resource:(resource&&resource.url?resource.url:'');"
+        "if(url.indexOf('http://127.0.0.1:18988/')===0){init=Object.assign({},init||{});"
+        "const headers=new Headers((init&&init.headers)||(resource instanceof Request?resource.headers:undefined));"
+        "headers.set('X-OrcaCubic-Token',window.__orcacubicBridgeToken);init.headers=headers;}"
+        "return original.call(this,resource,init);};})();";
+    m_browser->AddUserScript(wxString::FromUTF8(source), wxWEBVIEW_INJECT_AT_DOCUMENT_START);
 }
 
 bool PrinterWebView::Show(bool show)
