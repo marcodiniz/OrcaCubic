@@ -389,10 +389,6 @@
             color: var(--text-main);
         }
 
-        .slot-temp {
-            font-size: 11px;
-            color: var(--text-muted);
-        }
 
         .slot-level {
             font-size: 10px;
@@ -1922,7 +1918,7 @@
                     <span class="slot-badge">${f.slot || idx + 1}</span>
                     <div class="slot-color-circle" style="background: ${colorStyle};"></div>
                     <div class="slot-material">${f.type || 'PLA'}</div>
-                    <div class="slot-temp">${f.temp || 210}°C</div>
+
                     <div class="slot-level" style="${f.loaded ? 'color:#10b981;font-weight:700;' : ''}">
                         ${f.loaded ? '● Active' : (f.finish_type === 'gradient' ? 'Gradient' : f.finish_type === 'luminous' ? 'Luminous' : 'Ready')}
                     </div>
