@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><defs><linearGradient id="top" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#27D3BE"/><stop offset="1" stop-color="#00A896"/></linearGradient><linearGradient id="side" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#00A896"/><stop offset="1" stop-color="#007D72"/></linearGradient></defs>
+      <rect x="18.00" y="18.00" width="476.00" height="476.00" rx="108.00" fill="#101B1F" stroke="#36515A" stroke-width="8.00"/>
+      <polygon points="256.00,75.00 421.00,165.00 256.00,255.00 91.00,165.00" fill="url(#top)"/>
+      <polygon points="91.00,165.00 256.00,255.00 256.00,405.00 91.00,315.00" fill="#35525B"/>
+      <polygon points="421.00,165.00 256.00,255.00 256.00,405.00 421.00,315.00" fill="url(#side)"/>
+      <path d="M 154.00 193.00 L 256.00 249.00 L 358.00 193.00" fill="none" stroke="white" stroke-width="29.00" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M 256.00 249.00 V 348.00" fill="none" stroke="white" stroke-width="29.00" stroke-linecap="round"/>
+      <circle cx="256.00" cy="249.00" r="22.00" fill="white"/>
+      <path d="M 139.00 233.00 C 158.00 220.00, 181.00 224.00, 188.00 244.00 C 167.00 252.00, 149.00 248.00, 139.00 233.00 Z" fill="white" opacity=".9"/>
+    </svg>
