@@ -1530,17 +1530,34 @@
             window.open(activeCameraUrl, "_blank");
         }
 
+        function updateLightUI(status) {
+            lightStatus = Number(status) === 1 ? 1 : 0;
+            const isOn = lightStatus === 1;
+            const btnLight = document.getElementById("btn-light");
+            const controlState = document.getElementById("control-light-state");
+            const controlSwitch = document.getElementById("control-light-switch");
+            if (btnLight) btnLight.innerText = isOn ? "Light On" : "Light Off";
+            if (controlState) controlState.innerText = isOn ? "On" : "Off";
+            if (controlSwitch) {
+                controlSwitch.classList.toggle("on", isOn);
+                controlSwitch.setAttribute("aria-checked", isOn ? "true" : "false");
+            }
+        }
+
         async function toggleLight() {
-            const nextStatus = lightStatus === 1 ? 0 : 1;
+            const previousStatus = Number(lightStatus) === 1 ? 1 : 0;
+            const nextStatus = previousStatus === 1 ? 0 : 1;
+            updateLightUI(nextStatus);
             try {
-                await fetch("http://127.0.0.1:18988/control", {
+                const response = await fetch("http://127.0.0.1:18988/control", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ action: "light", status: nextStatus })
                 });
-                lightStatus = nextStatus;
-                document.getElementById("btn-light").innerText = lightStatus === 1 ? "💡 Light: On" : "💡 Light: Off";
+                const data = await response.json();
+                if (!response.ok || data.status !== "ok") throw new Error(data.message || "Light update failed");
             } catch(e) {
+                updateLightUI(previousStatus);
                 console.error("Error toggling light:", e);
             }
         }
@@ -1997,13 +2014,7 @@
                 if (fanValue) fanValue.innerText = Math.round(modelFanPct) + "%";
             }
             if (data.light !== undefined) {
-                lightStatus = Number(data.light) || 0;
-                const btnLight = document.getElementById("btn-light");
-                if (btnLight) btnLight.innerText = lightStatus === 1 ? "Light On" : "Light Off";
-                const controlState = document.getElementById("control-light-state");
-                const controlSwitch = document.getElementById("control-light-switch");
-                if (controlState) controlState.innerText = lightStatus === 1 ? "On" : "Off";
-                if (controlSwitch) controlSwitch.classList.toggle("on", lightStatus === 1);
+                updateLightUI(data.light);
             }
         }
 
