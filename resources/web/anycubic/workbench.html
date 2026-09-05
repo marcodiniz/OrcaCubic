@@ -889,10 +889,11 @@
         .axis-actions { display:flex; flex-direction:column; gap:12px; }
         .axis-actions button { width:38px; height:38px; border-radius:50%; background:#22252c; border:1px solid #383b44; color:#4f8cff; font-size:21px; cursor:pointer; }
         .xy-pad { width:130px; height:130px; border-radius:50%; background:#22252c; border:1px solid #3a3d46; position:relative; }
-        .xy-pad button { position:absolute; border:0; background:transparent; color:#fff; cursor:pointer; display:flex; gap:3px; align-items:center; justify-content:center; }
+        .xy-pad button { position:absolute; border:0; background:transparent; color:#fff; cursor:pointer; display:flex; gap:3px; align-items:center; justify-content:center; margin:0; padding:0; line-height:1; box-sizing:border-box; }
         .xy-pad small,.z-pad small { font-size:10px; font-weight:700; }
-        .xy-up { top:7px; left:44px; flex-direction:column; }
-        .xy-down { bottom:7px; left:44px; flex-direction:column; }
+        .xy-up,.xy-down { left:50%; transform:translateX(-50%); width:44px; height:36px; flex-direction:column; }
+        .xy-up { top:5px; }
+        .xy-down { bottom:5px; }
         .xy-left { left:7px; top:52px; }
         .xy-right { right:7px; top:52px; }
         .xy-home { left:43px; top:43px; width:44px; height:44px; border-radius:50%!important; background:#292c34!important; color:#1677ff!important; font-size:21px; z-index:2; }
