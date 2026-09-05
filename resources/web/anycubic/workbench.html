@@ -608,6 +608,10 @@
             user-select: text;
         }
 
+        .wb3-gcode { display:flex; flex-direction:column; }
+        .wb3-gcode .gcode-container { flex:1; min-height:0; }
+        .wb3-gcode .gcode-textarea { flex:1; height:auto; min-height:210px; resize:none; }
+
         .gcode-textarea:focus {
             border-color: var(--primary);
         }
