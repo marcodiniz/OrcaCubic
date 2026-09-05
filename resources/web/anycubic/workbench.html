@@ -1016,7 +1016,7 @@
                                 <div class="finish-editor-row"><label>Custom solid</label><input type="color" id="modal-slot-color" value="#009639" onchange="setCustomSolid(this.value)"><span id="modal-color-hex" style="font-family:monospace;font-size:12px;color:#fff">#009639</span><button class="btn btn-sm" onclick="addCustomFinishColor()">+ Add color</button></div>
                             </div>
                             <div id="finish-gradient-editor" class="finish-editor">
-                                <div class="finish-editor-row"><label>Gradient colors (2–4)</label><input type="color" id="gradient-color-1" value="#23a3c7" onchange="updateGradientEditor()"><input type="color" id="gradient-color-2" value="#9333ea" onchange="updateGradientEditor()"><input type="color" id="gradient-color-3" value="#ff8da1" onchange="updateGradientEditor()"><input type="color" id="gradient-color-4" value="#fddb27" onchange="updateGradientEditor()"><select id="gradient-direction" class="gradient-direction" onchange="updateGradientEditor()"><option value="180">Vertical</option><option value="90">Horizontal</option></select></div>
+                                <div class="finish-editor-row"><label>Gradient colors</label><select id="gradient-count" class="gradient-direction" onchange="updateGradientEditor()"><option value="2">2 colors</option><option value="3">3 colors</option><option value="4" selected>4 colors</option></select><input type="color" id="gradient-color-1" value="#23a3c7" onchange="updateGradientEditor()"><input type="color" id="gradient-color-2" value="#9333ea" onchange="updateGradientEditor()"><input type="color" id="gradient-color-3" value="#ff8da1" onchange="updateGradientEditor()"><input type="color" id="gradient-color-4" value="#fddb27" onchange="updateGradientEditor()"><select id="gradient-direction" class="gradient-direction" onchange="updateGradientEditor()"><option value="180">Vertical</option><option value="90">Horizontal</option></select></div>
                                 <div id="gradient-preview" class="gradient-preview"></div><div class="custom-color-row"><button onclick="applyGradientFinish()">Use gradient</button><button onclick="addCustomGradientFinish()">+ Add gradient</button></div>
                             </div>
                             <div id="finish-luminous-editor" class="finish-editor">
@@ -2141,7 +2141,10 @@
         }
 
         function updateGradientEditor(select=true) {
-            const colors = [1,2,3,4].map(i => document.getElementById("gradient-color-"+i)?.value).filter(Boolean);
+            const count = Number(document.getElementById("gradient-count")?.value || 4);
+            const allInputs = [1,2,3,4].map(i => document.getElementById("gradient-color-"+i));
+            allInputs.forEach((el,index) => { if (el) el.style.display = index < count ? "inline-block" : "none"; });
+            const colors = allInputs.slice(0,count).map(el => el?.value).filter(Boolean);
             const angle = Number(document.getElementById("gradient-direction")?.value || 180);
             const preview = document.getElementById("gradient-preview");
             if (preview) preview.style.background = `linear-gradient(${angle}deg, ${colors.join(',')})`;
@@ -2226,6 +2229,7 @@
             const color = selectedColorGroup[0];
             document.getElementById("modal-slot-color").value = color;
             if (selectedFinishType === "gradient") {
+                const gradientCount=document.getElementById("gradient-count"); if(gradientCount) gradientCount.value=String(Math.max(2,Math.min(4,selectedColorGroup.length)));
                 selectedColorGroup.slice(0,4).forEach((c,i) => { const el=document.getElementById("gradient-color-"+(i+1)); if(el) el.value=c; });
                 document.getElementById("gradient-direction").value = selectedIconType === 2 ? "90" : "180";
                 updateSpoolGradient();
