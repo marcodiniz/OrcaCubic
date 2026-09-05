@@ -439,6 +439,19 @@ class BridgeServer(BaseHTTPRequestHandler):
                     mqtt_client.publish(topic, json.dumps(msg))
                     print(f"[Bridge] Published startCapture to {topic}")
 
+            elif action == "stop_capture" or action == "video_stop":
+                topic = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/video"
+                msg = {
+                    "type": "video",
+                    "action": "stopCapture",
+                    "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                    "timestamp": int(time.time() * 1000),
+                    "data": None
+                }
+                if mqtt_client:
+                    mqtt_client.publish(topic, json.dumps(msg))
+                    print(f"[Bridge] Published stopCapture to {topic}")
+
             elif action == "speed":
                 mode = int(data.get("mode", 2))
                 topic = f"anycubic/anycubicCloud/v1/slicer/printer/{model_id}/{device_id}/print"

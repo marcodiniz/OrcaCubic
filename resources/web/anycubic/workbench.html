@@ -714,7 +714,7 @@
                     </div>
                     <div class="camera-top-controls">
                         <button class="btn btn-sm" id="btn-light" onclick="toggleLight()">💡 Light: On</button>
-                        <button class="btn btn-sm" id="btn-cam-stream" onclick="startCameraStream()">▶ Start Stream</button>
+                        <button class="btn btn-sm" id="btn-cam-stream" onclick="toggleCameraStream()">▶ Start Stream</button>
                     </div>
                     <div class="camera-controls">
                         <button class="btn btn-sm" onclick="openCamFull()">⛶ Open Feed</button>
@@ -943,7 +943,19 @@
             } catch(e) {}
         }
 
+        let isCameraStreaming = false;
+
+        async function toggleCameraStream() {
+            if (isCameraStreaming) {
+                await stopCameraStream();
+            } else {
+                await startCameraStream();
+            }
+        }
+
         async function startCameraStream() {
+            const btn = document.getElementById("btn-cam-stream");
+            if (btn) btn.innerText = "⏳ Connecting...";
             try {
                 await fetch("http://127.0.0.1:18988/control", {
                     method: "POST",
@@ -954,6 +966,39 @@
             setTimeout(() => {
                 initFlvVideo(activeCameraUrl);
             }, 800);
+        }
+
+        async function stopCameraStream() {
+            const btn = document.getElementById("btn-cam-stream");
+            if (btn) btn.innerText = "⏳ Stopping...";
+            if (flvPlayer) {
+                try {
+                    flvPlayer.pause();
+                    flvPlayer.unload();
+                    flvPlayer.detachMediaElement();
+                    flvPlayer.destroy();
+                } catch(e) {}
+                flvPlayer = null;
+            }
+            const videoElement = document.getElementById("cam-video");
+            if (videoElement) {
+                videoElement.style.display = "none";
+            }
+            document.getElementById("cam-placeholder").style.display = "flex";
+
+            try {
+                await fetch("http://127.0.0.1:18988/control", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "stop_capture" })
+                });
+            } catch(e) {}
+
+            isCameraStreaming = false;
+            if (btn) {
+                btn.innerText = "▶ Start Stream";
+                btn.classList.remove("btn-danger");
+            }
         }
 
         function initFlvVideo(url) {
@@ -991,12 +1036,30 @@
                     flvPlayer.play().then(() => {
                         document.getElementById("cam-placeholder").style.display = "none";
                         videoElement.style.display = "block";
+                        isCameraStreaming = true;
+                        const btn = document.getElementById("btn-cam-stream");
+                        if (btn) {
+                            btn.innerText = "⏹ Stop Stream";
+                            btn.classList.add("btn-danger");
+                        }
                     }).catch(e => {
                         console.log("Play catch:", e);
+                        isCameraStreaming = false;
+                        const btn = document.getElementById("btn-cam-stream");
+                        if (btn) {
+                            btn.innerText = "▶ Start Stream";
+                            btn.classList.remove("btn-danger");
+                        }
                     });
 
                     flvPlayer.on(flvjs.Events.ERROR, (errType, errDetail, errInfo) => {
                         console.warn("FLV Error:", errType, errDetail, errInfo);
+                        isCameraStreaming = false;
+                        const btn = document.getElementById("btn-cam-stream");
+                        if (btn) {
+                            btn.innerText = "▶ Start Stream";
+                            btn.classList.remove("btn-danger");
+                        }
                     });
                 } catch(e) {
                     console.error("Failed to init flv player:", e);
