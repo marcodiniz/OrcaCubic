@@ -819,6 +819,113 @@
             border-top: 1px solid var(--border);
             background: var(--bg-card);
         }
+
+        /* Workbench V3 stock layout: task/control/device, camera/consumable/axis */
+        .wb3-grid {
+            display: grid;
+            grid-template-columns: minmax(300px, 1.15fr) minmax(290px, .95fr) minmax(310px, 1fr);
+            grid-template-areas:
+                "task control device"
+                "camera consumable axis"
+                "utility utility utility";
+            gap: 12px;
+            align-items: stretch;
+        }
+        .wb3-grid > .card { margin: 0; min-width: 0; padding: 15px; border-radius: 12px; }
+        .wb3-task { grid-area: task; min-height: 250px; }
+        .wb3-control { grid-area: control; min-height: 250px; }
+        .wb3-device { grid-area: device; min-height: 250px; }
+        .wb3-camera { grid-area: camera; min-height: 310px; }
+        .wb3-consumable { grid-area: consumable; min-height: 310px; }
+        .wb3-axis { grid-area: axis; min-height: 310px; }
+        .wb3-utility { grid-area: utility; }
+        .wb3-grid .card-header { margin-bottom: 13px; }
+        .wb3-grid .card-header h2, .axis-header h2 { font-size: 15px; }
+        .job-percent { font-weight: 700; font-size: 15px; color: #1677ff; }
+        .online-tag { background: rgba(39,174,96,.12); color: #45d483; }
+        .control-grid { display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:8px; }
+        .control-tile { min-height:76px; background:#202229; border:1px solid #32343b; border-radius:9px; padding:10px; color:#fff; text-align:left; cursor:pointer; display:flex; flex-direction:column; justify-content:space-between; }
+        .control-tile:hover { border-color:#4f8cff; background:#252831; }
+        .control-label { display:flex; align-items:center; gap:7px; font-size:11px; color:#b6b8bf; white-space:nowrap; }
+        .control-label img { width:17px; height:17px; }
+        .control-value { display:flex; align-items:baseline; gap:3px; font-size:17px; }
+        .control-value b { color:#fff; font-weight:650; }
+        .control-value em { color:#777b85; font-style:normal; }
+        .control-value span { color:#858994; }
+        .control-value small { font-size:11px; color:#858994; }
+        .inline-editor { display:flex; align-items:center; gap:4px; }
+        .inline-editor[hidden] { display:none; }
+        .inline-editor input { width:75px; background:#111319; color:#fff; border:1px solid #1677ff; border-radius:5px; padding:5px 7px; font-size:16px; }
+        .switch-line { display:flex; justify-content:space-between; align-items:center; font-size:13px; }
+        .toggle-switch { width:30px; height:16px; background:#4a4d56; border-radius:10px; position:relative; }
+        .toggle-switch::after { content:""; width:12px; height:12px; border-radius:50%; background:#fff; position:absolute; left:2px; top:2px; transition:.15s; }
+        .toggle-switch.on { background:#1677ff; }
+        .toggle-switch.on::after { transform:translateX(14px); }
+        .control-presets { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:8px; }
+        .control-presets button { background:#181a20; border:1px solid #30323a; border-radius:6px; color:#a8abb4; padding:6px; cursor:pointer; font-size:10px; }
+        .control-presets button:hover { color:#fff; border-color:#1677ff; }
+        .device-summary { display:flex; align-items:center; gap:12px; padding-bottom:11px; border-bottom:1px solid #2d3038; }
+        .device-summary img { width:88px; height:74px; object-fit:contain; }
+        .device-summary h3 { font-size:14px; margin-bottom:5px; }
+        .device-summary span { display:block; font-size:10px; color:#8c909a; line-height:1.55; }
+        .device-selects { display:grid; gap:8px; margin-top:11px; }
+        .device-selects label { display:grid; grid-template-columns:90px 1fr; gap:8px; align-items:center; color:#9ca0aa; font-size:11px; }
+        .device-selects select { background:#1b1d23; color:#fff; border:1px solid #343740; border-radius:6px; padding:6px; font-size:11px; }
+        .device-cn { margin-top:8px; width:100%; display:flex; justify-content:space-between; background:transparent; color:#858994; border:0; font-size:10px; cursor:pointer; }
+        .device-cn span { color:#4f8cff; }
+        .device-info-status { color:#45d483; font-size:10px; margin-top:5px; }
+        .wb3-camera .camera-container { min-height:240px; height:calc(100% - 34px); }
+        .wb3-camera video { width:100%; height:100%; min-height:240px; object-fit:contain; background:#090a0d; display:none; }
+        .wb3-camera .camera-controls button,.wb3-camera .camera-top-controls button { background:rgba(26,29,35,.92); border:1px solid #41444d; color:#f4f5f7; border-radius:7px; padding:6px 10px; font-size:10px; cursor:pointer; box-shadow:none; }
+        .wb3-camera .camera-controls button:hover,.wb3-camera .camera-top-controls button:hover { border-color:#1677ff; color:#fff; }
+        .wb3-camera .camera-placeholder img { width:76px; opacity:.6; }
+        .card-actions { display:flex; gap:5px; }
+        .card-actions button { background:#24272e; border:1px solid #383b44; color:#c4c6cc; border-radius:15px; padding:4px 9px; font-size:10px; cursor:pointer; }
+        .card-actions button:hover { border-color:#1677ff; color:#fff; }
+        .wb3-consumable .slots-container { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+        .wb3-consumable .slot-card { min-height:112px; padding:12px 8px 9px; }
+        .module-note { color:#747883; font-size:10px; text-align:center; margin-top:10px; }
+        .axis-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:13px; }
+        .axis-steps { background:#1a1c22; border-radius:20px; padding:2px; display:flex; }
+        .axis-steps button { border:0; background:transparent; color:#90949e; padding:4px 10px; border-radius:16px; font-size:10px; cursor:pointer; }
+        .axis-steps button.active { background:#1677ff; color:white; }
+        .axis-body { display:grid; grid-template-columns:40px 130px 42px 1px 68px; align-items:center; justify-content:center; gap:9px; min-height:207px; }
+        .axis-actions { display:flex; flex-direction:column; gap:12px; }
+        .axis-actions button { width:38px; height:38px; border-radius:50%; background:#22252c; border:1px solid #383b44; color:#4f8cff; font-size:21px; cursor:pointer; }
+        .xy-pad { width:130px; height:130px; border-radius:50%; background:#22252c; border:1px solid #3a3d46; position:relative; }
+        .xy-pad button { position:absolute; border:0; background:transparent; color:#fff; cursor:pointer; display:flex; gap:3px; align-items:center; justify-content:center; }
+        .xy-pad small,.z-pad small { font-size:10px; font-weight:700; }
+        .xy-up { top:7px; left:44px; flex-direction:column; }
+        .xy-down { bottom:7px; left:44px; flex-direction:column; }
+        .xy-left { left:7px; top:52px; }
+        .xy-right { right:7px; top:52px; }
+        .xy-home { left:43px; top:43px; width:44px; height:44px; border-radius:50%!important; background:#292c34!important; color:#1677ff!important; font-size:21px; z-index:2; }
+        .z-pad { height:130px; border-radius:23px; background:#22252c; border:1px solid #3a3d46; display:flex; flex-direction:column; justify-content:space-around; align-items:center; }
+        .z-pad button { border:0; background:transparent; color:#fff; cursor:pointer; display:flex; flex-direction:column; align-items:center; }
+        .z-pad button:nth-child(2) { width:30px; height:30px; background:#292c34; border-radius:5px; color:#1677ff; font-size:18px; }
+        .axis-divider { height:145px; border-left:1px dashed #3b3e47; }
+        .extruder-column { height:160px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; }
+        .extruder-column span { font-size:10px; color:#a4a7af; }
+        .extruder-column img { width:41px; max-height:60px; object-fit:contain; }
+        .extruder-column button { width:34px; height:34px; background:#22252c; border:1px solid #383b44; color:#fff; border-radius:7px; font-size:18px; cursor:pointer; }
+        .material-controls { display:grid; gap:10px; }
+        .finish-editor { display:none; padding:10px; background:#17191f; border:1px solid #30333b; border-radius:8px; margin-top:7px; }
+        .finish-editor.active { display:block; }
+        .finish-editor-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .finish-editor label { color:#9da1aa; font-size:11px; }
+        .finish-editor input[type=color] { width:34px; height:30px; padding:0; border:0; background:transparent; }
+        .gradient-preview,.luminous-preview { height:34px; border-radius:7px; border:1px solid #3a3d46; flex:1; min-width:100px; }
+        .gradient-direction { background:#24272e; border:1px solid #383b44; color:#fff; border-radius:5px; padding:5px 8px; }
+        .custom-color-row { display:flex; align-items:center; gap:8px; margin-top:9px; }
+        .custom-color-row button { background:#24272e; border:1px dashed #4b4e58; color:#bfc2c9; border-radius:6px; padding:5px 9px; cursor:pointer; }
+        @media (max-width:1180px) { .wb3-grid { grid-template-columns:1fr 1fr; grid-template-areas:"task control" "camera consumable" "device axis" "utility utility"; } }
+        @media (max-width:760px) { .wb3-grid { grid-template-columns:1fr; grid-template-areas:"task" "control" "device" "camera" "consumable" "axis" "utility"; } }
+        .color-swatch-circle { width:26px; height:26px; border-radius:50%; border:2px solid transparent; cursor:pointer; padding:0; transition:transform .15s, box-shadow .15s, border-color .15s; }
+        .color-swatch-circle.selected { border-color:#1677ff; transform:scale(1.12); box-shadow:0 0 0 2px rgba(22,119,255,.22); }
+        .color-swatch-circle.gradient { background:linear-gradient(135deg,#23a3c7,#9333ea); }
+        .color-swatch-circle.luminous { background:linear-gradient(135deg,#33a13a 0 48%,#7fff64 52%); box-shadow:0 0 8px rgba(127,255,100,.38); }
+        #swatch-grid-7x5 { align-content:start; }
+
     </style>
 </head>
 <body>
@@ -830,11 +937,19 @@
                 <h3 id="modal-slot-title" style="font-size: 16px; font-weight: 600; color: #fff; margin: 0;">Material Settings</h3>
                 <button class="modal-close" onclick="closeSlotEditModal()" style="position: absolute; right: 18px; top: 14px; font-size: 18px; color: #9ca3af; background: none; border: none; cursor: pointer;">✕</button>
             </div>
-            <div class="modal-body" style="display: flex; gap: 24px; padding: 24px;">
+            <div class="modal-body" style="display:flex; flex-direction:row; align-items:stretch; gap:24px; padding:24px; max-height:620px; overflow:auto;">
                 <!-- Left Section: 3D Spool Render & Feed/Unfeed -->
                 <div style="width: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;">
                     <div id="modal-spool-container" style="width: 130px; height: 165px; display: flex; align-items: center; justify-content: center;">
                         <svg width="130" height="165" viewBox="0 0 55 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="spool-dynamic-gradient" x1="0" y1="0" x2="1" y2="1">
+                                    <stop id="spool-stop-0" offset="0%" stop-color="#23a3c7"/>
+                                    <stop id="spool-stop-1" offset="33%" stop-color="#9333ea"/>
+                                    <stop id="spool-stop-2" offset="66%" stop-color="#ff8da1"/>
+                                    <stop id="spool-stop-3" offset="100%" stop-color="#fddb27"/>
+                                </linearGradient>
+                            </defs>
                             <g id="spool-model">
                                 <ellipse cx="10.6468" cy="34.9304" rx="10.6468" ry="34.9304" transform="matrix(-1 0 0 1 55 0)" fill="#D1D1D1" fill-opacity="0.25"/>
                                 <path d="M44.3515 0.478516C43.1101 0.478516 41.8342 1.30526 40.5957 3.02439C39.3648 4.73202 38.2375 7.23458 37.2818 10.3705C35.3723 16.6345 34.1836 25.3178 34.1836 34.9295C34.1836 44.5422 35.3723 53.2255 37.2818 59.4896C38.2375 62.6254 39.3648 65.128 40.5957 66.8353C41.8342 68.5551 43.1101 69.381 44.3515 69.381C45.5919 69.381 46.8678 68.5542 48.1063 66.8353C49.3372 65.128 50.4655 62.6254 51.4212 59.4896C53.3307 53.2255 54.5184 44.5422 54.5184 34.9295C54.5184 25.3178 53.3307 16.6345 51.4212 10.3705C50.4655 7.23458 49.3372 4.73202 48.1063 3.02439C46.8669 1.30545 45.5919 0.478611 44.3515 0.478516Z" stroke="#9ca3af" stroke-width="1.2"/>
@@ -896,14 +1011,19 @@
                             <div class="finish-tab" id="tab-luminous" onclick="switchFinishTab('luminous')" style="padding: 4px 6px; font-size: 13px; color: #6b7280; cursor: pointer; border-left: 3px solid transparent;">Luminous</div>
                         </div>
                         <div style="flex: 1;">
-                            <div id="swatch-grid-7x5" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 9px;">
-                                <!-- 35 swatches dynamically generated -->
+                            <div id="swatch-grid-7x5" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 9px;"></div>
+                            <div id="finish-solid-editor" class="finish-editor active">
+                                <div class="finish-editor-row"><label>Custom solid</label><input type="color" id="modal-slot-color" value="#009639" onchange="setCustomSolid(this.value)"><span id="modal-color-hex" style="font-family:monospace;font-size:12px;color:#fff">#009639</span><button class="btn btn-sm" onclick="addCustomFinishColor()">+ Add color</button></div>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
-                                <span style="font-size: 11px; color: #9ca3af;">Custom:</span>
-                                <input type="color" id="modal-slot-color" style="width: 28px; height: 28px; border: none; border-radius: 50%; cursor: pointer; background: none;" onchange="pickModalColor(this.value)">
-                                <span id="modal-color-hex" style="font-family: monospace; font-size: 12px; color: #fff;">#009639</span>
+                            <div id="finish-gradient-editor" class="finish-editor">
+                                <div class="finish-editor-row"><label>Gradient colors (2–4)</label><input type="color" id="gradient-color-1" value="#23a3c7" onchange="updateGradientEditor()"><input type="color" id="gradient-color-2" value="#9333ea" onchange="updateGradientEditor()"><input type="color" id="gradient-color-3" value="#ff8da1" onchange="updateGradientEditor()"><input type="color" id="gradient-color-4" value="#fddb27" onchange="updateGradientEditor()"><select id="gradient-direction" class="gradient-direction" onchange="updateGradientEditor()"><option value="180">Vertical</option><option value="90">Horizontal</option></select></div>
+                                <div id="gradient-preview" class="gradient-preview"></div><div class="custom-color-row"><button onclick="applyGradientFinish()">Use gradient</button><button onclick="addCustomGradientFinish()">+ Add gradient</button></div>
                             </div>
+                            <div id="finish-luminous-editor" class="finish-editor">
+                                <div class="finish-editor-row"><label>Day</label><input type="color" id="luminous-day" value="#33a13a" onchange="updateLuminousEditor()"><label>Glow</label><input type="color" id="luminous-night" value="#7fff64" onchange="updateLuminousEditor()"></div>
+                                <div id="luminous-preview" class="luminous-preview"></div><div class="custom-color-row"><button onclick="applyLuminousFinish()">Use luminous pair</button><button onclick="addCustomLuminousFinish()">+ Add luminous</button></div>
+                            </div>
+                            <div id="custom-finish-colors" class="custom-color-row"></div>
                         </div>
                     </div>
                 </div>
@@ -948,343 +1068,133 @@
         </div>
     </div>
 
-    <!-- Main Grid -->
-    <div class="grid-container">
-        
-        <!-- Left Column: Camera, Job, & G-code Console -->
-        <div style="display: flex; flex-direction: column; gap: 16px;">
-            
-            <!-- Live Camera -->
-            <div class="card">
-                <div class="card-header">
-                    <h2>📹 Live Camera Stream</h2>
-                    <span class="tag">Port 18088 FLV</span>
-                </div>
-                <div class="camera-container" id="cam-box">
-                    <video id="cam-video" autoplay muted playsinline controls style="width:100%; height:100%; object-fit:contain; background:#000; display:block;"></video>
-                    <div class="camera-placeholder" id="cam-placeholder" style="display:none;">
-                        <span>📷 Camera Stream Offline / Initializing</span>
-                        <button class="btn btn-sm" onclick="startCameraStream()">▶ Connect Camera</button>
-                    </div>
-                    <div class="camera-top-controls">
-                        <button class="btn btn-sm" id="btn-light" onclick="toggleLight()">💡 Light: On</button>
-                        <button class="btn btn-sm" id="btn-cam-stream" onclick="toggleCameraStream()">▶ Start Stream</button>
-                    </div>
-                    <div class="camera-controls">
-                        <button class="btn btn-sm" onclick="openCamFull()">⛶ Open Feed</button>
-                        <button class="btn btn-sm" onclick="startCameraStream()">🔄 Reconnect</button>
-                    </div>
-                </div>
+    <!-- Workbench V3 Grid: stock Anycubic section order -->
+    <main class="wb3-grid">
+        <!-- Row 1 / Column 1: Task -->
+        <section class="card job-card wb3-task">
+            <div class="card-header">
+                <h2>Active Print Job</h2>
+                <span class="tag" id="print-state">Ready</span>
             </div>
-
-            <!-- Active Print Job & Speed -->
-            <div class="card job-card">
-                <div class="card-header">
-                    <h2>🖨️ Active Print Job</h2>
-                    <span class="tag" id="print-state">Printing</span>
-                </div>
-                <div class="job-title-row">
-                    <div class="job-name" id="job-name">Loading Active Job...</div>
-                    <div style="font-weight: 700; font-size: 15px; color: var(--primary);" id="job-pct">0%</div>
-                </div>
-                <div class="job-progress-bar">
-                    <div class="job-progress-fill" id="job-progress-fill" style="width: 0%;"></div>
-                </div>
-                <div class="job-stats-grid">
-                    <div class="job-stat-box">
-                        <div class="job-stat-label">Layer</div>
-                        <div class="job-stat-val" id="stat-layer">0 / 0</div>
-                    </div>
-                    <div class="job-stat-box">
-                        <div class="job-stat-label">Elapsed</div>
-                        <div class="job-stat-val" id="stat-elapsed">0m</div>
-                    </div>
-                    <div class="job-stat-box">
-                        <div class="job-stat-label">Remaining</div>
-                        <div class="job-stat-val" id="stat-remaining">--</div>
-                    </div>
-                </div>
-
-                <!-- Print Speed Selector -->
-                <div class="speed-row">
-                    <span class="speed-label">⚡ Speed:</span>
-                    <button class="speed-btn" id="speed-1" onclick="setSpeed(1)">Quiet 50%</button>
-                    <button class="speed-btn active" id="speed-2" onclick="setSpeed(2)">Std 100%</button>
-                    <button class="speed-btn" id="speed-3" onclick="setSpeed(3)">Sport 125%</button>
-                    <button class="speed-btn" id="speed-4" onclick="setSpeed(4)">Ludicrous 150%</button>
-                </div>
-
-                <div class="job-actions">
-                    <button class="btn" id="btn-pause" onclick="sendControl('pause')" disabled>⏸ Pause</button>
-                    <button class="btn" id="btn-resume" onclick="sendControl('resume')" disabled>▶ Resume</button>
-                    <button class="btn btn-danger" id="btn-stop" onclick="sendControl('stop')" disabled>⏹ Cancel Job</button>
-                </div>
+            <div class="job-title-row">
+                <div class="job-name" id="job-name">Ready</div>
+                <div class="job-percent" id="job-pct">0%</div>
             </div>
-
-            <!-- Run G-code File Block -->
-            <div class="card">
-                <div class="card-header">
-                    <h2>⌨️ Run G-code File</h2>
-                    <span class="tag">LAN Exec</span>
-                </div>
-                <div class="gcode-container">
-                    <textarea class="gcode-textarea" id="gcode-input" placeholder="; Enter G-code lines (e.g. M104 S200, G28, M106 S255)...&#10;G28&#10;M400"></textarea>
-                    <div class="gcode-bottom">
-                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                            <input type="checkbox" id="chk-delete-after" checked /> Auto-delete file after execution
-                        </label>
-                        <div style="display: flex; gap: 6px;">
-                            <button class="btn btn-sm" onclick="clearGcode()">Clear</button>
-                            <button class="btn btn-primary btn-sm" onclick="runGcodeFile()">▶ Run on Printer</button>
-                        </div>
-                    </div>
-                    <div class="gcode-status" id="gcode-status"></div>
-                </div>
+            <div class="job-progress-bar"><div class="job-progress-fill" id="job-progress-fill"></div></div>
+            <div class="job-stats-grid">
+                <div class="job-stat-box"><div class="job-stat-label">Layer</div><div class="job-stat-val" id="stat-layer">0 / 0</div></div>
+                <div class="job-stat-box"><div class="job-stat-label">Elapsed</div><div class="job-stat-val" id="stat-elapsed">0m</div></div>
+                <div class="job-stat-box"><div class="job-stat-label">Remaining</div><div class="job-stat-val" id="stat-remaining">--</div></div>
             </div>
-
-        </div>
-
-        <!-- Right Column: Filament ACE Pro, Temperatures, & Axis Jog -->
-        <div style="display: flex; flex-direction: column; gap: 16px;">
-            
-            <!-- Device Info Card -->
-            <div class="card" id="card-device-info">
-                <div class="card-header">
-                    <h2>📋 Device Info</h2>
-                    <span class="tag" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">● Online</span>
-                </div>
-                <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 12px;">
-                    <img src="img/Kx.f7c08d6e.png" alt="Kobra X" style="width: 58px; height: 58px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));">
-                    <div style="flex: 1;">
-                        <div style="font-size: 15px; font-weight: 700; color: var(--text-main);">Anycubic Kobra X</div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 11px; margin-top: 4px; color: var(--text-muted);">
-                            <div>Model: <strong style="color: #fff;">20030</strong></div>
-                            <div>Firmware: <strong style="color: #fff;">V 2.0.1.9</strong></div>
-                            <div>IP: <strong style="color: #fff;">192.168.1.133</strong></div>
-                            <div>CN: <strong style="color: #fff; cursor: pointer;" onclick="copyCN()" title="Click to copy">7526-2504-37CE... 📋</strong></div>
-                        </div>
-                    </div>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; border-top: 1px solid var(--border); padding-top: 10px;">
-                    <div>
-                        <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Buildplate Type</label>
-                        <select id="device-buildplate-type" class="modal-select" style="width: 100%; font-size: 12px; padding: 6px 10px; border-radius: 6px;" onchange="setBuildplateType(this.value)">
-                            <option value="texture_pei">Textured PEI Plate</option>
-                            <option value="smooth_pei">Smooth PEI Plate</option>
-                            <option value="low_temp">Low Temperature Plate</option>
-                            <option value="engineering">Engineering Plate</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Nozzle Type</label>
-                        <select id="device-nozzle-type" class="modal-select" style="width: 100%; font-size: 12px; padding: 6px 10px; border-radius: 6px;" onchange="setNozzleType(this.value)">
-                            <option value="steel_04">0.4mm Hardened Steel</option>
-                            <option value="brass_04">0.4mm Brass</option>
-                            <option value="brass_02">0.2mm Brass</option>
-                            <option value="steel_06">0.6mm Hardened Steel</option>
-                            <option value="steel_08">0.8mm Hardened Steel</option>
-                        </select>
-                    </div>
-                </div>
-                <div id="device-info-status" style="font-size: 11px; color: var(--primary); margin-top: 6px; text-align: center; display: none;">Configuration saved!</div>
+            <div class="job-actions">
+                <button class="btn" id="btn-pause" onclick="sendControl('pause')" disabled>Pause</button>
+                <button class="btn" id="btn-resume" onclick="sendControl('resume')" disabled>Resume</button>
+                <button class="btn btn-danger" id="btn-stop" onclick="sendControl('stop')" disabled>Cancel Job</button>
             </div>
+        </section>
 
-            <!-- ACE Pro Multi-Color Hub -->
-            <div class="card">
-                <div class="card-header">
-                    <h2>🎨 ACE Pro Filament Hub</h2>
-                    <div style="display: flex; gap: 6px;">
-                        <button class="btn btn-sm btn-primary" onclick="syncFromSlicerToPrinter()">
-                            📥 Sync from Slicer
-                        </button>
-                        <button class="btn btn-sm" onclick="syncFilamentsToSlicer()">
-                            📤 Sync to Slicer
-                        </button>
-                    </div>
-                </div>
-                <div class="slots-container" id="slots-container">
-                    <!-- Slot 1 -->
-                    <div class="slot-card" id="slot-0" onclick="openSlotEditModal(0)">
-                        <span class="slot-badge">1</span>
-                        <div class="slot-color-circle" style="background: #009639;"></div>
-                        <div class="slot-material">PLA</div>
-                        <div class="slot-temp">210°C</div>
-                        <div class="slot-level">Ready</div>
-                        <div class="slot-edit-hint">✏️ Edit</div>
-                    </div>
-                    <!-- Slot 2 -->
-                    <div class="slot-card" id="slot-1" onclick="openSlotEditModal(1)">
-                        <span class="slot-badge">2</span>
-                        <div class="slot-color-circle" style="background: #75787b;"></div>
-                        <div class="slot-material">PLA</div>
-                        <div class="slot-temp">210°C</div>
-                        <div class="slot-level">Ready</div>
-                        <div class="slot-edit-hint">✏️ Edit</div>
-                    </div>
-                    <!-- Slot 3 -->
-                    <div class="slot-card active" id="slot-2" onclick="openSlotEditModal(2)">
-                        <span class="slot-badge">3</span>
-                        <div class="slot-color-circle" style="background: #fddb27;"></div>
-                        <div class="slot-material">PLA</div>
-                        <div class="slot-temp">210°C</div>
-                        <div class="slot-level" style="color:#10b981;font-weight:700;">● Active</div>
-                        <div class="slot-edit-hint">✏️ Edit</div>
-                    </div>
-                    <!-- Slot 4 -->
-                    <div class="slot-card" id="slot-3" onclick="openSlotEditModal(3)">
-                        <span class="slot-badge">4</span>
-                        <div class="slot-color-circle" style="background: #ff8da1;"></div>
-                        <div class="slot-material">PLA</div>
-                        <div class="slot-temp">210°C</div>
-                        <div class="slot-level">Ready</div>
-                        <div class="slot-edit-hint">✏️ Edit</div>
-                    </div>
-                </div>
-                <p style="font-size: 11px; color: var(--text-dim); text-align: center;">
-                    Click any slot card to edit material and color.
-                </p>
+        <!-- Row 1 / Column 2: Control -->
+        <section class="card wb3-control">
+            <div class="card-header"><h2>Control</h2><span class="tag">Live</span></div>
+            <div class="control-grid">
+                <button class="control-tile" onclick="startInlineTempEdit('nozzle')">
+                    <span class="control-label"><img src="img/icon-nozzle.7a827791.svg">Nozzle</span>
+                    <span class="control-value" id="nozzle-value-wrap"><b id="cur-nozzle">0</b><em>/</em><span id="target-nozzle">0</span><small>°C</small></span>
+                    <span class="inline-editor" id="nozzle-inline-editor" hidden><input id="nozzle-inline-input" type="number" min="0" max="300"><small>°C</small></span>
+                </button>
+                <button class="control-tile" onclick="startInlineTempEdit('bed')">
+                    <span class="control-label"><img src="img/icon-hotbed.ec6ce931.svg">Heatbed</span>
+                    <span class="control-value" id="bed-value-wrap"><b id="cur-bed">0</b><em>/</em><span id="target-bed">0</span><small>°C</small></span>
+                    <span class="inline-editor" id="bed-inline-editor" hidden><input id="bed-inline-input" type="number" min="0" max="120"><small>°C</small></span>
+                </button>
+                <button class="control-tile light-control" onclick="toggleLight()">
+                    <span class="control-label"><img src="img/icon-light.efdd1de5.svg">Camera Light</span>
+                    <span class="switch-line"><span id="control-light-state">Off</span><span id="control-light-switch" class="toggle-switch"></span></span>
+                </button>
+                <button class="control-tile" onclick="promptSetFan()">
+                    <span class="control-label"><img src="img/icon-fan.02d8a4a3.svg">Model Fan</span>
+                    <span class="control-value"><b id="control-fan-value">0%</b></span>
+                </button>
+                <button class="control-tile speed-control" onclick="cycleSpeedMode()">
+                    <span class="control-label"><img src="img/speed-mode.47b8f8db.svg">Speed Mode</span>
+                    <span class="control-value"><b id="control-speed-value">Standard</b></span>
+                </button>
+                <button class="control-tile" onclick="preheat(0, 0)">
+                    <span class="control-label"><img src="img/temp.9134d606.svg">Cooldown</span>
+                    <span class="control-value"><b>All heaters off</b></span>
+                </button>
             </div>
-
-            <!-- Temperatures -->
-            <div class="card">
-                <div class="card-header">
-                    <h2>🔥 Temperatures</h2>
-                    <span class="tag">Real-time</span>
-                </div>
-                <div class="temp-grid">
-                    <div class="temp-item" style="cursor: pointer;" onclick="promptSetTemp('nozzle')" title="Click to set nozzle temperature">
-                        <div class="temp-label">
-                            <span>Nozzle ✏️</span>
-                            <span class="temp-target">Target: <span id="target-nozzle">0</span>°C</span>
-                        </div>
-                        <div class="temp-val"><span id="cur-nozzle">30</span>°C</div>
-                        <div class="temp-bar-bg">
-                            <div class="temp-bar-fill bar-nozzle" id="bar-nozzle" style="width: 10%;"></div>
-                        </div>
-                    </div>
-                    <div class="temp-item" style="cursor: pointer;" onclick="promptSetTemp('bed')" title="Click to set heatbed temperature">
-                        <div class="temp-label">
-                            <span>Heatbed ✏️</span>
-                            <span class="temp-target">Target: <span id="target-bed">0</span>°C</span>
-                        </div>
-                        <div class="temp-val"><span id="cur-bed">26</span>°C</div>
-                        <div class="temp-bar-bg">
-                            <div class="temp-bar-fill bar-bed" id="bar-bed" style="width: 10%;"></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="preset-chips">
-                    <div class="chip" onclick="preheat(205, 60)">PLA (205/60)</div>
-                    <div class="chip" onclick="preheat(235, 75)">PETG (235/75)</div>
-                    <div class="chip" onclick="preheat(255, 90)">ABS (255/90)</div>
-                    <div class="chip" onclick="preheat(0, 0)">Cooldown</div>
-                </div>
+            <div class="control-presets">
+                <button onclick="preheat(205,60)">PLA <b>205/60</b></button>
+                <button onclick="preheat(235,75)">PETG <b>235/75</b></button>
+                <button onclick="preheat(255,90)">ABS <b>255/90</b></button>
             </div>
+        </section>
 
-            <!-- Axis Move & Extruder Card (Authentic Anycubic Design from image_82ab1b) -->
-            <div class="card" id="card-axis-move">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                    <h2 style="font-size: 15px; font-weight: 700; color: #fff; margin: 0;">Axis Move</h2>
-                    <!-- Step Increment Segmented Pill -->
-                    <div style="display: flex; background: #181a22; border: 1px solid #374151; border-radius: 20px; padding: 2px;">
-                        <button class="axis-step-btn" id="step-1" onclick="setAxisStep(1, this)" style="padding: 3px 14px; border-radius: 16px; border: none; background: transparent; color: #9ca3af; font-size: 11px; font-weight: 600; cursor: pointer;">1mm</button>
-                        <button class="axis-step-btn active" id="step-15" onclick="setAxisStep(15, this)" style="padding: 3px 14px; border-radius: 16px; border: none; background: #2563eb; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer;">15mm</button>
-                        <button class="axis-step-btn" id="step-50" onclick="setAxisStep(50, this)" style="padding: 3px 14px; border-radius: 16px; border: none; background: transparent; color: #9ca3af; font-size: 11px; font-weight: 600; cursor: pointer;">50mm</button>
-                    </div>
-                </div>
-
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 6px 0;">
-                    <!-- Left: Motion Controls (~75%) -->
-                    <div style="flex: 1; display: flex; align-items: center; justify-content: space-around;">
-                        <!-- Aux Buttons: Home All & Release -->
-                        <div style="display: flex; flex-direction: column; gap: 16px;">
-                            <button class="aux-btn" onclick="homeAll()" title="Home All (XYZ)" style="width: 44px; height: 44px; border-radius: 50%; background: #222634; border: 1px solid #374151; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                                </svg>
-                            </button>
-                            <button class="aux-btn" onclick="motorOff()" title="Release Motors" style="width: 44px; height: 44px; border-radius: 50%; background: #222634; border: 1px solid #374151; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="12" cy="12" r="10"></polyline>
-                                    <line x1="22" y1="12" x2="18" y2="12"></line>
-                                    <line x1="6" y1="12" x2="2" y2="12"></line>
-                                    <line x1="12" y1="6" x2="12" y2="2"></line>
-                                    <line x1="12" y1="22" x2="12" y2="18"></line>
-                                </svg>
-                            </button>
-                        </div>
-
-                        <!-- Center: X/Y Circular D-Pad Dial -->
-                        <div style="width: 146px; height: 146px; border-radius: 50%; background: #1e2230; border: 2px solid #374151; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.4);">
-                            <!-- Y+ Wedge -->
-                            <button onclick="jog('Y', 1)" style="position: absolute; top: 0; left: 0; width: 100%; height: 50%; background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 10px; color: #fff; z-index: 1;">
-                                <span style="font-size: 11px;">▲</span>
-                                <span style="font-size: 12px; font-weight: 700;">Y</span>
-                            </button>
-                            <!-- Y- Wedge -->
-                            <button onclick="jog('Y', -1)" style="position: absolute; bottom: 0; left: 0; width: 100%; height: 50%; background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 10px; color: #fff; z-index: 1;">
-                                <span style="font-size: 12px; font-weight: 700;">Y</span>
-                                <span style="font-size: 11px;">▼</span>
-                            </button>
-                            <!-- X- Wedge -->
-                            <button onclick="jog('X', -1)" style="position: absolute; top: 0; left: 0; width: 50%; height: 100%; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: flex-start; padding-left: 12px; gap: 3px; color: #fff; z-index: 1;">
-                                <span style="font-size: 11px;">◀</span>
-                                <span style="font-size: 12px; font-weight: 700;">X</span>
-                            </button>
-                            <!-- X+ Wedge -->
-                            <button onclick="jog('X', 1)" style="position: absolute; top: 0; right: 0; width: 50%; height: 100%; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: flex-end; padding-right: 12px; gap: 3px; color: #fff; z-index: 1;">
-                                <span style="font-size: 12px; font-weight: 700;">X</span>
-                                <span style="font-size: 11px;">▶</span>
-                            </button>
-                            <!-- Center Home XY Hub -->
-                            <button onclick="homeXY()" title="Home X/Y" style="width: 46px; height: 46px; border-radius: 50%; background: #282d3e; border: 2px solid #374151; z-index: 10; cursor: pointer; display: flex; align-items: center; justify-content: center;">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">
-                                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                                </svg>
-                            </button>
-                        </div>
-
-                        <!-- Right: Z-Axis Vertical Pill -->
-                        <div style="width: 48px; height: 146px; border-radius: 24px; background: #1e2230; border: 2px solid #374151; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 6px 0; box-shadow: 0 4px 14px rgba(0,0,0,0.4);">
-                            <button onclick="jog('Z', 1)" title="Z+ Up" style="background: none; border: none; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center;">
-                                <span style="font-size: 11px;">▲</span>
-                                <span style="font-size: 12px; font-weight: 700;">Z</span>
-                            </button>
-                            <button onclick="homeZ()" title="Home Z" style="width: 34px; height: 34px; border-radius: 6px; background: #282d3e; border: 1px solid #374151; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">
-                                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                                </svg>
-                            </button>
-                            <button onclick="jog('Z', -1)" title="Z- Down" style="background: none; border: none; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center;">
-                                <span style="font-size: 12px; font-weight: 700;">Z</span>
-                                <span style="font-size: 11px;">▼</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Dashed Divider -->
-                    <div style="width: 1px; height: 146px; border-left: 1px dashed #374151;"></div>
-
-                    <!-- Right: Extruder Column (~25%) -->
-                    <div style="width: 90px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; height: 146px;">
-                        <span style="font-size: 12px; font-weight: 600; color: #9ca3af;">Extruder</span>
-                        <button onclick="extrudeFilament('retract')" title="Retract" style="width: 38px; height: 38px; border-radius: 8px; background: #222634; border: 1px solid #374151; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-                            <img src="img/extrude-retract.08d0fefd.svg" style="width: 20px; height: 20px;" alt="Retract">
-                        </button>
-                        <img src="img/extrusion-dark.006334bf.png" style="width: 44px; height: auto;" alt="Hotend">
-                        <button onclick="extrudeFilament('extrude')" title="Extrude" style="width: 38px; height: 38px; border-radius: 8px; background: #222634; border: 1px solid #374151; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-                            <img src="img/extrude-arrow-white.4b34edee.svg" style="width: 20px; height: 20px;" alt="Extrude">
-                        </button>
-                    </div>
-                </div>
-
-                <div style="font-size: 11px; color: #6b7280; text-align: center; margin-top: 10px;">
-                    Axis control will auto-enable remote monitoring. Watch the nozzle-bed distance to avoid collision.
-                </div>
+        <!-- Row 1 / Column 3: Device Info -->
+        <section class="card wb3-device" id="card-device-info">
+            <div class="card-header"><h2>Device Info</h2><span class="tag online-tag">Online</span></div>
+            <div class="device-summary">
+                <img src="img/Kx.f7c08d6e.png" alt="Kobra X">
+                <div><h3>Anycubic Kobra X</h3><span>Model 20030</span><span>Firmware V2.0.1.9</span><span>192.168.1.133</span></div>
             </div>
-        </div>
-    </div>
+            <div class="device-selects">
+                <label>Buildplate Type<select id="device-buildplate-type" onchange="setBuildplateType(this.value)"><option value="texture_pei">Textured PEI Plate</option><option value="smooth_pei">Smooth PEI Plate</option><option value="low_temp">Low Temperature Plate</option><option value="engineering">Engineering Plate</option></select></label>
+                <label>Nozzle Type<select id="device-nozzle-type" onchange="setNozzleType(this.value)"><option value="steel_04">0.4mm Hardened Steel</option><option value="brass_04">0.4mm Brass</option><option value="brass_02">0.2mm Brass</option><option value="steel_06">0.6mm Hardened Steel</option><option value="steel_08">0.8mm Hardened Steel</option></select></label>
+            </div>
+            <button class="device-cn" onclick="copyCN()">CN 7526-2504-37CE-E5A2 <span>Copy</span></button>
+            <div id="device-info-status" class="device-info-status" hidden></div>
+        </section>
+
+        <!-- Row 2 / Column 1: Camera -->
+        <section class="card wb3-camera">
+            <div class="card-header"><h2>Camera</h2><span class="tag">Live View</span></div>
+            <div class="camera-container" id="cam-box">
+                <video id="cam-video" autoplay muted playsinline></video>
+                <div class="camera-placeholder" id="cam-placeholder"><img src="img/video-monitor.aa65df82.png"><span>Camera stream stopped</span></div>
+                <div class="camera-top-controls">
+                    <button class="icon-button" id="btn-light" onclick="toggleLight()">Light Off</button>
+                    <button class="icon-button" id="btn-cam-stream" onclick="toggleCameraStream()">Start Stream</button>
+                </div>
+                <div class="camera-controls"><button onclick="openCamFull()">Full screen</button><button onclick="startCameraStream()">Reconnect</button></div>
+            </div>
+        </section>
+
+        <!-- Row 2 / Column 2: Consumables -->
+        <section class="card wb3-consumable">
+            <div class="card-header">
+                <h2>Consumables</h2>
+                <div class="card-actions"><button onclick="syncFromSlicerToPrinter()">From Slicer</button><button onclick="syncFilamentsToSlicer()">To Slicer</button></div>
+            </div>
+            <div class="slots-container" id="slots-container"></div>
+            <p class="module-note">Select a slot to edit brand, material, solid, gradient, or luminous color.</p>
+        </section>
+
+        <!-- Row 2 / Column 3: Axis -->
+        <section class="card wb3-axis" id="card-axis-move">
+            <div class="axis-header"><h2>Axis Move</h2><div class="axis-steps"><button id="step-1" onclick="setAxisStep(1,this)">1mm</button><button id="step-15" class="active" onclick="setAxisStep(15,this)">15mm</button><button id="step-50" onclick="setAxisStep(50,this)">50mm</button></div></div>
+            <div class="axis-body">
+                <div class="axis-actions"><button onclick="homeAll()" title="Home all">⌂</button><button onclick="motorOff()" title="Release motors">✋</button></div>
+                <div class="xy-pad">
+                    <button class="xy-up" onclick="jog('Y',1)">▲<small>Y</small></button>
+                    <button class="xy-left" onclick="jog('X',-1)">◀<small>X</small></button>
+                    <button class="xy-home" onclick="homeXY()">⌂</button>
+                    <button class="xy-right" onclick="jog('X',1)"><small>X</small>▶</button>
+                    <button class="xy-down" onclick="jog('Y',-1)"><small>Y</small>▼</button>
+                </div>
+                <div class="z-pad"><button onclick="jog('Z',1)">▲<small>Z</small></button><button onclick="homeZ()">⌂</button><button onclick="jog('Z',-1)"><small>Z</small>▼</button></div>
+                <div class="axis-divider"></div>
+                <div class="extruder-column"><span>Extruder</span><button onclick="extrudeFilament('retract')">↥</button><img src="img/extrusion-dark.006334bf.png"><button onclick="extrudeFilament('extrude')">↧</button></div>
+            </div>
+            <p id="jog-hint" class="module-note">Axis control enables remote monitoring. Watch nozzle-bed distance.</p>
+        </section>
+
+        <!-- Utilities remain below stock grid, spanning all columns -->
+        <section class="card wb3-utility">
+            <div class="card-header"><h2>Run G-code File</h2><span class="tag">LAN Exec</span></div>
+            <div class="gcode-container"><textarea class="gcode-textarea" id="gcode-input" placeholder="; One command per line"></textarea><div class="gcode-bottom"><label><input type="checkbox" id="chk-delete-after" checked> Auto-delete after execution</label><div><button class="btn btn-sm" onclick="clearGcode()">Clear</button><button class="btn btn-primary btn-sm" onclick="runGcodeFile()">Run on Printer</button></div></div><div class="gcode-status" id="gcode-status"></div></div>
+        </section>
+    </main>
 
     <script>
 
@@ -1309,13 +1219,7 @@
             ANYCUBIC_SWATCHES.forEach(color => {
                 const btn = document.createElement("button");
                 btn.className = "color-swatch-circle";
-                btn.style.width = "26px";
-                btn.style.height = "26px";
-                btn.style.borderRadius = "50%";
-                btn.style.border = "2px solid transparent";
-                btn.style.cursor = "pointer";
-                btn.style.padding = "0";
-                btn.style.transition = "transform 0.15s";
+                btn.dataset.color = color;
                 if (color === "transparent") {
                     btn.style.background = "repeating-conic-gradient(#808080 0% 25%, #fff 0% 50%) 50% / 8px 8px";
                     btn.title = "Transparent / Natural";
@@ -1323,8 +1227,21 @@
                     btn.style.background = color;
                     btn.title = color;
                 }
-                btn.onclick = () => pickModalColor(color);
+                btn.onclick = () => setCustomSolid(color === "transparent" ? "#e5e7eb" : color);
                 container.appendChild(btn);
+            });
+            if (selectedFinishType === "gradient") {
+                const btn=document.createElement("button"); btn.className="color-swatch-circle gradient"; btn.title="Current gradient"; btn.onclick=()=>switchFinishTab("gradient"); container.appendChild(btn);
+            } else if (selectedFinishType === "luminous") {
+                const btn=document.createElement("button"); btn.className="color-swatch-circle luminous"; btn.title="Current luminous pair"; btn.onclick=()=>switchFinishTab("luminous"); container.appendChild(btn);
+            }
+            markSelectedSwatch();
+        }
+
+        function markSelectedSwatch() {
+            document.querySelectorAll(".color-swatch-circle").forEach(c => {
+                const selected = selectedFinishType === "solid" && c.dataset.color && c.dataset.color.toLowerCase() === String(selectedModalColor).toLowerCase();
+                c.classList.toggle("selected", !!selected);
             });
         }
 
@@ -1332,32 +1249,25 @@
             selectedModalColor = hex;
             const wound = document.getElementById("spool-wound-fill");
             if (wound) {
-                if (hex === "transparent") {
-                    wound.setAttribute("fill", "#e5e7eb");
-                    wound.setAttribute("fill-opacity", "0.35");
+                if (selectedFinishType === "gradient" && selectedColorGroup.length >= 2) {
+                    wound.setAttribute("fill", selectedColorGroup[0]);
+                    wound.setAttribute("fill-opacity", "1");
+                } else if (selectedFinishType === "luminous" && selectedColorGroup.length >= 2) {
+                    wound.setAttribute("fill", selectedColorGroup[0]);
+                    wound.setAttribute("fill-opacity", "1");
                 } else {
-                    wound.setAttribute("fill", hex);
-                    wound.removeAttribute("fill-opacity");
+                    wound.setAttribute("fill", hex === "transparent" ? "#e5e7eb" : hex);
+                    if (hex === "transparent") wound.setAttribute("fill-opacity", "0.35"); else wound.removeAttribute("fill-opacity");
                 }
             }
+            const label = selectedFinishType === "gradient" ? "Gradient: " + selectedColorGroup.join(" → ") : selectedFinishType === "luminous" ? "Luminous: " + selectedColorGroup.join(" / ") : String(hex).toUpperCase();
             const hexEl = document.getElementById("modal-spool-hex");
-            if (hexEl) hexEl.innerText = hex.toUpperCase();
+            if (hexEl) hexEl.innerText = label;
             const colorHexEl = document.getElementById("modal-color-hex");
-            if (colorHexEl) colorHexEl.innerText = hex.toUpperCase();
+            if (colorHexEl) colorHexEl.innerText = String(hex).toUpperCase();
             const picker = document.getElementById("modal-slot-color");
-            if (picker && hex !== "transparent") picker.value = hex;
-
-            document.querySelectorAll(".color-swatch-circle").forEach(c => {
-                if (c.title === hex) {
-                    c.style.borderColor = "#2563eb";
-                    c.style.transform = "scale(1.15)";
-                    c.style.boxShadow = "0 0 8px #2563eb";
-                } else {
-                    c.style.borderColor = "transparent";
-                    c.style.transform = "none";
-                    c.style.boxShadow = "none";
-                }
-            });
+            if (picker && /^#[0-9a-f]{6}$/i.test(hex)) picker.value = hex;
+            markSelectedSwatch();
         }
 
         function onModalTypeChange(type) {
@@ -1637,20 +1547,20 @@
 
         async function setSpeed(mode) {
             currentSpeedMode = mode;
-            for (let i = 1; i <= 4; i++) {
-                const btn = document.getElementById("speed-" + i);
-                if (btn) {
-                    if (i === mode) btn.classList.add("active");
-                    else btn.classList.remove("active");
-                }
-            }
+            const speedLabels = {1:"Quiet",2:"Standard",3:"Sport",4:"Ludicrous"};
+            const speedValue = document.getElementById("control-speed-value");
+            if (speedValue) speedValue.innerText = speedLabels[mode] || "Standard";
             try {
-                await fetch("http://127.0.0.1:18988/control", {
+                const response = await fetch("http://127.0.0.1:18988/control", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ action: "speed", mode: mode })
                 });
-            } catch(e) {}
+                const data = await response.json();
+                if (data.status !== "ok") throw new Error(data.message || "Speed update failed");
+            } catch(e) {
+                console.error("Speed error:", e);
+            }
         }
 
         function setJogStep(step, el) {
@@ -1959,9 +1869,6 @@
                     }
                     closeSlotEditModal();
                     pollTelemetry();
-            initSwatchGrid();
-            const savedPlate = localStorage.getItem('anycubic_buildplate'); if (savedPlate && document.getElementById('device-buildplate-type')) document.getElementById('device-buildplate-type').value = savedPlate;
-            const savedNozzle = localStorage.getItem('anycubic_nozzle'); if (savedNozzle && document.getElementById('device-nozzle-type')) document.getElementById('device-nozzle-type').value = savedNozzle;
                 } else {
                     alert("Failed to update slot: " + (data.message || "error"));
                 }
@@ -1987,15 +1894,22 @@
                 div.id = "slot-" + idx;
                 div.title = "Click to edit material and color";
                 div.onclick = () => openSlotEditModal(idx);
+                let colorStyle = f.color || '#00d2ff';
+                const group = Array.isArray(f.color_group_hex) ? f.color_group_hex : [];
+                if (f.finish_type === 'gradient' && group.length >= 2) {
+                    colorStyle = `linear-gradient(${Number(f.icon_type) === 2 ? '90deg' : '180deg'}, ${group.join(',')})`;
+                } else if (f.finish_type === 'luminous' && group.length >= 2) {
+                    colorStyle = `linear-gradient(90deg, ${group[0]} 0 50%, ${group[1]} 50% 100%)`;
+                }
                 div.innerHTML = `
                     <span class="slot-badge">${f.slot || idx + 1}</span>
-                    <div class="slot-color-circle" style="background: ${f.color || '#00d2ff'};"></div>
+                    <div class="slot-color-circle" style="background: ${colorStyle};"></div>
                     <div class="slot-material">${f.type || 'PLA'}</div>
                     <div class="slot-temp">${f.temp || 210}°C</div>
                     <div class="slot-level" style="${f.loaded ? 'color:#10b981;font-weight:700;' : ''}">
-                        ${f.loaded ? '● Active' : 'Ready'}
+                        ${f.loaded ? '● Active' : (f.finish_type === 'gradient' ? 'Gradient' : f.finish_type === 'luminous' ? 'Luminous' : 'Ready')}
                     </div>
-                    <div class="slot-edit-hint">✏️ Edit</div>
+                    <div class="slot-edit-hint">Edit</div>
                 `;
                 container.appendChild(div);
             });
@@ -2072,17 +1986,24 @@
                 document.getElementById("stat-remaining").innerText = data.remain_time + "m";
             }
             if (data.speed_mode !== undefined) {
-                for (let i = 1; i <= 4; i++) {
-                    const btn = document.getElementById("speed-" + i);
-                    if (btn) {
-                        if (i === data.speed_mode) btn.classList.add("active");
-                        else btn.classList.remove("active");
-                    }
-                }
+                currentSpeedMode = Number(data.speed_mode) || 2;
+                const speedLabels = {1:"Quiet",2:"Standard",3:"Sport",4:"Ludicrous"};
+                const speedValue = document.getElementById("control-speed-value");
+                if (speedValue) speedValue.innerText = speedLabels[currentSpeedMode] || "Standard";
+            }
+            if (data.fan !== undefined) {
+                modelFanPct = Number(data.fan) || 0;
+                const fanValue = document.getElementById("control-fan-value");
+                if (fanValue) fanValue.innerText = Math.round(modelFanPct) + "%";
             }
             if (data.light !== undefined) {
-                lightStatus = data.light;
-                document.getElementById("btn-light").innerText = lightStatus === 1 ? "💡 Light: On" : "💡 Light: Off";
+                lightStatus = Number(data.light) || 0;
+                const btnLight = document.getElementById("btn-light");
+                if (btnLight) btnLight.innerText = lightStatus === 1 ? "Light On" : "Light Off";
+                const controlState = document.getElementById("control-light-state");
+                const controlSwitch = document.getElementById("control-light-switch");
+                if (controlState) controlState.innerText = lightStatus === 1 ? "On" : "Off";
+                if (controlSwitch) controlSwitch.classList.toggle("on", lightStatus === 1);
             }
         }
 
@@ -2135,12 +2056,233 @@
                         remain_time: data.remain_time,
                         print_time: data.print_time,
                         speed_mode: data.speed_mode,
+                        fan: data.fan,
                         light: data.light,
                         axis_error: data.axis_error || ""
                     });
                 }
             } catch (err) {}
         }
+
+        // Workbench V3 finish state and inline controls.
+        let selectedFinishType = "solid";
+        let selectedColorGroup = ["#23a3c7"];
+        let selectedIconType = 0;
+        let modelFanPct = 0;
+        let customFinishColors = JSON.parse(localStorage.getItem("orcacubic_custom_colors") || "[]");
+        let customGradients = JSON.parse(localStorage.getItem("orcacubic_custom_gradients") || "[]");
+        let customLuminous = JSON.parse(localStorage.getItem("orcacubic_custom_luminous") || "[]");
+
+        function refreshFinishEditors() {
+            ["solid","gradient","luminous"].forEach(type => {
+                const editor = document.getElementById("finish-" + type + "-editor");
+                const tab = document.getElementById("tab-" + type);
+                if (editor) editor.classList.toggle("active", selectedFinishType === type);
+                if (tab) {
+                    tab.style.borderLeft = selectedFinishType === type ? "3px solid #1677ff" : "3px solid transparent";
+                    tab.style.color = selectedFinishType === type ? "#fff" : "#6b7280";
+                }
+            });
+            renderCustomFinishColors();
+            updateGradientEditor(false);
+            updateLuminousEditor(false);
+        }
+
+        function switchFinishTab(type) {
+            selectedFinishType = type;
+            refreshFinishEditors();
+            window.setTimeout(refreshFinishEditors, 0);
+        }
+
+        function setCustomSolid(color) {
+            selectedFinishType = "solid";
+            selectedColorGroup = [color];
+            selectedIconType = 0;
+            const wound = document.getElementById("spool-wound-fill");
+            if (wound) wound.style.filter = "none";
+            pickModalColor(color);
+        }
+
+        function addCustomFinishColor() {
+            const color = document.getElementById("modal-slot-color").value;
+            if (!customFinishColors.includes(color)) customFinishColors.unshift(color);
+            customFinishColors = customFinishColors.slice(0,20);
+            localStorage.setItem("orcacubic_custom_colors", JSON.stringify(customFinishColors));
+            setCustomSolid(color);
+            renderCustomFinishColors();
+        }
+
+        function renderCustomFinishColors() {
+            const host = document.getElementById("custom-finish-colors");
+            if (!host) return;
+            const hasCustom = customFinishColors.length || customGradients.length || customLuminous.length;
+            host.innerHTML = hasCustom ? '<span style="font-size:11px;color:#8d919b">Custom</span>' : '';
+            customFinishColors.forEach(color => {
+                const button = document.createElement("button");
+                button.title = color;
+                button.style.cssText = `width:25px;height:25px;border-radius:50%;padding:0;background:${color};border:1px solid #5a5d66`;
+                button.onclick = () => setCustomSolid(color);
+                host.appendChild(button);
+            });
+            customGradients.forEach(entry => {
+                const button = document.createElement("button");
+                button.title = "Custom gradient";
+                button.style.cssText = `width:34px;height:25px;border-radius:6px;padding:0;background:linear-gradient(${entry.angle || 180}deg,${entry.colors.join(',')});border:1px solid #5a5d66`;
+                button.onclick = () => { selectedFinishType="gradient"; selectedColorGroup=[...entry.colors]; selectedIconType=entry.angle===90?2:1; pickModalColor(entry.colors[0]); refreshFinishEditors(); };
+                host.appendChild(button);
+            });
+            customLuminous.forEach(entry => {
+                const button = document.createElement("button");
+                button.title = "Custom luminous pair";
+                button.style.cssText = `width:34px;height:25px;border-radius:6px;padding:0;background:linear-gradient(90deg,${entry[0]} 0 50%,${entry[1]} 50% 100%);border:1px solid #5a5d66;box-shadow:0 0 6px ${entry[1]}`;
+                button.onclick = () => { selectedFinishType="luminous"; selectedColorGroup=[...entry]; selectedIconType=3; pickModalColor(entry[0]); refreshFinishEditors(); };
+                host.appendChild(button);
+            });
+        }
+
+        function updateGradientEditor(select=true) {
+            const colors = [1,2,3,4].map(i => document.getElementById("gradient-color-"+i)?.value).filter(Boolean);
+            const angle = Number(document.getElementById("gradient-direction")?.value || 180);
+            const preview = document.getElementById("gradient-preview");
+            if (preview) preview.style.background = `linear-gradient(${angle}deg, ${colors.join(',')})`;
+            if (select) { selectedFinishType="gradient"; selectedColorGroup=colors; selectedIconType=angle===90?2:1; }
+        }
+
+        function applyGradientFinish() {
+            updateGradientEditor(true);
+            updateSpoolGradient();
+            pickModalColor(selectedColorGroup[0]);
+            refreshFinishEditors();
+        }
+
+        function updateSpoolGradient() {
+            const angle = Number(document.getElementById("gradient-direction")?.value || 180);
+            const stops = [0,1,2,3];
+            stops.forEach((idx) => {
+                const stop = document.getElementById("spool-stop-" + idx);
+                const color = selectedColorGroup[Math.min(idx, selectedColorGroup.length - 1)];
+                if (stop && color) {
+                    stop.setAttribute("stop-color", color);
+                    stop.setAttribute("offset", selectedColorGroup.length <= 1 ? "0%" : `${Math.round((idx / (stops.length - 1)) * 100)}%`);
+                }
+            });
+            const gradient = document.getElementById("spool-dynamic-gradient");
+            if (gradient) {
+                gradient.setAttribute("x1", "0"); gradient.setAttribute("y1", "0");
+                gradient.setAttribute("x2", angle === 90 ? "1" : "0"); gradient.setAttribute("y2", angle === 90 ? "0" : "1");
+            }
+            const wound = document.getElementById("spool-wound-fill");
+            if (wound) wound.setAttribute("fill", "url(#spool-dynamic-gradient)");
+        }
+
+        function addCustomGradientFinish() {
+            updateGradientEditor(true);
+            const angle = Number(document.getElementById("gradient-direction")?.value || 180);
+            const entry = {colors:[...selectedColorGroup], angle};
+            if (!customGradients.some(item => JSON.stringify(item) === JSON.stringify(entry))) customGradients.unshift(entry);
+            customGradients = customGradients.slice(0,20);
+            localStorage.setItem("orcacubic_custom_gradients", JSON.stringify(customGradients));
+            applyGradientFinish();
+            renderCustomFinishColors();
+        }
+
+        function updateLuminousEditor(select=true) {
+            const day = document.getElementById("luminous-day")?.value || "#33a13a";
+            const night = document.getElementById("luminous-night")?.value || "#7fff64";
+            const preview = document.getElementById("luminous-preview");
+            if (preview) preview.style.background = `linear-gradient(90deg, ${day} 0 50%, ${night} 50% 100%)`;
+            if (select) { selectedFinishType="luminous"; selectedColorGroup=[day,night]; selectedIconType=3; }
+        }
+
+        function applyLuminousFinish() {
+            updateLuminousEditor(true);
+            const wound = document.getElementById("spool-wound-fill");
+            if (wound) {
+                wound.setAttribute("fill", selectedColorGroup[0]);
+                wound.style.filter = `drop-shadow(0 0 5px ${selectedColorGroup[1]})`;
+            }
+            pickModalColor(selectedColorGroup[0]);
+            refreshFinishEditors();
+        }
+
+        function addCustomLuminousFinish() {
+            updateLuminousEditor(true);
+            if (!customLuminous.some(entry => entry[0] === selectedColorGroup[0] && entry[1] === selectedColorGroup[1])) customLuminous.unshift([...selectedColorGroup]);
+            customLuminous = customLuminous.slice(0,20);
+            localStorage.setItem("orcacubic_custom_luminous", JSON.stringify(customLuminous));
+            applyLuminousFinish();
+            renderCustomFinishColors();
+        }
+
+        function openSlotEditModal(slotIdx) {
+            currentEditingSlot = slotIdx;
+            const f = filaments[slotIdx] || {};
+            document.getElementById("modal-slot-title").innerText = "Material Settings";
+            document.getElementById("modal-slot-type").value = f.type || "PLA";
+            document.getElementById("modal-brand-select").value = f.brand || "Anycubic";
+            selectedFinishType = f.finish_type || "solid";
+            selectedColorGroup = Array.isArray(f.color_group_hex) && f.color_group_hex.length ? f.color_group_hex : [f.color || "#23a3c7"];
+            selectedIconType = Number(f.icon_type || (selectedFinishType === "gradient" ? 1 : selectedFinishType === "luminous" ? 3 : 0));
+            const color = selectedColorGroup[0];
+            document.getElementById("modal-slot-color").value = color;
+            if (selectedFinishType === "gradient") {
+                selectedColorGroup.slice(0,4).forEach((c,i) => { const el=document.getElementById("gradient-color-"+(i+1)); if(el) el.value=c; });
+                document.getElementById("gradient-direction").value = selectedIconType === 2 ? "90" : "180";
+                updateSpoolGradient();
+            } else if (selectedFinishType === "luminous") {
+                document.getElementById("luminous-day").value = selectedColorGroup[0] || "#33a13a";
+                document.getElementById("luminous-night").value = selectedColorGroup[1] || "#7fff64";
+                const wound=document.getElementById("spool-wound-fill"); if(wound) wound.style.filter=`drop-shadow(0 0 5px ${selectedColorGroup[1] || '#7fff64'})`;
+            } else {
+                const wound=document.getElementById("spool-wound-fill"); if(wound) wound.style.filter="none";
+            }
+            pickModalColor(color);
+            refreshFinishEditors();
+            document.getElementById("slot-modal").style.display = "flex";
+        }
+
+        async function saveSlotFilament() {
+            const btn=document.getElementById("btn-save-slot");
+            btn.disabled=true; btn.innerText="Saving…";
+            const type=document.getElementById("modal-slot-type").value;
+            const brand=document.getElementById("modal-brand-select").value;
+            try {
+                const response=await fetch("http://127.0.0.1:18988/sync_to_printer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({slots:[{index:currentEditingSlot,type,brand,color:selectedColorGroup[0],finish_type:selectedFinishType,icon_type:selectedIconType,color_group:selectedColorGroup}]})});
+                const data=await response.json();
+                if(data.status!=="ok") throw new Error(data.message||"Printer rejected setting");
+                Object.assign(filaments[currentEditingSlot],{type,brand,color:selectedColorGroup[0],finish_type:selectedFinishType,icon_type:selectedIconType,color_group_hex:[...selectedColorGroup]});
+                updateFilamentUI(filaments); closeSlotEditModal(); setTimeout(pollTelemetry,500);
+            } catch(e) { alert("Failed to update slot: "+e.message); }
+            finally { btn.disabled=false; btn.innerText="Save"; }
+        }
+
+        function startInlineTempEdit(type) {
+            const wrap=document.getElementById(type+"-value-wrap");
+            const editor=document.getElementById(type+"-inline-editor");
+            const input=document.getElementById(type+"-inline-input");
+            if(!wrap||!editor||!input) return;
+            input.value=document.getElementById("target-"+(type==="bed"?"bed":"nozzle")).innerText;
+            wrap.hidden=true; editor.hidden=false; input.focus(); input.select();
+            const finish=async commit=>{ if(editor.hidden)return; editor.hidden=true; wrap.hidden=false; if(commit){const n=Number(input.value);const max=type==="nozzle"?300:120;if(Number.isFinite(n)&&n>=0&&n<=max)await setTargetTemp(type,n);}};
+            input.onkeydown=e=>{if(e.key==="Enter")finish(true);if(e.key==="Escape")finish(false);}; input.onblur=()=>finish(true);
+        }
+
+        async function promptSetFan() {
+            const raw=prompt("Model fan speed (0–100%)", String(modelFanPct));
+            if(raw===null)return; const value=Math.max(0,Math.min(100,Number(raw)));
+            if(!Number.isFinite(value)){alert("Enter a value from 0 to 100.");return;}
+            const response=await fetch("http://127.0.0.1:18988/control",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"fan",value})});
+            const data=await response.json(); if(data.status!=="ok") throw new Error(data.message||"Fan update failed"); modelFanPct=value; document.getElementById("control-fan-value").innerText=Math.round(value)+"%";
+        }
+
+        function cycleSpeedMode() { setSpeed(currentSpeedMode >= 4 ? 1 : currentSpeedMode + 1); }
+
+        initSwatchGrid();
+        renderCustomFinishColors();
+        refreshFinishEditors();
+        updateFilamentUI(filaments);
+        const savedPlate=localStorage.getItem("anycubic_buildplate"); if(savedPlate) document.getElementById("device-buildplate-type").value=savedPlate;
+        const savedNozzle=localStorage.getItem("anycubic_nozzle"); if(savedNozzle) document.getElementById("device-nozzle-type").value=savedNozzle;
         setInterval(pollTelemetry, 1500);
         pollTelemetry();
     </script>

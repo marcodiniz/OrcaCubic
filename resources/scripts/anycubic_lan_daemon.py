@@ -36,6 +36,7 @@ telemetry = {
     "camera_url": f"http://{PRINTER_IP}:18088/",
     "upload_url": f"http://{PRINTER_IP}:{PRINTER_HTTP_PORT}/gcode_upload",
     "light": 1,
+    "fan": 0,
     "speed_mode": 2,
     "filaments": [
         {"slot": 1, "color": "#009639", "type": "PLA", "temp": 210, "loaded": False},
@@ -181,6 +182,10 @@ def on_mqtt_message(c, userdata, msg):
             elif code == 200 and telemetry.get("last_error") == "Home the axis before moving":
                 telemetry["last_error"] = ""
 
+        elif t == "fan":
+            if data:
+                telemetry["fan"] = data.get("fan_speed_pct", data.get("speed", telemetry["fan"]))
+
         elif t == "light":
             if data:
                 lights = data.get("lights", [])
@@ -199,12 +204,23 @@ def on_mqtt_message(c, userdata, msg):
                     col = s.get("color", [0, 210, 255])
                     hex_col = rgb_to_hex(col[0], col[1], col[2])
                     m_type = s.get("type", "PLA")
+                    color_group = s.get("color_group", [])
+                    color_group_hex = []
+                    for group_color in color_group:
+                        if isinstance(group_color, list) and len(group_color) >= 3:
+                            color_group_hex.append(rgb_to_hex(group_color[0], group_color[1], group_color[2]))
+                    icon_type = int(s.get("icon_type", 0) or 0)
+                    finish_type = "luminous" if icon_type == 3 else ("gradient" if icon_type in [1, 2] else "solid")
                     new_filaments.append({
                         "slot": idx + 1,
                         "color": hex_col,
                         "type": m_type,
                         "temp": 235 if "PETG" in m_type or "+" in m_type else 210,
-                        "loaded": (idx == loaded_slot)
+                        "loaded": (idx == loaded_slot),
+                        "brand": s.get("brand", "Anycubic"),
+                        "icon_type": icon_type,
+                        "finish_type": finish_type,
+                        "color_group_hex": color_group_hex or [hex_col]
                     })
                 if new_filaments:
                     telemetry["filaments"] = new_filaments
@@ -216,7 +232,7 @@ def query_all():
     global mqtt_client
     if not mqtt_client:
         return
-    for q_type in ["tempature", "status", "multiColorBox", "info", "light"]:
+    for q_type in ["tempature", "fan", "status", "multiColorBox", "info", "light"]:
         topic = f"anycubic/anycubicCloud/v1/slicer/printer/{model_id}/{device_id}/{q_type}"
         msg = {
             "type": q_type,
@@ -612,6 +628,40 @@ class BridgeServer(BaseHTTPRequestHandler):
                     mqtt_client.publish(topic_feed, json.dumps(msg))
                     print(f"[Bridge] Published feedFilament slot {slot_idx} ({m_type})")
 
+            elif action == "unfeed_filament":
+                slot_idx = int(data.get("slot", 0))
+                topic_feed = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/multiColorBox"
+                msg = {
+                    "type": "multiColorBox",
+                    "action": "feedFilament",
+                    "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                    "timestamp": int(time.time() * 1000),
+                    "data": {
+                        "multi_color_box": [{
+                            "id": -1,
+                            "feed_status": {"slot_index": slot_idx, "type": 0}
+                        }]
+                    }
+                }
+                if mqtt_client:
+                    mqtt_client.publish(topic_feed, json.dumps(msg))
+                    print(f"[Bridge] Published unfeed slot {slot_idx}")
+
+            elif action == "fan":
+                fan_value = max(0, min(100, int(data.get("value", 0))))
+                topic_fan = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/fan"
+                msg = {
+                    "type": "fan",
+                    "action": "setSpeed",
+                    "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                    "timestamp": int(time.time() * 1000),
+                    "data": {"fan_speed_pct": fan_value}
+                }
+                if mqtt_client:
+                    mqtt_client.publish(topic_fan, json.dumps(msg))
+                    print(f"[Bridge] Published model fan {fan_value}%")
+                telemetry["fan"] = fan_value
+
             elif action == "temp":
                 heater = data.get("heater", "nozzle")
                 val = int(data.get("value", 0))
@@ -690,11 +740,33 @@ class BridgeServer(BaseHTTPRequestHandler):
                     else:
                         rgb = [35, 163, 199]
 
+                    brand = s.get("brand", "Anycubic")
+                    finish_type = s.get("finish_type", "solid")
+                    icon_type = int(s.get("icon_type", 3 if finish_type == "luminous" else (1 if finish_type == "gradient" else 0)))
+                    raw_group = s.get("color_group", [])
+                    color_group = []
+                    for group_color in raw_group:
+                        if isinstance(group_color, str) and group_color.startswith("#"):
+                            group_hex = group_color.lstrip("#")
+                            if len(group_hex) >= 6:
+                                color_group.append([
+                                    int(group_hex[0:2], 16),
+                                    int(group_hex[2:4], 16),
+                                    int(group_hex[4:6], 16),
+                                    255
+                                ])
+                        elif isinstance(group_color, list) and len(group_color) >= 3:
+                            color_group.append([int(group_color[0]), int(group_color[1]), int(group_color[2]), 255])
+                    if not color_group:
+                        color_group = [rgb + [255]]
+
                     slot_obj = {
                         "index": idx,
                         "type": m_type,
-                        "color": rgb,
-                        "color_group": [rgb + [255]]
+                        "brand": brand,
+                        "color": color_group[0][:3],
+                        "color_group": color_group,
+                        "icon_type": icon_type
                     }
                     msg = {
                         "type": "multiColorBox",

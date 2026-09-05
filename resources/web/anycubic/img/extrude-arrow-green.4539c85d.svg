@@ -1,0 +1,21 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="&#230;&#140;&#164;&#229;&#135;&#186;" clip-path="url(#clip0_102_1531)">
+<mask id="mask0_102_1531" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="0" y="0" width="40" height="40">
+<rect id="&#230;&#140;&#164;&#229;&#135;&#186;_2" width="40" height="40" fill="white"/>
+</mask>
+<g mask="url(#mask0_102_1531)">
+</g>
+<g id="Group 427319971" clip-path="url(#clip1_102_1531)">
+<path id="Polygon 20" d="M20.4092 40L7 19.7828L33.8184 19.7828L20.4092 40Z" fill="#42AD4C"/>
+<rect id="Rectangle 2047" x="27.4014" y="24.7832" width="13.4857" height="24.7824" transform="rotate(180 27.4014 24.7832)" fill="#42AD4C"/>
+</g>
+</g>
+<defs>
+<clipPath id="clip0_102_1531">
+<rect width="40" height="40" fill="white"/>
+</clipPath>
+<clipPath id="clip1_102_1531">
+<rect width="26.8184" height="39.9992" fill="white" transform="matrix(-1 0 0 -1 33.8184 40)"/>
+</clipPath>
+</defs>
+</svg>
