@@ -949,6 +949,7 @@
         }
 
         let isCameraStreaming = false;
+        let userStoppedCamera = false;
 
         async function toggleCameraStream() {
             if (isCameraStreaming) {
@@ -959,6 +960,7 @@
         }
 
         async function startCameraStream() {
+            userStoppedCamera = false;
             const btn = document.getElementById("btn-cam-stream");
             if (btn) btn.innerText = "⏳ Connecting...";
             try {
@@ -969,13 +971,20 @@
                 });
             } catch(e) {}
             setTimeout(() => {
-                initFlvVideo(activeCameraUrl);
+                if (!userStoppedCamera) {
+                    initFlvVideo(activeCameraUrl);
+                }
             }, 800);
         }
 
         async function stopCameraStream() {
+            userStoppedCamera = true;
+            isCameraStreaming = false;
             const btn = document.getElementById("btn-cam-stream");
-            if (btn) btn.innerText = "⏳ Stopping...";
+            if (btn) {
+                btn.innerText = "▶ Start Stream";
+                btn.classList.remove("btn-danger");
+            }
             if (flvPlayer) {
                 try {
                     flvPlayer.pause();
@@ -998,15 +1007,10 @@
                     body: JSON.stringify({ action: "stop_capture" })
                 });
             } catch(e) {}
-
-            isCameraStreaming = false;
-            if (btn) {
-                btn.innerText = "▶ Start Stream";
-                btn.classList.remove("btn-danger");
-            }
         }
 
         function initFlvVideo(url) {
+            if (userStoppedCamera) return;
             if (!url) return;
             activeCameraUrl = url;
             const videoElement = document.getElementById("cam-video");
@@ -1365,7 +1369,7 @@
                     }
                     if (data.camera_url && data.camera_url.startsWith("http")) {
                         activeCameraUrl = data.camera_url;
-                        if (!flvPlayer) {
+                        if (!flvPlayer && !userStoppedCamera) {
                             initFlvVideo(data.camera_url);
                         }
                     }
