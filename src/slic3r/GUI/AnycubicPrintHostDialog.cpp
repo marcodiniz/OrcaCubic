@@ -125,8 +125,7 @@ void AnycubicPrintHostSendDialog::init()
         checkbox->SetToolTip(tooltip);
         checkbox->Bind(wxEVT_TOGGLEBUTTON, [&value](wxCommandEvent& event) {
             value = event.IsChecked();
-            if (auto* source = dynamic_cast<::CheckBox*>(event.GetEventObject()); source != nullptr)
-                source->SetValue(value);
+            event.Skip(); // Allow CheckBox's own handler to redraw the checked/unchecked bitmap.
         });
         auto* text = new wxStaticText(this, wxID_ANY, label);
         text->SetToolTip(tooltip);
