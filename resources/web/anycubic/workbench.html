@@ -1192,13 +1192,13 @@
             <div class="card-header"><h2>Device Info</h2><span class="tag online-tag">Online</span></div>
             <div class="device-summary">
                 <img src="img/Kx.f7c08d6e.png" alt="Kobra X">
-                <div><h3>Anycubic Kobra X</h3><span>Model 20030</span><span>Firmware V2.0.1.9</span><span>192.168.1.133</span></div>
+                <div><h3 id="device-model-name">Anycubic Printer</h3><span id="device-model-id">Model —</span><span id="device-firmware">Firmware —</span><span id="device-ip">—</span></div>
             </div>
             <div class="device-selects">
                 <label>Buildplate Type<select id="device-buildplate-type" onchange="setBuildplateType(this.value)"><option value="texture_pei">Textured PEI Plate</option><option value="smooth_pei">Smooth PEI Plate</option><option value="low_temp">Low Temperature Plate</option><option value="engineering">Engineering Plate</option></select></label>
                 <label>Nozzle Type<select id="device-nozzle-type" onchange="setNozzleType(this.value)"><option value="steel_04">0.4mm Hardened Steel</option><option value="brass_04">0.4mm Brass</option><option value="brass_02">0.2mm Brass</option><option value="steel_06">0.6mm Hardened Steel</option><option value="steel_08">0.8mm Hardened Steel</option></select></label>
             </div>
-            <button class="device-cn" onclick="copyCN()" title="Copy the printer's CN identifier to the clipboard.">CN 7526-2504-37CE-E5A2 <span>Copy</span></button>
+            <button class="device-cn" id="device-cn" onclick="copyCN()" title="Copy the printer's CN identifier to the clipboard." hidden>CN — <span>Copy</span></button>
             <div id="device-info-status" class="device-info-status" hidden></div>
         </section>
 
@@ -1410,11 +1410,14 @@
         }
 
         function copyCN() {
-            navigator.clipboard.writeText("7526-2504-37CE-E5A2");
-            alert("CN Code copied to clipboard: 7526-2504-37CE-E5A2");
+            const button = document.getElementById("device-cn");
+            const cn = button ? button.dataset.cn || "" : "";
+            if (!cn) return;
+            navigator.clipboard.writeText(cn);
+            alert("CN Code copied to clipboard: " + cn);
         }
 
-        let printerIP = "192.168.1.133";
+        let printerIP = "";
         let filaments = [
             {"slot": 1, "color": "#009639", "type": "PLA", "temp": 210, "loaded": false},
             {"slot": 2, "color": "#75787b", "type": "PLA", "temp": 210, "loaded": false},
@@ -1426,7 +1429,7 @@
         let jogStep = 10;
         let currentPrinterState = "idle";
         let flvPlayer = null;
-        let activeCameraUrl = "http://192.168.1.133:18088/live/Hw29TQkP";
+        let activeCameraUrl = "";
         let alertDismissed = false;
         let lastSeenAlert = "";
 
@@ -2067,6 +2070,28 @@
                 const res = await fetch("http://127.0.0.1:18988/status", { cache: "no-store" });
                 if (res.ok) {
                     const data = await res.json();
+
+                    if (data.ip) {
+                        printerIP = data.ip;
+                        const ip = document.getElementById("device-ip");
+                        if (ip) ip.innerText = data.ip;
+                    }
+                    const modelName = document.getElementById("device-model-name");
+                    if (modelName && data.model) modelName.innerText = data.model;
+                    const modelId = document.getElementById("device-model-id");
+                    if (modelId) modelId.innerText = "Model " + (data.model_id || "—");
+                    const firmware = document.getElementById("device-firmware");
+                    if (firmware) {
+                        firmware.innerText = data.firmware ? "Firmware " + data.firmware : "";
+                        firmware.hidden = !data.firmware;
+                    }
+                    const cnButton = document.getElementById("device-cn");
+                    if (cnButton) {
+                        const cn = data.cn || "";
+                        cnButton.dataset.cn = cn;
+                        cnButton.hidden = !cn;
+                        cnButton.firstChild.nodeValue = cn ? "CN " + cn + " " : "CN — ";
+                    }
 
                     if (data.camera_url && data.camera_url.startsWith("http")) {
                         activeCameraUrl = data.camera_url;

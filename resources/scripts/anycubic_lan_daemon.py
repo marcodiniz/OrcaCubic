@@ -7,13 +7,25 @@ import random
 import string
 import hashlib
 import urllib.request
+import urllib.parse
 import ssl
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+# The public build vendors these two small runtime dependencies beside this script.
+# Keep the bridge self-contained when it is launched by OrcaCubic's bundled Python.
+VENDOR_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor")
+if VENDOR_DIR not in sys.path:
+    sys.path.insert(0, VENDOR_DIR)
+
+import pyaes
 import paho.mqtt.client as mqtt
 
-PRINTER_IP = "192.168.1.133"
+PRINTER_IP = os.environ.get("ORCACUBIC_PRINTER_IP", "").strip()
+if len(sys.argv) > 1 and sys.argv[1].strip():
+    PRINTER_IP = sys.argv[1].strip()
+if not PRINTER_IP:
+    raise SystemExit("Usage: anycubic_lan_daemon.py <printer-ip> (or set ORCACUBIC_PRINTER_IP)")
 PRINTER_HTTP_PORT = 18910
 PRINTER_MQTT_PORT = 9883
 HTTP_PORT = 18988
@@ -21,7 +33,10 @@ HTTP_PORT = 18988
 telemetry = {
     "connected": False,
     "ip": PRINTER_IP,
-    "model": "Anycubic Kobra X",
+    "model": "Anycubic Printer",
+    "model_id": "",
+    "firmware": "",
+    "cn": "",
     "state": "idle",
     "progress": 0,
     "job_name": "Ready",
@@ -33,7 +48,7 @@ telemetry = {
     "target_nozzle_temp": 0,
     "bed_temp": 0,
     "target_bed_temp": 0,
-    "camera_url": f"http://{PRINTER_IP}:18088/",
+    "camera_url": "",
     "upload_url": f"http://{PRINTER_IP}:{PRINTER_HTTP_PORT}/gcode_upload",
     "light": 1,
     "fan": 0,
@@ -48,9 +63,13 @@ telemetry = {
 
 mqtt_client = None
 creds = {}
-model_id = "20030"
-device_id = "ce8784fb8feaf6ed93ecc8047e7d7665"
+model_id = ""
+device_id = ""
 pending_cleanup = []
+
+def public_telemetry():
+    """Return dashboard telemetry without exposing token-bearing printer URLs."""
+    return {key: value for key, value in telemetry.items() if key != "upload_url"}
 
 def rgb_to_hex(r, g, b):
     return f"#{r:02x}{g:02x}{b:02x}"
@@ -65,6 +84,11 @@ def fetch_credentials():
         if not token:
             return False
 
+        telemetry["model"] = info.get("deviceName") or info.get("modelName") or "Anycubic Printer"
+        telemetry["model_id"] = str(info.get("modelId", ""))
+        telemetry["firmware"] = info.get("firmwareVersion") or info.get("firmware") or info.get("version") or ""
+        telemetry["cn"] = info.get("cn", "")
+
         ts = int(time.time() * 1000)
         nonce = "".join(random.choices(string.ascii_letters + string.digits, k=6))
         k1 = token[:16]
@@ -78,14 +102,15 @@ def fetch_credentials():
 
         iv = res["data"]["token"].encode()
         raw = base64.b64decode(res["data"]["info"])
-        cipher = Cipher(algorithms.AES(k2.encode()), modes.CBC(iv))
-        decryptor = cipher.decryptor()
-        plain = decryptor.update(raw) + decryptor.finalize()
-        pad = plain[-1]
-        creds = json.loads(plain[:-pad].decode())
+        decrypter = pyaes.Decrypter(pyaes.AESModeOfOperationCBC(k2.encode(), iv=iv))
+        plain = decrypter.feed(raw) + decrypter.feed()
+        # pyaes.Decrypter already validates and removes PKCS#7 padding.
+        creds = json.loads(plain.decode())
 
-        model_id = str(creds.get("modelId", "20030"))
-        device_id = creds.get("deviceId", device_id)
+        model_id = str(creds.get("modelId") or info.get("modelId") or "")
+        device_id = creds.get("deviceId", "")
+        if not model_id or not device_id:
+            return False
         return True
     except Exception as e:
         print(f"[Bridge] Handshake error: {e}")
@@ -93,7 +118,7 @@ def fetch_credentials():
 
 def on_mqtt_connect(c, userdata, flags, rc, properties=None):
     global telemetry
-    print(f"[Bridge] MQTT Connected to Kobra X, rc={rc}")
+    print(f"[Bridge] MQTT connected, rc={rc}")
     telemetry["connected"] = True
     c.subscribe(f"anycubic/anycubicCloud/v1/printer/public/{model_id}/{device_id}/#")
     query_all()
@@ -368,7 +393,14 @@ class BridgeServer(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path.startswith("/status") or self.path == "/" or self.path.startswith("/api/v1"):
+        if self.path.startswith("/upload-token"):
+            upload_url = telemetry.get("upload_url", "")
+            token = urllib.parse.parse_qs(urllib.parse.urlparse(upload_url).query).get("s", [""])[0]
+            self.send_response(200 if token else 503)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"upload_token": token} if token else {"error": "upload token unavailable"}).encode("utf-8"))
+        elif self.path.startswith("/status") or self.path == "/" or self.path.startswith("/api/v1"):
             # Auto-expire historical alerts after 20 seconds or when printing
             if telemetry.get("last_error"):
                 err_age = time.time() - telemetry.get("last_error_time", 0)
@@ -381,7 +413,7 @@ class BridgeServer(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            self.wfile.write(json.dumps(telemetry).encode("utf-8"))
+            self.wfile.write(json.dumps(public_telemetry()).encode("utf-8"))
         else:
             self.send_response(404)
             self.end_headers()

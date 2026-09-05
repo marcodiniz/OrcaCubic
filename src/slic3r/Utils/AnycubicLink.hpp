@@ -54,6 +54,7 @@ std::vector<AnycubicAmsMappingEntry> build_anycubic_ams_mapping(
     const std::vector<AnycubicMaterialSlot>& slots,
     const std::vector<int>& selected_slot_ids);
 AnycubicTaskSettings build_anycubic_task_settings(const AnycubicPrintSettings& settings);
+void shutdown_anycubic_lan_bridge();
 
 class AnycubicLink : public PrintHost
 {

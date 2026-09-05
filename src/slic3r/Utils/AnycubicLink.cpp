@@ -15,6 +15,10 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/asio.hpp>
+#include <boost/process.hpp>
+#ifdef _WIN32
+#include <boost/process/windows.hpp>
+#endif
 #include <nlohmann/json.hpp>
 
 #include <openssl/md5.h>
@@ -26,8 +30,10 @@
 #include "slic3r/GUI/GUI.hpp"
 #include "slic3r/GUI/I18N.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
+#include "slic3r/plugin/PythonInterpreter.hpp"
 #include "Http.hpp"
 #include "libslic3r/libslic3r.h"
+#include "libslic3r/AppConfig.hpp"
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/Utils.hpp"
 
@@ -39,6 +45,66 @@ using json = nlohmann::json;
 namespace Slic3r {
 
 namespace {
+
+std::mutex g_anycubic_bridge_mutex;
+std::unique_ptr<boost::process::child> g_anycubic_bridge_process;
+
+bool local_anycubic_bridge_matches(const std::string& host)
+{
+    bool matches = false;
+    try {
+        auto request = Http::get("http://127.0.0.1:18988/status");
+        request.timeout_connect(1)
+            .timeout_max(2)
+            .on_complete([&](std::string body, unsigned status) {
+                if (status != 200)
+                    return;
+                const auto payload = json::parse(body, nullptr, false, true);
+                matches = !payload.is_discarded() && payload.value("ip", "") == host;
+            })
+            .perform_sync();
+    } catch (...) {}
+    return matches;
+}
+
+void ensure_anycubic_bridge(const std::string& host)
+{
+    if (host.empty() || local_anycubic_bridge_matches(host))
+        return;
+
+    std::lock_guard<std::mutex> lock(g_anycubic_bridge_mutex);
+    if (local_anycubic_bridge_matches(host))
+        return;
+
+    if (g_anycubic_bridge_process && g_anycubic_bridge_process->running()) {
+        g_anycubic_bridge_process->terminate();
+        g_anycubic_bridge_process->wait();
+    }
+    g_anycubic_bridge_process.reset();
+
+    const fs::path script = fs::path(resources_dir()) / "scripts" / "anycubic_lan_daemon.py";
+    const std::string python = PythonInterpreter::bundled_python_executable();
+    if (python.empty() || !fs::exists(script)) {
+        BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] Bundled LAN bridge runtime is unavailable";
+        return;
+    }
+
+    try {
+        g_anycubic_bridge_process = std::make_unique<boost::process::child>(
+            python,
+            script.string(),
+            host,
+            boost::process::start_dir(script.parent_path().string()),
+#ifdef _WIN32
+            boost::process::windows::create_no_window,
+#endif
+            boost::process::std_out > boost::process::null,
+            boost::process::std_err > boost::process::null);
+        BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Started bundled LAN bridge for configured printer host";
+    } catch (const std::exception& error) {
+        BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] Failed to start bundled LAN bridge: " << error.what();
+    }
+}
 
 std::string normalize_anycubic_material(std::string material)
 {
@@ -445,6 +511,18 @@ AnycubicLink::AnycubicLink(DynamicPrintConfig *config)
     } else {
         m_host = raw_host;
     }
+
+    ensure_anycubic_bridge(m_host);
+}
+
+void shutdown_anycubic_lan_bridge()
+{
+    std::lock_guard<std::mutex> lock(g_anycubic_bridge_mutex);
+    if (g_anycubic_bridge_process && g_anycubic_bridge_process->running()) {
+        g_anycubic_bridge_process->terminate();
+        g_anycubic_bridge_process->wait();
+    }
+    g_anycubic_bridge_process.reset();
 }
 
 std::string AnycubicLink::make_url(const std::string& path) const
@@ -612,9 +690,7 @@ bool AnycubicLink::fetch_credentials(wxString& error_msg) const
     if (cred_json.contains("modelName") && !cred_json["modelName"].get<std::string>().empty())
         self->m_device_name = cred_json["modelName"].get<std::string>();
 
-    BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Credential handshake succeeded. Device ID: " << self->m_device_id
-                            << ", Mode ID: " << self->m_mode_id
-                            << ", Broker: " << self->m_broker;
+    BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Credential handshake succeeded for configured printer";
     return true;
 }
 
@@ -623,7 +699,7 @@ bool AnycubicLink::fetch_upload_url_via_mqtt(std::string& upload_token, wxString
     // First, check if our high-performance local LAN bridge daemon is running on localhost
     // which maintains a robust persistent MQTT TLS connection and always has the latest upload URL.
     try {
-        auto http_local = Http::get("http://127.0.0.1:18988/status");
+        auto http_local = Http::get("http://127.0.0.1:18988/upload-token");
         bool local_ok = false;
         std::string local_body;
         http_local.timeout_connect(1)
@@ -637,13 +713,12 @@ bool AnycubicLink::fetch_upload_url_via_mqtt(std::string& upload_token, wxString
                   .perform_sync();
         if (local_ok) {
             auto parsed = json::parse(local_body, nullptr, false, true);
-            if (!parsed.is_discarded() && parsed.contains("upload_url")) {
-                std::string up_url = parsed.value("upload_url", "");
-                auto s_idx = up_url.find("?s=");
-                if (s_idx != std::string::npos) {
-                    upload_token = up_url.substr(s_idx + 3);
+            if (!parsed.is_discarded()) {
+                std::string token_value = parsed.value("upload_token", "");
+                if (!token_value.empty()) {
+                    upload_token = std::move(token_value);
                     const_cast<AnycubicLink*>(this)->m_upload_token = upload_token;
-                    BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Acquired session upload token via local LAN bridge: " << upload_token;
+                    BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Acquired session upload token via local LAN bridge: [REDACTED]";
                     return true;
                 }
             }
@@ -694,7 +769,7 @@ bool AnycubicLink::fetch_upload_url_via_mqtt(std::string& upload_token, wxString
             if (s_idx != std::string::npos) {
                 upload_token = file_upload_url.substr(s_idx + 3);
                 const_cast<AnycubicLink*>(this)->m_upload_token = upload_token;
-                BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Acquired session upload token via MQTT info report: " << upload_token;
+                BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Acquired session upload token via MQTT info report: [REDACTED]";
                 return true;
             }
         }
@@ -998,7 +1073,7 @@ bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, E
     bool upload_ok = false;
     std::string response_payload;
 
-    BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Uploading file " << upload_filename << " (" << file_size_str << " bytes) to " << url;
+    BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Uploading file " << upload_filename << " (" << file_size_str << " bytes) to configured printer";
 
     auto http = Http::post(url);
     http.header("User-Agent", "AnycubicSlicerNext/2.0.0.2")

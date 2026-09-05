@@ -95,6 +95,7 @@
 
 #include "../Utils/PresetUpdater.hpp"
 #include "../Utils/PrintHost.hpp"
+#include "../Utils/AnycubicLink.hpp"
 #include "../Utils/Process.hpp"
 #include "../Utils/wxInspectorPlugins/Registration.hpp"
 #include "../Utils/MacDarkMode.hpp"
@@ -2694,6 +2695,7 @@ bool GUI_App::OnInit()
 
 int GUI_App::OnExit()
 {
+    shutdown_anycubic_lan_bridge();
     stop_http_server();
     stop_sync_user_preset();
 
