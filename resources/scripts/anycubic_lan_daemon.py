@@ -26,6 +26,11 @@ if len(sys.argv) > 1 and sys.argv[1].strip():
     PRINTER_IP = sys.argv[1].strip()
 if not PRINTER_IP:
     raise SystemExit("Usage: anycubic_lan_daemon.py <printer-ip> (or set ORCACUBIC_PRINTER_IP)")
+BRIDGE_TOKEN = os.environ.get("ORCACUBIC_BRIDGE_TOKEN", "").strip()
+if len(sys.argv) > 2 and sys.argv[2].strip():
+    BRIDGE_TOKEN = sys.argv[2].strip()
+if not BRIDGE_TOKEN:
+    raise SystemExit("Missing OrcaCubic bridge authentication token")
 PRINTER_HTTP_PORT = 18910
 PRINTER_MQTT_PORT = 9883
 HTTP_PORT = 18988
@@ -53,12 +58,7 @@ telemetry = {
     "light": 1,
     "fan": 0,
     "speed_mode": 2,
-    "filaments": [
-        {"slot": 1, "color": "#009639", "type": "PLA", "temp": 210, "loaded": False},
-        {"slot": 2, "color": "#75787b", "type": "PLA", "temp": 210, "loaded": False},
-        {"slot": 3, "color": "#fddb27", "type": "PLA+", "temp": 235, "loaded": True},
-        {"slot": 4, "color": "#ff8da1", "type": "PLA", "temp": 210, "loaded": False}
-    ]
+    "filaments": []
 }
 
 mqtt_client = None
@@ -66,6 +66,8 @@ creds = {}
 model_id = ""
 device_id = ""
 pending_cleanup = []
+shutdown_event = threading.Event()
+server_instance = None
 
 def public_telemetry():
     """Return dashboard telemetry without exposing token-bearing printer URLs."""
@@ -260,9 +262,9 @@ def query_all():
 
 def mqtt_worker():
     global mqtt_client
-    while True:
+    while not shutdown_event.is_set():
         if not fetch_credentials():
-            time.sleep(3)
+            shutdown_event.wait(3)
             continue
 
         try:
@@ -278,13 +280,12 @@ def mqtt_worker():
             c.connect(PRINTER_IP, PRINTER_MQTT_PORT, 60)
             c.loop_start()
 
-            while True:
-                time.sleep(2)
+            while not shutdown_event.wait(2):
                 query_all()
 
         except Exception as e:
             print(f"[Bridge] MQTT exception: {e}")
-            time.sleep(3)
+            shutdown_event.wait(3)
 
 def upload_and_run_gcode(gcode_text, delete_after=True):
     ts = int(time.time())
@@ -385,21 +386,40 @@ def upload_and_run_gcode(gcode_text, delete_after=True):
     return {"status": "ok", "filename": fname}
 
 class BridgeServer(BaseHTTPRequestHandler):
+    def authorized(self):
+        return self.headers.get("X-OrcaCubic-Token", "") == BRIDGE_TOKEN
+
+    def require_authorized(self):
+        if self.authorized():
+            return True
+        self.send_response(403)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(b'{"error":"forbidden"}')
+        return False
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "*")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-OrcaCubic-Token")
         self.end_headers()
 
     def do_GET(self):
-        if self.path.startswith("/upload-token"):
+        if self.path.startswith("/health"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok", "ip": PRINTER_IP}).encode("utf-8"))
+        elif not self.require_authorized():
+            return
+        elif self.path.startswith("/upload-token"):
             upload_url = telemetry.get("upload_url", "")
             token = urllib.parse.parse_qs(urllib.parse.urlparse(upload_url).query).get("s", [""])[0]
             self.send_response(200 if token else 503)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"upload_token": token} if token else {"error": "upload token unavailable"}).encode("utf-8"))
+            self.wfile.write(json.dumps({"upload_token": token, "ip": PRINTER_IP} if token else {"error": "upload token unavailable", "ip": PRINTER_IP}).encode("utf-8"))
         elif self.path.startswith("/status") or self.path == "/" or self.path.startswith("/api/v1"):
             # Auto-expire historical alerts after 20 seconds or when printing
             if telemetry.get("last_error"):
@@ -419,6 +439,8 @@ class BridgeServer(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
+        if not self.require_authorized():
+            return
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
         try:
@@ -426,10 +448,24 @@ class BridgeServer(BaseHTTPRequestHandler):
         except:
             data = {}
 
-        result = {"status": "ok"}
+        result = {"status": "ok", "ip": PRINTER_IP}
 
-        if self.path.startswith("/control"):
+        if self.path.startswith("/shutdown"):
+            result = {"status": "ok", "ip": PRINTER_IP}
+            shutdown_event.set()
+            if mqtt_client:
+                try:
+                    mqtt_client.disconnect()
+                    mqtt_client.loop_stop()
+                except Exception:
+                    pass
+            if server_instance:
+                threading.Thread(target=server_instance.shutdown, daemon=True).start()
+        elif self.path.startswith("/control"):
             action = data.get("action", "")
+            if action and action != "clear_alert" and (not mqtt_client or not telemetry.get("connected")):
+                result = {"status": "error", "message": "Printer bridge is not connected", "ip": PRINTER_IP}
+                action = ""
             if action in ["pause", "resume", "stop"]:
                 topic = f"anycubic/anycubicCloud/v1/slicer/printer/{model_id}/{device_id}/print"
                 msg = {
@@ -629,6 +665,8 @@ class BridgeServer(BaseHTTPRequestHandler):
                     }
                     mqtt_client.publish(topic_print, json.dumps(msg))
                     print(f"[Bridge] Published print:start for {filename} with {len(ams_mapping)} mapped slots to {topic_print}")
+                else:
+                    result = {"status": "error", "message": "Print filename or printer connection is unavailable", "ip": PRINTER_IP}
 
             elif action == "feed_filament":
                 slot_idx = int(data.get("slot", 0))
@@ -734,7 +772,9 @@ class BridgeServer(BaseHTTPRequestHandler):
             if topic and mqtt_client:
                 mqtt_client.publish(topic, payload_raw)
                 print(f"[Bridge] Proxy-published to {topic}")
-            result = {"code": 200, "data": None, "msg": "ok"}
+                result = {"code": 200, "data": None, "msg": "ok", "ip": PRINTER_IP}
+            else:
+                result = {"code": 503, "data": None, "msg": "Printer bridge is not connected", "ip": PRINTER_IP}
 
         elif self.path.startswith("/run_gcode"):
             gcode = data.get("gcode", "")
@@ -813,7 +853,7 @@ class BridgeServer(BaseHTTPRequestHandler):
 
                 time.sleep(0.4)
                 query_all()
-            result = {"status": "ok"}
+            result = {"status": "ok", "ip": PRINTER_IP}
 
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -825,9 +865,14 @@ class BridgeServer(BaseHTTPRequestHandler):
         pass
 
 def run_server():
+    global server_instance
     server = HTTPServer(("127.0.0.1", HTTP_PORT), BridgeServer)
+    server_instance = server
     print(f"[Bridge] Local API Server running on http://127.0.0.1:{HTTP_PORT}")
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
 
 if __name__ == "__main__":
     t1 = threading.Thread(target=mqtt_worker, daemon=True)

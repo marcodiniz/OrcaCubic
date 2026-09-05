@@ -81,7 +81,7 @@ Suggested file: docs/images/filament-picker.png
 5. Use **Test** to verify the direct connection.
 6. Slice a plate, select **Print**, review the material-to-ACE mappings, and start the job.
 
-The bundled bridge listens only on `127.0.0.1` and obtains the printer-specific connection data through the Kobra X LAN handshake at runtime. No printer IP, device ID, CN, certificate, private key, password, or session token is embedded in the public source or release.
+The bundled bridge listens only on `127.0.0.1`, requires a per-installation authentication token for status and control requests, and obtains printer-specific connection data through the Kobra X LAN handshake at runtime. No printer IP, device ID, CN, certificate, private key, password, or session token is embedded in the public source or release.
 
 ## Known limitations
 

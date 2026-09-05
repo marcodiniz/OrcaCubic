@@ -1,16 +1,16 @@
 1 VERSIONINFO
-FILEVERSION @SLIC3R_VERSION@
-PRODUCTVERSION @SLIC3R_VERSION@
+FILEVERSION @ORCA_VERSION_MAJOR@,@ORCA_VERSION_MINOR@,@ORCA_VERSION_PATCH@,1
+PRODUCTVERSION @ORCA_VERSION_MAJOR@,@ORCA_VERSION_MINOR@,@ORCA_VERSION_PATCH@,1
 {
  BLOCK "StringFileInfo"
  {
   BLOCK "040904E4"
   {
-   VALUE "CompanyName", "SoftFever"
+   VALUE "CompanyName", "OrcaCubic"
    VALUE "FileDescription", "@SLIC3R_APP_NAME@"
-   VALUE "FileVersion", "@SLIC3R_BUILD_ID@"
+   VALUE "FileVersion", "@SoftFever_VERSION@"
    VALUE "ProductName", "@SLIC3R_APP_NAME@"
-   VALUE "ProductVersion", "@SLIC3R_BUILD_ID@"
+   VALUE "ProductVersion", "@SoftFever_VERSION@"
    VALUE "InternalName", "@SLIC3R_APP_NAME@"
    VALUE "LegalCopyright", ""
    VALUE "OriginalFilename", "orca-slicer.exe"

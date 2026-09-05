@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <fstream>
 #include <memory>
 #include <random>
 #include <sstream>
@@ -48,12 +49,36 @@ namespace {
 
 std::mutex g_anycubic_bridge_mutex;
 std::unique_ptr<boost::process::child> g_anycubic_bridge_process;
+std::string g_anycubic_bridge_host;
+std::string g_anycubic_bridge_token;
+
+fs::path anycubic_bridge_token_path()
+{
+    return fs::path(data_dir()) / "anycubic-bridge.token";
+}
+
+std::string read_anycubic_bridge_token()
+{
+    std::ifstream stream(anycubic_bridge_token_path().string(), std::ios::binary);
+    std::string token;
+    std::getline(stream, token);
+    boost::trim(token);
+    return token;
+}
+
+std::string create_anycubic_bridge_token()
+{
+    const std::string token = boost::uuids::to_string(boost::uuids::random_generator()());
+    std::ofstream stream(anycubic_bridge_token_path().string(), std::ios::binary | std::ios::trunc);
+    stream << token;
+    return stream ? token : std::string();
+}
 
 bool local_anycubic_bridge_matches(const std::string& host)
 {
     bool matches = false;
     try {
-        auto request = Http::get("http://127.0.0.1:18988/status");
+        auto request = Http::get("http://127.0.0.1:18988/health");
         request.timeout_connect(1)
             .timeout_max(2)
             .on_complete([&](std::string body, unsigned status) {
@@ -67,14 +92,37 @@ bool local_anycubic_bridge_matches(const std::string& host)
     return matches;
 }
 
+bool local_anycubic_bridge_running()
+{
+    bool running = false;
+    try {
+        auto request = Http::get("http://127.0.0.1:18988/health");
+        request.timeout_connect(1)
+            .timeout_max(2)
+            .on_complete([&](std::string, unsigned status) { running = status == 200; })
+            .perform_sync();
+    } catch (...) {}
+    return running;
+}
+
 void ensure_anycubic_bridge(const std::string& host)
 {
-    if (host.empty() || local_anycubic_bridge_matches(host))
+    if (host.empty())
         return;
 
     std::lock_guard<std::mutex> lock(g_anycubic_bridge_mutex);
-    if (local_anycubic_bridge_matches(host))
+    if (g_anycubic_bridge_process && g_anycubic_bridge_process->running() && g_anycubic_bridge_host == host)
         return;
+    if (local_anycubic_bridge_matches(host)) {
+        // A compatible bridge may have been started by another OrcaCubic process.
+        // It is intentionally not adopted or terminated by this process.
+        g_anycubic_bridge_token = read_anycubic_bridge_token();
+        return;
+    }
+    if (local_anycubic_bridge_running()) {
+        BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] Local bridge port 18988 is owned by a bridge configured for another printer";
+        return;
+    }
 
     if (g_anycubic_bridge_process && g_anycubic_bridge_process->running()) {
         g_anycubic_bridge_process->terminate();
@@ -89,17 +137,25 @@ void ensure_anycubic_bridge(const std::string& host)
         return;
     }
 
+    g_anycubic_bridge_token = create_anycubic_bridge_token();
+    if (g_anycubic_bridge_token.empty()) {
+        BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] Could not create the local bridge authentication token";
+        return;
+    }
+
     try {
         g_anycubic_bridge_process = std::make_unique<boost::process::child>(
             python,
             script.string(),
             host,
+            g_anycubic_bridge_token,
             boost::process::start_dir(script.parent_path().string()),
 #ifdef _WIN32
             boost::process::windows::create_no_window,
 #endif
             boost::process::std_out > boost::process::null,
             boost::process::std_err > boost::process::null);
+        g_anycubic_bridge_host = host;
         BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Started bundled LAN bridge for configured printer host";
     } catch (const std::exception& error) {
         BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] Failed to start bundled LAN bridge: " << error.what();
@@ -512,17 +568,51 @@ AnycubicLink::AnycubicLink(DynamicPrintConfig *config)
         m_host = raw_host;
     }
 
-    ensure_anycubic_bridge(m_host);
+}
+
+void reconcile_anycubic_lan_bridge(DynamicPrintConfig* config)
+{
+    if (config == nullptr) {
+        shutdown_anycubic_lan_bridge();
+        return;
+    }
+    const auto* host_type = config->option<ConfigOptionEnum<PrintHostType>>("host_type");
+    if (host_type == nullptr || host_type->value != htAnycubic) {
+        shutdown_anycubic_lan_bridge();
+        return;
+    }
+    ensure_anycubic_bridge(Http::get_host_from_url(safe_config_str(config, "print_host")));
+}
+
+std::string anycubic_lan_bridge_token()
+{
+    std::lock_guard<std::mutex> lock(g_anycubic_bridge_mutex);
+    if (g_anycubic_bridge_token.empty())
+        g_anycubic_bridge_token = read_anycubic_bridge_token();
+    return g_anycubic_bridge_token;
 }
 
 void shutdown_anycubic_lan_bridge()
 {
     std::lock_guard<std::mutex> lock(g_anycubic_bridge_mutex);
     if (g_anycubic_bridge_process && g_anycubic_bridge_process->running()) {
-        g_anycubic_bridge_process->terminate();
+        try {
+            auto request = Http::post("http://127.0.0.1:18988/shutdown");
+            request.header("X-OrcaCubic-Token", g_anycubic_bridge_token)
+                .set_post_body(std::string("{}"))
+                .timeout_connect(1)
+                .timeout_max(2)
+                .perform_sync();
+        } catch (...) {}
+        for (int attempt = 0; attempt < 20 && g_anycubic_bridge_process->running(); ++attempt)
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        if (g_anycubic_bridge_process->running())
+            g_anycubic_bridge_process->terminate();
         g_anycubic_bridge_process->wait();
     }
     g_anycubic_bridge_process.reset();
+    g_anycubic_bridge_host.clear();
+    g_anycubic_bridge_token.clear();
 }
 
 std::string AnycubicLink::make_url(const std::string& path) const
@@ -702,7 +792,8 @@ bool AnycubicLink::fetch_upload_url_via_mqtt(std::string& upload_token, wxString
         auto http_local = Http::get("http://127.0.0.1:18988/upload-token");
         bool local_ok = false;
         std::string local_body;
-        http_local.timeout_connect(1)
+        http_local.header("X-OrcaCubic-Token", anycubic_lan_bridge_token())
+                  .timeout_connect(1)
                   .timeout_max(2)
                   .on_complete([&](std::string body, unsigned status) {
                       if (status == 200) {
@@ -713,7 +804,7 @@ bool AnycubicLink::fetch_upload_url_via_mqtt(std::string& upload_token, wxString
                   .perform_sync();
         if (local_ok) {
             auto parsed = json::parse(local_body, nullptr, false, true);
-            if (!parsed.is_discarded()) {
+            if (!parsed.is_discarded() && parsed.value("ip", "") == m_host) {
                 std::string token_value = parsed.value("upload_token", "");
                 if (!token_value.empty()) {
                     upload_token = std::move(token_value);
@@ -903,6 +994,7 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
         bool local_ok = false;
         std::string local_body;
         http_local.header("Content-Type", "application/json")
+                  .header("X-OrcaCubic-Token", anycubic_lan_bridge_token())
                   .set_post_body(ctrl_data.dump())
                   .timeout_connect(1)
                   .timeout_max(3)
@@ -915,7 +1007,7 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
                   .perform_sync();
         if (local_ok) {
             auto parsed = json::parse(local_body, nullptr, false, true);
-            if (!parsed.is_discarded() && parsed.value("status", "") == "ok") {
+            if (!parsed.is_discarded() && parsed.value("status", "") == "ok" && parsed.value("ip", "") == m_host) {
                 BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Successfully triggered print via local LAN bridge: " << filename;
                 return true;
             }
@@ -1125,7 +1217,8 @@ bool AnycubicLink::fetch_material_slots(std::vector<AnycubicMaterialSlot>& slots
     bool success = false;
     std::string response_body;
     auto http = Http::get("http://127.0.0.1:18988/status");
-    http.timeout_connect(1)
+    http.header("X-OrcaCubic-Token", anycubic_lan_bridge_token())
+        .timeout_connect(1)
         .timeout_max(3)
         .on_complete([&](std::string body, unsigned status) {
             if (status == 200) {
@@ -1145,7 +1238,7 @@ bool AnycubicLink::fetch_material_slots(std::vector<AnycubicMaterialSlot>& slots
     }
 
     const auto payload = json::parse(response_body, nullptr, false, true);
-    if (payload.is_discarded() || !payload.value("connected", false) || !payload.contains("filaments") || !payload["filaments"].is_array()) {
+    if (payload.is_discarded() || payload.value("ip", "") != m_host || !payload.value("connected", false) || !payload.contains("filaments") || !payload["filaments"].is_array()) {
         msg = _(L("The local LAN bridge did not report connected ACE Pro slots."));
         return false;
     }

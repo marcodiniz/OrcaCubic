@@ -5888,7 +5888,8 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
         // Fetch filaments directly from local daemon
         std::string status_body;
         auto http = Http::get("http://127.0.0.1:18988/status");
-        http.timeout_connect(1)
+        http.header("X-OrcaCubic-Token", anycubic_lan_bridge_token())
+            .timeout_connect(1)
             .timeout_max(2)
             .on_complete([&status_body](std::string body, unsigned status) {
                 if (status == 200) status_body = std::move(body);

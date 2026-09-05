@@ -1250,7 +1250,11 @@ endif()
 
 # Resources install target, configure fhs.hpp on UNIX
 if (WIN32)
-    install(DIRECTORY "${SLIC3R_RESOURCES_DIR}/" DESTINATION "./resources")
+    install(DIRECTORY "${SLIC3R_RESOURCES_DIR}/" DESTINATION "./resources"
+        PATTERN "__pycache__" EXCLUDE
+        PATTERN "*.pyc" EXCLUDE
+        PATTERN "*.pdb" EXCLUDE
+        PATTERN "*.log" EXCLUDE)
     if(ORCA_BUNDLED_UV_EXECUTABLE)
         install(PROGRAMS "${ORCA_BUNDLED_UV_EXECUTABLE}" DESTINATION "./resources/tools/uv" RENAME "${ORCA_BUNDLED_UV_FILENAME}")
     endif()
@@ -1307,7 +1311,8 @@ set (CPACK_PACKAGE_VENDOR "OrcaCubic contributors")
 set (CPACK_PACKAGE_VERSION_MAJOR "${ORCA_VERSION_MAJOR}")
 set (CPACK_PACKAGE_VERSION_MINOR "${ORCA_VERSION_MINOR}")
 set (CPACK_PACKAGE_VERSION_PATCH "${ORCA_VERSION_PATCH}")
-set (CPACK_PACKAGE_FILE_NAME "OrcaCubic_Windows_Installer_V${SoftFever_VERSION}")
+set (CPACK_PACKAGE_VERSION "${SoftFever_VERSION}")
+set (CPACK_PACKAGE_FILE_NAME "OrcaCubic_Windows_Installer_v${SoftFever_VERSION}")
 # Suffix the Windows installer with its target arch so the x64 and arm64 builds
 # produce distinct filenames (matches ARCH_SUFFIX in build_orca.yml). Same
 # CMAKE_SYSTEM_PROCESSOR mapping used by orcaslicer_copy_dlls() above.
@@ -1321,6 +1326,8 @@ endif ()
 set (CPACK_PACKAGE_DESCRIPTION_SUMMARY "OrcaSlicer fork with native Anycubic Kobra X LAN integration")
 set (CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/marcodiniz/OrcaCubic")
 set (CPACK_PACKAGE_INSTALL_DIRECTORY ${CPACK_PACKAGE_NAME})
+set (CPACK_NSIS_DISPLAY_NAME "OrcaCubic")
+set (CPACK_NSIS_PACKAGE_NAME "OrcaCubic")
 set (CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/resources/images\\\\OrcaSlicer.ico")
 set (CPACK_NSIS_MUI_ICON "${CPACK_PACKAGE_ICON}")
 set (CPACK_NSIS_MUI_UNIICON "${CPACK_PACKAGE_ICON}")
