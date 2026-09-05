@@ -816,8 +816,7 @@
             grid-template-columns: minmax(300px, 1.15fr) minmax(290px, .95fr) minmax(310px, 1fr);
             grid-template-areas:
                 "task control device"
-                "camera consumable axis"
-                "utility utility utility";
+                "camera gcode axis";
             gap: 12px;
             align-items: stretch;
         }
@@ -826,9 +825,8 @@
         .wb3-control { grid-area: control; min-height: 250px; }
         .wb3-device { grid-area: device; min-height: 250px; }
         .wb3-camera { grid-area: camera; min-height: 310px; }
-        .wb3-consumable { grid-area: consumable; min-height: 310px; }
         .wb3-axis { grid-area: axis; min-height: 310px; }
-        .wb3-utility { grid-area: utility; }
+        .wb3-gcode { grid-area: gcode; min-height:310px; }
         .wb3-grid .card-header { margin-bottom: 13px; }
         .wb3-grid .card-header h2, .axis-header h2 { font-size: 15px; }
         .job-percent { font-weight: 700; font-size: 15px; color: #1677ff; }
@@ -872,11 +870,16 @@
         .card-actions { display:flex; gap:5px; }
         .card-actions button { background:#24272e; border:1px solid #383b44; color:#c4c6cc; border-radius:15px; padding:4px 9px; font-size:10px; cursor:pointer; }
         .card-actions button:hover { border-color:#1677ff; color:#fff; }
-        .wb3-consumable .slots-container { grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
-        .wb3-consumable .slot-card { min-height:82px; padding:9px 4px 7px; gap:4px; }
-        .wb3-consumable .slot-color-circle { width:30px; height:30px; margin-top:4px; }
-        .wb3-consumable .slot-material { font-size:11px; }
-        .wb3-consumable .slot-edit-hint { margin-top:0; font-size:9px; }
+        .embedded-consumables { margin-top:2px; padding-top:10px; border-top:1px solid #30323a; }
+        .embedded-consumables-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; }
+        .embedded-consumables-head h3 { font-size:12px; color:#f4f5f7; }
+        .embedded-consumables .slots-container { grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
+        .embedded-consumables .slot-card { min-height:64px; padding:7px 3px 5px; gap:2px; border-radius:7px; }
+        .embedded-consumables .slot-badge { top:4px; left:5px; font-size:8px; }
+        .embedded-consumables .slot-color-circle { width:24px; height:24px; margin-top:2px; border-width:1px; }
+        .embedded-consumables .slot-material { font-size:10px; }
+        .embedded-consumables .slot-edit-hint { margin-top:0; font-size:8px; }
+        .embedded-consumables .card-actions button { padding:3px 7px; font-size:9px; }
         .module-note { color:#747883; font-size:10px; text-align:center; margin-top:10px; }
         .axis-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:13px; }
         .axis-steps { background:#1a1c22; border-radius:20px; padding:2px; display:flex; }
@@ -912,8 +915,8 @@
         .gradient-direction { background:#24272e; border:1px solid #383b44; color:#fff; border-radius:5px; padding:5px 8px; }
         .custom-color-row { display:flex; align-items:center; gap:8px; margin-top:9px; }
         .custom-color-row button { background:#24272e; border:1px dashed #4b4e58; color:#bfc2c9; border-radius:6px; padding:5px 9px; cursor:pointer; }
-        @media (max-width:1180px) { .wb3-grid { grid-template-columns:1fr 1fr; grid-template-areas:"task control" "camera consumable" "device axis" "utility utility"; } }
-        @media (max-width:760px) { .wb3-grid { grid-template-columns:1fr; grid-template-areas:"task" "control" "device" "camera" "consumable" "axis" "utility"; } }
+        @media (max-width:1180px) { .wb3-grid { grid-template-columns:1fr 1fr; grid-template-areas:"task control" "camera gcode" "device axis"; } }
+        @media (max-width:760px) { .wb3-grid { grid-template-columns:1fr; grid-template-areas:"task" "control" "device" "camera" "gcode" "axis"; } }
         .color-swatch-circle { width:26px; height:26px; border-radius:50%; border:2px solid transparent; cursor:pointer; padding:0; transition:transform .15s, box-shadow .15s, border-color .15s; }
         .color-swatch-circle.selected { border-color:#1677ff; transform:scale(1.12); box-shadow:0 0 0 2px rgba(22,119,255,.22); }
         .color-swatch-circle.gradient { background:linear-gradient(135deg,#23a3c7,#9333ea); }
@@ -1095,6 +1098,13 @@
                 <button class="btn" id="btn-resume" onclick="sendControl('resume')" disabled>Resume</button>
                 <button class="btn btn-danger" id="btn-stop" onclick="sendControl('stop')" disabled>Cancel Job</button>
             </div>
+            <div class="embedded-consumables">
+                <div class="embedded-consumables-head">
+                    <h3>Consumables</h3>
+                    <div class="card-actions"><button onclick="syncFromSlicerToPrinter()">From Slicer</button><button onclick="syncFilamentsToSlicer()">To Slicer</button></div>
+                </div>
+                <div class="slots-container" id="slots-container"></div>
+            </div>
         </section>
 
         <!-- Row 1 / Column 2: Control -->
@@ -1164,14 +1174,10 @@
             </div>
         </section>
 
-        <!-- Row 2 / Column 2: Consumables -->
-        <section class="card wb3-consumable">
-            <div class="card-header">
-                <h2>Consumables</h2>
-                <div class="card-actions"><button onclick="syncFromSlicerToPrinter()">From Slicer</button><button onclick="syncFilamentsToSlicer()">To Slicer</button></div>
-            </div>
-            <div class="slots-container" id="slots-container"></div>
-            <p class="module-note">Select a slot to edit brand, material, solid, gradient, or luminous color.</p>
+        <!-- Row 2 / Column 2: Run G-code File -->
+        <section class="card wb3-gcode">
+            <div class="card-header"><h2>Run G-code File</h2><span class="tag">LAN Exec</span></div>
+            <div class="gcode-container"><textarea class="gcode-textarea" id="gcode-input" placeholder="; One command per line"></textarea><div class="gcode-bottom"><label><input type="checkbox" id="chk-delete-after" checked> Auto-delete after execution</label><div><button class="btn btn-sm" onclick="clearGcode()">Clear</button><button class="btn btn-primary btn-sm" onclick="runGcodeFile()">Run on Printer</button></div></div><div class="gcode-status" id="gcode-status"></div></div>
         </section>
 
         <!-- Row 2 / Column 3: Axis -->
@@ -1191,12 +1197,6 @@
                 <div class="extruder-column"><span>Extruder</span><button onclick="extrudeFilament('retract')">↥</button><img src="img/extrusion-dark.006334bf.png"><button onclick="extrudeFilament('extrude')">↧</button></div>
             </div>
             <p id="jog-hint" class="module-note">Axis control enables remote monitoring. Watch nozzle-bed distance.</p>
-        </section>
-
-        <!-- Utilities remain below stock grid, spanning all columns -->
-        <section class="card wb3-utility">
-            <div class="card-header"><h2>Run G-code File</h2><span class="tag">LAN Exec</span></div>
-            <div class="gcode-container"><textarea class="gcode-textarea" id="gcode-input" placeholder="; One command per line"></textarea><div class="gcode-bottom"><label><input type="checkbox" id="chk-delete-after" checked> Auto-delete after execution</label><div><button class="btn btn-sm" onclick="clearGcode()">Clear</button><button class="btn btn-primary btn-sm" onclick="runGcodeFile()">Run on Printer</button></div></div><div class="gcode-status" id="gcode-status"></div></div>
         </section>
     </main>
 
