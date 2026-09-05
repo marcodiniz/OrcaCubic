@@ -946,6 +946,16 @@
         .custom-kind-controls input[type=color] { width:35px; height:31px; border:0; padding:0; background:transparent; }
         .custom-kind-controls select { background:#272a31; color:#fff; border:1px solid #41444e; border-radius:6px; padding:5px 7px; }
         .custom-color-preview { height:58px; border:1px solid #424550; border-radius:8px; background:#23a3c7; }
+        .speed-mode-card { width:min(480px,92vw); background:#202228; border:1px solid #3a3d46; border-radius:12px; box-shadow:0 18px 60px rgba(0,0,0,.55); overflow:hidden; }
+        .speed-mode-list { display:grid; gap:8px; padding:18px; }
+        .speed-option { display:grid; grid-template-columns:54px 1fr auto; gap:12px; align-items:center; width:100%; background:#292c33; border:1px solid #3b3f48; border-radius:9px; padding:12px; color:#fff; cursor:pointer; text-align:left; }
+        .speed-option:hover { border-color:#1677ff; background:#2e323b; }
+        .speed-option.selected { border-color:#1677ff; box-shadow:0 0 0 2px rgba(22,119,255,.18); }
+        .speed-option .speed-percent { font-size:16px; font-weight:750; color:#6aa7ff; }
+        .speed-option strong { display:block; font-size:13px; margin-bottom:3px; }
+        .speed-option p { color:#989ca6; font-size:10px; line-height:1.4; }
+        .speed-option .speed-check { width:19px; height:19px; border:1px solid #555a65; border-radius:50%; display:grid; place-items:center; color:transparent; }
+        .speed-option.selected .speed-check { background:#1677ff; border-color:#1677ff; color:white; }
 
     </style>
 </head>
@@ -1047,6 +1057,19 @@
         </div>
     </div>
 
+    <div id="speed-mode-modal" class="modal-backdrop" style="display:none; z-index:10010;">
+        <div class="speed-mode-card">
+            <div class="modal-header"><h3>Speed Mode</h3><button class="modal-close" onclick="closeSpeedModeModal()">✕</button></div>
+            <div class="speed-mode-list">
+                <button class="speed-option" data-mode="1" onclick="selectSpeedMode(1)"><span class="speed-percent">50%</span><span><strong>Quiet</strong><p>Reduces movement speed and noise. Best when quieter operation matters more than print time.</p></span><span class="speed-check">✓</span></button>
+                <button class="speed-option" data-mode="2" onclick="selectSpeedMode(2)"><span class="speed-percent">100%</span><span><strong>Standard</strong><p>Uses the normal sliced speed. Recommended for expected quality, cooling, and material flow.</p></span><span class="speed-check">✓</span></button>
+                <button class="speed-option" data-mode="3" onclick="selectSpeedMode(3)"><span class="speed-percent">125%</span><span><strong>Sport</strong><p>Runs approximately 25% faster. May increase noise and reduce quality on demanding geometry.</p></span><span class="speed-check">✓</span></button>
+                <button class="speed-option" data-mode="4" onclick="selectSpeedMode(4)"><span class="speed-percent">150%</span><span><strong>Ludicrous</strong><p>Runs approximately 50% faster. Highest noise and the greatest quality or flow risk.</p></span><span class="speed-check">✓</span></button>
+            </div>
+            <div class="modal-footer"><button class="btn" onclick="closeSpeedModeModal()">Cancel</button></div>
+        </div>
+    </div>
+
     <!-- Original-style custom color editor, opened by the + item in each section -->
     <div id="custom-color-modal" class="modal-backdrop" style="display:none; z-index:10020;">
         <div class="custom-color-card">
@@ -1131,7 +1154,7 @@
                     <span class="control-label"><img src="img/icon-fan.02d8a4a3.svg">Model Fan</span>
                     <span class="control-value"><b id="control-fan-value">0%</b></span>
                 </button>
-                <button class="control-tile speed-control" onclick="cycleSpeedMode()">
+                <button class="control-tile speed-control" onclick="openSpeedModeModal()">
                     <span class="control-label"><img src="img/speed-mode.47b8f8db.svg">Speed Mode</span>
                     <span class="control-value"><b id="control-speed-value">Standard</b></span>
                 </button>
@@ -1584,6 +1607,7 @@
                 if (data.status !== "ok") throw new Error(data.message || "Speed update failed");
             } catch(e) {
                 console.error("Speed error:", e);
+                throw e;
             }
         }
 
@@ -2242,7 +2266,42 @@
             const data=await response.json(); if(data.status!=="ok") throw new Error(data.message||"Fan update failed"); modelFanPct=value; document.getElementById("control-fan-value").innerText=Math.round(value)+"%";
         }
 
-        function cycleSpeedMode() { setSpeed(currentSpeedMode >= 4 ? 1 : currentSpeedMode + 1); }
+        function updateSpeedModeSelection() {
+            document.querySelectorAll("#speed-mode-modal .speed-option").forEach(option => {
+                const selected = Number(option.dataset.mode) === Number(currentSpeedMode);
+                option.classList.toggle("selected", selected);
+                option.setAttribute("aria-selected", selected ? "true" : "false");
+            });
+        }
+
+        function openSpeedModeModal() {
+            updateSpeedModeSelection();
+            document.getElementById("speed-mode-modal").style.display = "flex";
+        }
+
+        function closeSpeedModeModal() {
+            document.getElementById("speed-mode-modal").style.display = "none";
+        }
+
+        async function selectSpeedMode(mode) {
+            const modal = document.getElementById("speed-mode-modal");
+            modal.querySelectorAll(".speed-option").forEach(option => option.disabled = true);
+            const previous = currentSpeedMode;
+            currentSpeedMode = mode;
+            updateSpeedModeSelection();
+            try {
+                await setSpeed(mode);
+                closeSpeedModeModal();
+            } catch (error) {
+                currentSpeedMode = previous;
+                updateSpeedModeSelection();
+                alert("Failed to update speed mode: " + error.message);
+            } finally {
+                modal.querySelectorAll(".speed-option").forEach(option => option.disabled = false);
+            }
+        }
+
+        function cycleSpeedMode() { openSpeedModeModal(); }
 
         renderOriginalColorPicker();
         updateFilamentUI(filaments);
