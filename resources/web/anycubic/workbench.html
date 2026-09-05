@@ -468,6 +468,18 @@
             justify-content: center;
         }
 
+        .job-compact-row { display:flex; align-items:center; gap:10px; min-width:0; background:#1d2027; border:1px solid #30333b; border-radius:7px; padding:6px 8px; }
+        .job-inline-stat { display:flex; align-items:baseline; gap:4px; white-space:nowrap; min-width:0; }
+        .job-inline-stat span { color:#898d97; font-size:9px; }
+        .job-inline-stat b { color:#f4f5f7; font-size:11px; font-weight:650; }
+        .job-inline-spacer { flex:1; min-width:3px; }
+        .job-icon-actions { display:flex; align-items:center; gap:5px; }
+        .job-icon-button { width:29px; height:29px; display:grid; place-items:center; padding:0; border-radius:6px; background:#292c33; border:1px solid #41444d; cursor:pointer; }
+        .job-icon-button img { width:15px; height:15px; object-fit:contain; }
+        .job-icon-button:hover:not(:disabled) { border-color:#1677ff; background:#303642; }
+        .job-icon-button.cancel { border-color:rgba(239,68,68,.42); background:rgba(239,68,68,.12); }
+        .job-icon-button:disabled { opacity:.32; cursor:not-allowed; }
+
         /* Speed buttons row */
         .speed-row {
             display: flex;
@@ -814,7 +826,7 @@
             background: var(--bg-card);
         }
 
-        /* Workbench V3 stock layout: task/control/device, camera/consumable/axis */
+        /* Workbench V3 stock layout: task/control/device, camera/G-code/axis */
         .wb3-grid {
             display: grid;
             grid-template-columns: minmax(300px, 1.15fr) minmax(290px, .95fr) minmax(310px, 1fr);
@@ -822,15 +834,15 @@
                 "task control device"
                 "camera gcode axis";
             gap: 12px;
-            align-items: stretch;
+            align-items: start;
         }
         .wb3-grid > .card { margin: 0; min-width: 0; padding: 15px; border-radius: 12px; }
         .wb3-task { grid-area: task; min-height: 250px; }
-        .wb3-control { grid-area: control; min-height: 250px; }
-        .wb3-device { grid-area: device; min-height: 250px; }
-        .wb3-camera { grid-area: camera; min-height: 310px; }
-        .wb3-axis { grid-area: axis; min-height: 310px; }
-        .wb3-gcode { grid-area: gcode; min-height:310px; }
+        .wb3-control { grid-area: control; min-height: 250px; align-self:stretch; }
+        .wb3-device { grid-area: device; min-height: 250px; align-self:stretch; }
+        .wb3-camera { grid-area: camera; min-height: 310px; align-self:stretch; }
+        .wb3-axis { grid-area: axis; min-height: 310px; align-self:stretch; }
+        .wb3-gcode { grid-area: gcode; min-height:310px; align-self:stretch; }
         .wb3-grid .card-header { margin-bottom: 13px; }
         .wb3-grid .card-header h2, .axis-header h2 { font-size: 15px; }
         .job-percent { font-weight: 700; font-size: 15px; color: #1677ff; }
@@ -1117,19 +1129,20 @@
                 <div class="job-percent" id="job-pct">0%</div>
             </div>
             <div class="job-progress-bar"><div class="job-progress-fill" id="job-progress-fill"></div></div>
-            <div class="job-stats-grid">
-                <div class="job-stat-box"><div class="job-stat-label">Layer</div><div class="job-stat-val" id="stat-layer">0 / 0</div></div>
-                <div class="job-stat-box"><div class="job-stat-label">Elapsed</div><div class="job-stat-val" id="stat-elapsed">0m</div></div>
-                <div class="job-stat-box"><div class="job-stat-label">Remaining</div><div class="job-stat-val" id="stat-remaining">--</div></div>
-            </div>
-            <div class="job-actions">
-                <button class="btn" id="btn-pause" onclick="sendControl('pause')" disabled>Pause</button>
-                <button class="btn" id="btn-resume" onclick="sendControl('resume')" disabled>Resume</button>
-                <button class="btn btn-danger" id="btn-stop" onclick="sendControl('stop')" disabled>Cancel Job</button>
+            <div class="job-compact-row">
+                <div class="job-inline-stat"><span>Layer</span><b id="stat-layer">0 / 0</b></div>
+                <div class="job-inline-stat"><span>Elapsed</span><b id="stat-elapsed">0m</b></div>
+                <div class="job-inline-stat"><span>Remaining</span><b id="stat-remaining">--</b></div>
+                <div class="job-inline-spacer"></div>
+                <div class="job-icon-actions">
+                    <button class="job-icon-button" id="btn-pause" onclick="sendControl('pause')" title="Pause print" aria-label="Pause print" disabled><img src="img/pause.a9342684.svg" alt=""></button>
+                    <button class="job-icon-button" id="btn-resume" onclick="sendControl('resume')" title="Resume print" aria-label="Resume print" disabled><img src="img/play.4317d5c2.svg" alt=""></button>
+                    <button class="job-icon-button cancel" id="btn-stop" onclick="sendControl('stop')" title="Cancel print" aria-label="Cancel print" disabled><img src="img/icon-stop.b1e60574.svg" alt=""></button>
+                </div>
             </div>
             <div class="embedded-consumables">
                 <div class="embedded-consumables-head">
-                    <h3>Consumables</h3>
+                    <h3>Material</h3>
                     <div class="card-actions"><button onclick="syncFromSlicerToPrinter()">From Slicer</button><button onclick="syncFilamentsToSlicer()">To Slicer</button></div>
                 </div>
                 <div class="slots-container" id="slots-container"></div>
