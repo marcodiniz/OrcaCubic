@@ -1013,8 +1013,8 @@
                         <div id="modal-spool-hex" style="font-size: 12px; color: #9ca3af; font-family: monospace; margin-top: 2px;">#009639</div>
                     </div>
                     <div style="display: flex; gap: 10px; width: 100%;">
-                        <button class="btn btn-sm" id="btn-modal-feed" onclick="feedCurrentSlot()" style="flex: 1; border-radius: 20px; background: #262a36; color: #6b7280; font-size: 12px;">Feed</button>
-                        <button class="btn btn-sm" id="btn-modal-unfeed" onclick="unfeedCurrentSlot()" style="flex: 1; border-radius: 20px; background: #262a36; color: #6b7280; font-size: 12px;">Unfeed</button>
+                        <button class="btn btn-sm" id="btn-modal-feed" onclick="feedCurrentSlot()" title="Load this ACE slot's filament into the extruder." style="flex: 1; border-radius: 20px; background: #262a36; color: #6b7280; font-size: 12px;">Feed</button>
+                        <button class="btn btn-sm" id="btn-modal-unfeed" onclick="unfeedCurrentSlot()" title="Unload this ACE slot's filament from the extruder." style="flex: 1; border-radius: 20px; background: #262a36; color: #6b7280; font-size: 12px;">Unfeed</button>
                     </div>
                 </div>
 
@@ -1053,9 +1053,9 @@
                     <!-- Original Workbench color sections: palette entries plus one add item per section -->
                     <div class="original-color-picker">
                         <nav class="original-color-tabs">
-                            <button id="tab-solid" class="active" onclick="scrollToColorSection('solid')">Solid</button>
-                            <button id="tab-gradient" onclick="scrollToColorSection('gradient')">Gradient</button>
-                            <button id="tab-luminous" onclick="scrollToColorSection('luminous')">Luminous</button>
+                            <button id="tab-solid" class="active" onclick="scrollToColorSection('solid')" title="Show the original solid-color palette.">Solid</button>
+                            <button id="tab-gradient" onclick="scrollToColorSection('gradient')" title="Show the original multicolor gradient palette.">Gradient</button>
+                            <button id="tab-luminous" onclick="scrollToColorSection('luminous')" title="Show the original daylight and glow color pairs.">Luminous</button>
                         </nav>
                         <div id="original-color-sections" class="original-color-sections">
                             <section id="color-section-solid" class="original-color-section"><h4>Solid</h4><div id="solid-color-grid" class="original-color-grid"></div></section>
@@ -1075,28 +1075,28 @@
 
     <div id="speed-mode-modal" class="modal-backdrop" style="display:none; z-index:10010;">
         <div class="speed-mode-card">
-            <div class="modal-header"><h3>Speed Mode</h3><button class="modal-close" onclick="closeSpeedModeModal()">✕</button></div>
+            <div class="modal-header"><h3>Speed Mode</h3><button class="modal-close" onclick="closeSpeedModeModal()" title="Close the speed mode selector.">✕</button></div>
             <div class="speed-mode-list">
                 <button class="speed-option" data-mode="1" onclick="selectSpeedMode(1)"><span class="speed-percent">50%</span><span><strong>Quiet</strong><p>Reduces movement speed and noise. Best when quieter operation matters more than print time.</p></span><span class="speed-check">✓</span></button>
                 <button class="speed-option" data-mode="2" onclick="selectSpeedMode(2)"><span class="speed-percent">100%</span><span><strong>Standard</strong><p>Uses the normal sliced speed. Recommended for expected quality, cooling, and material flow.</p></span><span class="speed-check">✓</span></button>
                 <button class="speed-option" data-mode="3" onclick="selectSpeedMode(3)"><span class="speed-percent">125%</span><span><strong>Sport</strong><p>Runs approximately 25% faster. May increase noise and reduce quality on demanding geometry.</p></span><span class="speed-check">✓</span></button>
                 <button class="speed-option" data-mode="4" onclick="selectSpeedMode(4)"><span class="speed-percent">150%</span><span><strong>Ludicrous</strong><p>Runs approximately 50% faster. Highest noise and the greatest quality or flow risk.</p></span><span class="speed-check">✓</span></button>
             </div>
-            <div class="modal-footer"><button class="btn" onclick="closeSpeedModeModal()">Cancel</button></div>
+            <div class="modal-footer"><button class="btn" onclick="closeSpeedModeModal()" title="Close without changing the speed mode.">Cancel</button></div>
         </div>
     </div>
 
     <!-- Original-style custom color editor, opened by the + item in each section -->
     <div id="custom-color-modal" class="modal-backdrop" style="display:none; z-index:10020;">
         <div class="custom-color-card">
-            <div class="modal-header"><h3 id="custom-color-title">Add Solid Color</h3><button class="modal-close" onclick="closeCustomColorDialog()">✕</button></div>
+            <div class="modal-header"><h3 id="custom-color-title">Add Solid Color</h3><button class="modal-close" onclick="closeCustomColorDialog()" title="Close the custom color editor.">✕</button></div>
             <div class="custom-color-body">
                 <div id="custom-solid-controls" class="custom-kind-controls"><label>Color <input type="color" id="modal-slot-color" value="#23a3c7" onchange="updateCustomPreview()"></label><span id="modal-color-hex">#23A3C7</span></div>
                 <div id="custom-gradient-controls" class="custom-kind-controls" hidden><label>Colors <select id="gradient-count" onchange="updateCustomPreview()"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option></select></label><input type="color" id="gradient-color-1" value="#23a3c7" onchange="updateCustomPreview()"><input type="color" id="gradient-color-2" value="#9333ea" onchange="updateCustomPreview()"><input type="color" id="gradient-color-3" value="#ff8da1" onchange="updateCustomPreview()"><input type="color" id="gradient-color-4" value="#fddb27" onchange="updateCustomPreview()"><select id="gradient-direction" onchange="updateCustomPreview()"><option value="180">Vertical</option><option value="90">Horizontal</option></select></div>
                 <div id="custom-luminous-controls" class="custom-kind-controls" hidden><label>Day <input type="color" id="luminous-day" value="#33a13a" onchange="updateCustomPreview()"></label><label>Glow <input type="color" id="luminous-night" value="#7fff64" onchange="updateCustomPreview()"></label></div>
                 <div id="custom-color-preview" class="custom-color-preview"></div>
             </div>
-            <div class="modal-footer"><button class="btn" onclick="closeCustomColorDialog()">Cancel</button><button class="btn btn-primary" onclick="saveCustomColorDialog()">Add</button></div>
+            <div class="modal-footer"><button class="btn" onclick="closeCustomColorDialog()" title="Discard this custom color.">Cancel</button><button class="btn btn-primary" onclick="saveCustomColorDialog()" title="Save this reusable custom color or color group.">Add</button></div>
         </div>
     </div>
 
@@ -1111,8 +1111,8 @@
             </div>
         </div>
         <div style="display: flex; gap: 8px;">
-            <button class="btn btn-sm btn-primary" id="btn-alert-home" onclick="homeAll()">🏠 Home Now</button>
-            <button class="btn btn-sm" onclick="dismissAlert()">✕ Dismiss</button>
+            <button class="btn btn-sm btn-primary" id="btn-alert-home" onclick="homeAll()" title="Home all axes to resolve the movement warning.">🏠 Home Now</button>
+            <button class="btn btn-sm" onclick="dismissAlert()" title="Hide this printer notice.">✕ Dismiss</button>
         </div>
     </div>
 
@@ -1143,7 +1143,7 @@
             <div class="embedded-consumables">
                 <div class="embedded-consumables-head">
                     <h3>Material</h3>
-                    <div class="card-actions"><button onclick="syncFromSlicerToPrinter()">From Slicer</button><button onclick="syncFilamentsToSlicer()">To Slicer</button></div>
+                    <div class="card-actions"><button onclick="syncFromSlicerToPrinter()" title="Read the active filament types and colors from the slicer and write them to the printer's ACE slots.">From Slicer</button><button onclick="syncFilamentsToSlicer()" title="Read the printer's current ACE slot materials and colors and apply them to the slicer.">To Slicer</button></div>
                 </div>
                 <div class="slots-container" id="slots-container"></div>
             </div>
@@ -1153,37 +1153,37 @@
         <section class="card wb3-control">
             <div class="card-header"><h2>Control</h2><span class="tag">Live</span></div>
             <div class="control-grid">
-                <button class="control-tile" onclick="startInlineTempEdit('nozzle')">
+                <button class="control-tile" onclick="startInlineTempEdit('nozzle')" title="Set the nozzle target temperature. Press Enter or click away to apply.">
                     <span class="control-label"><img src="img/icon-nozzle.7a827791.svg">Nozzle</span>
                     <span class="control-value" id="nozzle-value-wrap"><b id="cur-nozzle">0</b><em>/</em><span id="target-nozzle">0</span><small>°C</small></span>
                     <span class="inline-editor" id="nozzle-inline-editor" hidden><input id="nozzle-inline-input" type="number" min="0" max="300"><small>°C</small></span>
                 </button>
-                <button class="control-tile" onclick="startInlineTempEdit('bed')">
+                <button class="control-tile" onclick="startInlineTempEdit('bed')" title="Set the heatbed target temperature. Press Enter or click away to apply.">
                     <span class="control-label"><img src="img/icon-hotbed.ec6ce931.svg">Heatbed</span>
                     <span class="control-value" id="bed-value-wrap"><b id="cur-bed">0</b><em>/</em><span id="target-bed">0</span><small>°C</small></span>
                     <span class="inline-editor" id="bed-inline-editor" hidden><input id="bed-inline-input" type="number" min="0" max="120"><small>°C</small></span>
                 </button>
-                <button class="control-tile light-control" onclick="toggleLight()">
+                <button class="control-tile light-control" onclick="toggleLight()" title="Turn the printer's camera/chamber LED on or off.">
                     <span class="control-label"><img src="img/icon-light.efdd1de5.svg">Camera Light</span>
                     <span class="switch-line"><span id="control-light-state">Off</span><span id="control-light-switch" class="toggle-switch"></span></span>
                 </button>
-                <button class="control-tile" onclick="promptSetFan()">
+                <button class="control-tile" onclick="promptSetFan()" title="Set the model cooling fan speed from 0% to 100%.">
                     <span class="control-label"><img src="img/icon-fan.02d8a4a3.svg">Model Fan</span>
                     <span class="control-value"><b id="control-fan-value">0%</b></span>
                 </button>
-                <button class="control-tile speed-control" onclick="openSpeedModeModal()">
+                <button class="control-tile speed-control" onclick="openSpeedModeModal()" title="Choose Quiet, Standard, Sport, or Ludicrous print speed.">
                     <span class="control-label"><img src="img/speed-mode.47b8f8db.svg">Speed Mode</span>
                     <span class="control-value"><b id="control-speed-value">Standard</b></span>
                 </button>
-                <button class="control-tile" onclick="preheat(0, 0)">
+                <button class="control-tile" onclick="preheat(0, 0)" title="Turn off the nozzle and heatbed heaters.">
                     <span class="control-label"><img src="img/temp.9134d606.svg">Cooldown</span>
                     <span class="control-value"><b>All heaters off</b></span>
                 </button>
             </div>
             <div class="control-presets">
-                <button onclick="preheat(205,60)">PLA <b>205/60</b></button>
-                <button onclick="preheat(235,75)">PETG <b>235/75</b></button>
-                <button onclick="preheat(255,90)">ABS <b>255/90</b></button>
+                <button onclick="preheat(205,60)" title="Preheat nozzle to 205°C and heatbed to 60°C for PLA.">PLA <b>205/60</b></button>
+                <button onclick="preheat(235,75)" title="Preheat nozzle to 235°C and heatbed to 75°C for PETG.">PETG <b>235/75</b></button>
+                <button onclick="preheat(255,90)" title="Preheat nozzle to 255°C and heatbed to 90°C for ABS.">ABS <b>255/90</b></button>
             </div>
         </section>
 
@@ -1198,7 +1198,7 @@
                 <label>Buildplate Type<select id="device-buildplate-type" onchange="setBuildplateType(this.value)"><option value="texture_pei">Textured PEI Plate</option><option value="smooth_pei">Smooth PEI Plate</option><option value="low_temp">Low Temperature Plate</option><option value="engineering">Engineering Plate</option></select></label>
                 <label>Nozzle Type<select id="device-nozzle-type" onchange="setNozzleType(this.value)"><option value="steel_04">0.4mm Hardened Steel</option><option value="brass_04">0.4mm Brass</option><option value="brass_02">0.2mm Brass</option><option value="steel_06">0.6mm Hardened Steel</option><option value="steel_08">0.8mm Hardened Steel</option></select></label>
             </div>
-            <button class="device-cn" onclick="copyCN()">CN 7526-2504-37CE-E5A2 <span>Copy</span></button>
+            <button class="device-cn" onclick="copyCN()" title="Copy the printer's CN identifier to the clipboard.">CN 7526-2504-37CE-E5A2 <span>Copy</span></button>
             <div id="device-info-status" class="device-info-status" hidden></div>
         </section>
 
@@ -1209,34 +1209,34 @@
                 <video id="cam-video" autoplay muted playsinline></video>
                 <div class="camera-placeholder" id="cam-placeholder"><img src="img/video-monitor.aa65df82.png"><span>Camera stream stopped</span></div>
                 <div class="camera-top-controls">
-                    <button class="icon-button" id="btn-light" onclick="toggleLight()">Light Off</button>
-                    <button class="icon-button" id="btn-cam-stream" onclick="toggleCameraStream()">Start Stream</button>
+                    <button class="icon-button" id="btn-light" onclick="toggleLight()" title="Turn the printer's camera/chamber LED on or off.">Light Off</button>
+                    <button class="icon-button" id="btn-cam-stream" onclick="toggleCameraStream()" title="Start or stop the live camera stream.">Start Stream</button>
                 </div>
-                <div class="camera-controls"><button onclick="openCamFull()">Full screen</button><button onclick="startCameraStream()">Reconnect</button></div>
+                <div class="camera-controls"><button onclick="openCamFull()" title="Open the raw camera feed in a separate window.">Full screen</button><button onclick="startCameraStream()" title="Restart the camera stream connection.">Reconnect</button></div>
             </div>
         </section>
 
         <!-- Row 2 / Column 2: Run G-code File -->
         <section class="card wb3-gcode">
             <div class="card-header"><h2>Run G-code File</h2><span class="tag">LAN Exec</span></div>
-            <div class="gcode-container"><textarea class="gcode-textarea" id="gcode-input" placeholder="; Home all axes&#10;G28&#10;M400&#10;; Move X 10mm&#10;G91&#10;G1 X10 F3000&#10;G90&#10;; Move Y 10mm&#10;G91&#10;G1 Y10 F3000&#10;G90&#10;; Raise Z 5mm&#10;G91&#10;G1 Z5 F600&#10;G90&#10;; Wait 2 seconds&#10;G4 P2000"></textarea><div class="gcode-bottom"><label><input type="checkbox" id="chk-delete-after" checked> Auto-delete after execution</label><div><button class="btn btn-sm" onclick="clearGcode()">Clear</button><button class="btn btn-primary btn-sm" onclick="runGcodeFile()">Run on Printer</button></div></div><div class="gcode-status" id="gcode-status"></div></div>
+            <div class="gcode-container"><textarea class="gcode-textarea" id="gcode-input" title="Enter a block of G-code. It will be uploaded and executed as a temporary print file." placeholder="; Home all axes&#10;G28&#10;M400&#10;; Move X 10mm&#10;G91&#10;G1 X10 F3000&#10;G90&#10;; Move Y 10mm&#10;G91&#10;G1 Y10 F3000&#10;G90&#10;; Raise Z 5mm&#10;G91&#10;G1 Z5 F600&#10;G90&#10;; Wait 2 seconds&#10;G4 P2000"></textarea><div class="gcode-bottom"><label title="Remove the generated temporary G-code file from printer storage after execution."><input type="checkbox" id="chk-delete-after" checked> Auto-delete after execution</label><div><button class="btn btn-sm" onclick="clearGcode()" title="Clear the G-code editor.">Clear</button><button class="btn btn-primary btn-sm" onclick="runGcodeFile()" title="Package this G-code as a temporary file, upload it, and run it on the printer.">Run on Printer</button></div></div><div class="gcode-status" id="gcode-status"></div></div>
         </section>
 
         <!-- Row 2 / Column 3: Axis -->
         <section class="card wb3-axis" id="card-axis-move">
-            <div class="axis-header"><h2>Axis Move</h2><div class="axis-steps"><button id="step-1" onclick="setAxisStep(1,this)">1mm</button><button id="step-15" class="active" onclick="setAxisStep(15,this)">15mm</button><button id="step-50" onclick="setAxisStep(50,this)">50mm</button></div></div>
+            <div class="axis-header"><h2>Axis Move</h2><div class="axis-steps"><button id="step-1" onclick="setAxisStep(1,this)" title="Move axes by 1 millimeter per click.">1mm</button><button id="step-15" class="active" onclick="setAxisStep(15,this)" title="Move axes by 15 millimeters per click.">15mm</button><button id="step-50" onclick="setAxisStep(50,this)" title="Move axes by 50 millimeters per click.">50mm</button></div></div>
             <div class="axis-body">
                 <div class="axis-actions"><button onclick="homeAll()" title="Home all">⌂</button><button onclick="motorOff()" title="Release motors">✋</button></div>
                 <div class="xy-pad">
-                    <button class="xy-up" onclick="jog('Y',1)">▲<small>Y</small></button>
-                    <button class="xy-left" onclick="jog('X',-1)">◀<small>X</small></button>
-                    <button class="xy-home" onclick="homeXY()">⌂</button>
-                    <button class="xy-right" onclick="jog('X',1)"><small>X</small>▶</button>
-                    <button class="xy-down" onclick="jog('Y',-1)"><small>Y</small>▼</button>
+                    <button class="xy-up" onclick="jog('Y',1)" title="Move the Y axis forward by the selected distance.">▲<small>Y</small></button>
+                    <button class="xy-left" onclick="jog('X',-1)" title="Move the X axis left by the selected distance.">◀<small>X</small></button>
+                    <button class="xy-home" onclick="homeXY()" title="Home the X and Y axes.">⌂</button>
+                    <button class="xy-right" onclick="jog('X',1)" title="Move the X axis right by the selected distance."><small>X</small>▶</button>
+                    <button class="xy-down" onclick="jog('Y',-1)" title="Move the Y axis backward by the selected distance."><small>Y</small>▼</button>
                 </div>
-                <div class="z-pad"><button onclick="jog('Z',1)">▲<small>Z</small></button><button onclick="homeZ()">⌂</button><button onclick="jog('Z',-1)"><small>Z</small>▼</button></div>
+                <div class="z-pad"><button onclick="jog('Z',1)" title="Raise Z by the selected distance.">▲<small>Z</small></button><button onclick="homeZ()" title="Home the Z axis.">⌂</button><button onclick="jog('Z',-1)" title="Lower Z by the selected distance. Watch nozzle-to-bed clearance."><small>Z</small>▼</button></div>
                 <div class="axis-divider"></div>
-                <div class="extruder-column"><span>Extruder</span><button onclick="extrudeFilament('retract')">↥</button><img src="img/extrusion-dark.006334bf.png"><button onclick="extrudeFilament('extrude')">↧</button></div>
+                <div class="extruder-column"><span>Extruder</span><button onclick="extrudeFilament('retract')" title="Retract filament. Requires a heated nozzle.">↥</button><img src="img/extrusion-dark.006334bf.png"><button onclick="extrudeFilament('extrude')" title="Extrude filament. Requires a heated nozzle.">↧</button></div>
             </div>
             <p id="jog-hint" class="module-note">Axis control enables remote monitoring. Watch nozzle-bed distance.</p>
         </section>
