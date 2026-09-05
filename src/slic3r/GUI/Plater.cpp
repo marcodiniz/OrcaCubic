@@ -1993,8 +1993,20 @@ bool Sidebar::priv::sync_extruder_list(bool &only_external_material, bool is_man
     PresetBundle *bundle = wxGetApp().preset_bundle;
     if (bundle != nullptr) {
         const Preset &cur_printer = bundle->printers.get_edited_preset();
-        std::string host_type = cur_printer.config.opt_string("host_type");
-        if (host_type == "anycubic" || boost::icontains(cur_printer.name, "Anycubic") || boost::icontains(cur_printer.name, "Kobra")) {
+        bool is_anycubic = false;
+        if (cur_printer.config.has("host_type")) {
+            auto opt = cur_printer.config.option("host_type");
+            if (opt && opt->getInt() == static_cast<int>(htAnycubic))
+                is_anycubic = true;
+        }
+        if (!is_anycubic) {
+            std::string pname = cur_printer.name;
+            boost::to_lower(pname);
+            if (pname.find("anycubic") != std::string::npos || pname.find("kobra") != std::string::npos)
+                is_anycubic = true;
+        }
+
+        if (is_anycubic) {
             BOOST_LOG_TRIVIAL(info) << "[Sidebar::sync_extruder_list] Anycubic printer detected, executing sync_ams_list";
             wxGetApp().sidebar().sync_ams_list(true);
             return true;
@@ -5858,9 +5870,16 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
     bool is_anycubic = false;
     if (wxGetApp().preset_bundle) {
         const auto& cur_printer = wxGetApp().preset_bundle->printers.get_edited_preset();
-        std::string host_type = cur_printer.config.opt_string("host_type");
-        if (host_type == "anycubic" || boost::icontains(cur_printer.name, "Anycubic") || boost::icontains(cur_printer.name, "Kobra")) {
-            is_anycubic = true;
+        if (cur_printer.config.has("host_type")) {
+            auto opt = cur_printer.config.option("host_type");
+            if (opt && opt->getInt() == static_cast<int>(htAnycubic))
+                is_anycubic = true;
+        }
+        if (!is_anycubic) {
+            std::string pname = cur_printer.name;
+            boost::to_lower(pname);
+            if (pname.find("anycubic") != std::string::npos || pname.find("kobra") != std::string::npos)
+                is_anycubic = true;
         }
     }
 
