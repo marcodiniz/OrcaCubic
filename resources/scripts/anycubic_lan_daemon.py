@@ -559,6 +559,12 @@ class BridgeServer(BaseHTTPRequestHandler):
                                 "paint_color": rgb
                             })
 
+                    requested_tasks = data.get("task_settings", {})
+                    auto_leveling = 1 if requested_tasks.get("auto_leveling", 1) else 0
+                    vibration_compensation = 1 if requested_tasks.get("vibration_compensation", 0) else 0
+                    flow_calibration = 1 if requested_tasks.get("flow_calibration", 0) else 0
+                    timelapse_status = 1 if requested_tasks.get("timelapse", 0) else 0
+
                     msg = {
                         "type": "print",
                         "action": "start",
@@ -578,12 +584,12 @@ class BridgeServer(BaseHTTPRequestHandler):
                                 "ams_box_mapping": ams_mapping
                             },
                             "task_settings": {
-                                "auto_leveling": 1,
-                                "vibration_compensation": 0,
-                                "flow_calibration": 0,
+                                "auto_leveling": auto_leveling,
+                                "vibration_compensation": vibration_compensation,
+                                "flow_calibration": flow_calibration,
                                 "dry_mode": 0,
                                 "ai_settings": {"status": 0, "count": 0, "type": 0},
-                                "timelapse": {"status": 0, "count": 0, "type": 0},
+                                "timelapse": {"status": timelapse_status, "count": 0, "type": 0},
                                 "drying_settings": {"status": 0, "target_temp": 0, "duration": 0, "remain_time": 0},
                                 "model_objects_skip_parts": []
                             }

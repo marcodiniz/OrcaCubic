@@ -96,6 +96,7 @@
 #include "GUI_Factories.hpp"
 #include "wxExtensions.hpp"
 #include "../Utils/PrintHost.hpp"
+#include "../Utils/AnycubicLink.hpp"
 #include "MainFrame.hpp"
 #include "format.hpp"
 #include "3DScene.hpp"
@@ -19283,6 +19284,49 @@ void Plater::send_gcode_legacy(int plate_idx, Export3mfProgressFn proFn)
                                                                  storage_paths, storage_names,
                                                                  config->get_bool("open_device_tab_post_upload"),
                                                                  upload_job.printhost.get());
+        } else if (host_type == htAnycubic) {
+            auto* anycubic_host = dynamic_cast<AnycubicLink*>(upload_job.printhost.get());
+            if (anycubic_host == nullptr) {
+                show_error(this, _L("Anycubic host is not available."), false);
+                return;
+            }
+
+            std::vector<AnycubicMaterialSlot> slots;
+            {
+                wxBusyCursor wait;
+                wxString msg;
+                if (!anycubic_host->fetch_material_slots(slots, msg)) {
+                    show_error(this, msg.empty() ? _L("Unable to read ACE Pro material slots.") : msg, false);
+                    return;
+                }
+            }
+
+            std::vector<int> used_extruders;
+            if (PartPlate* plate = get_partplate_list().get_plate(resolved_plate_idx); plate != nullptr) {
+                used_extruders = plate->get_extruders();
+                std::sort(used_extruders.begin(), used_extruders.end());
+                used_extruders.erase(std::unique(used_extruders.begin(), used_extruders.end()), used_extruders.end());
+            }
+
+            DynamicPrintConfig cfg = preset_bundle->full_config();
+            const auto* colors = cfg.option<ConfigOptionStrings>("filament_colour");
+            const auto* types = cfg.option<ConfigOptionStrings>("filament_type");
+            std::vector<AnycubicToolFilament> project_filaments;
+            for (int extruder : used_extruders) {
+                if (extruder < 1)
+                    continue;
+                const size_t idx = static_cast<size_t>(extruder - 1);
+                project_filaments.push_back({
+                    static_cast<int>(idx),
+                    types && idx < types->values.size() ? types->values[idx] : "Unknown",
+                    colors && idx < colors->values.size() ? colors->values[idx] : "#FFFFFF"
+                });
+            }
+
+            pDlg = std::make_unique<AnycubicPrintHostSendDialog>(default_output_file, upload_job.printhost->get_post_upload_actions(), groups,
+                                                                 storage_paths, storage_names,
+                                                                 config->get_bool("open_device_tab_post_upload"),
+                                                                 anycubic_host, std::move(slots), std::move(project_filaments));
         } else if (flashforge_local_api) {
             auto* flashforge_host = dynamic_cast<Flashforge*>(upload_job.printhost.get());
             if (flashforge_host == nullptr) {

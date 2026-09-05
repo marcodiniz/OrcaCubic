@@ -21,6 +21,40 @@ struct AnycubicMaterialSlot {
     float weight{0.f};
 };
 
+struct AnycubicToolFilament {
+    int tool_id{-1};
+    std::string type;
+    std::string color;
+};
+
+struct AnycubicAmsMappingEntry {
+    int ams_index{-1};
+    int paint_index{-1};
+    std::string material_type;
+    std::string ams_color;
+    std::string paint_color;
+};
+
+struct AnycubicPrintSettings {
+    bool auto_leveling{true};
+    bool vibration_compensation{false};
+    bool flow_calibration{false};
+    bool timelapse{false};
+};
+
+struct AnycubicTaskSettings {
+    int auto_leveling{1};
+    int vibration_compensation{0};
+    int flow_calibration{0};
+    int timelapse_status{0};
+};
+
+std::vector<AnycubicAmsMappingEntry> build_anycubic_ams_mapping(
+    const std::vector<AnycubicToolFilament>& tools,
+    const std::vector<AnycubicMaterialSlot>& slots,
+    const std::vector<int>& selected_slot_ids);
+AnycubicTaskSettings build_anycubic_task_settings(const AnycubicPrintSettings& settings);
+
 class AnycubicLink : public PrintHost
 {
 public:

@@ -40,6 +40,52 @@ namespace Slic3r {
 
 namespace {
 
+std::string normalize_anycubic_material(std::string material)
+{
+    boost::to_upper(material);
+    material.erase(std::remove_if(material.begin(), material.end(), [](unsigned char ch) { return !std::isalnum(ch); }), material.end());
+    return material;
+}
+
+} // namespace
+
+std::vector<AnycubicAmsMappingEntry> build_anycubic_ams_mapping(
+    const std::vector<AnycubicToolFilament>& tools,
+    const std::vector<AnycubicMaterialSlot>& slots,
+    const std::vector<int>& selected_slot_ids)
+{
+    if (tools.empty() || selected_slot_ids.size() != tools.size())
+        return {};
+
+    std::vector<AnycubicAmsMappingEntry> result;
+    result.reserve(tools.size());
+    for (size_t index = 0; index < tools.size(); ++index) {
+        const auto slot_it = std::find_if(slots.begin(), slots.end(), [&](const AnycubicMaterialSlot& slot) {
+            return slot.slot_id == selected_slot_ids[index];
+        });
+        if (slot_it == slots.end() || !slot_it->loaded || slot_it->slot_id < 1 || slot_it->slot_id > 4)
+            return {};
+
+        if (normalize_anycubic_material(slot_it->type) != normalize_anycubic_material(tools[index].type))
+            return {};
+
+        result.push_back({slot_it->slot_id - 1, tools[index].tool_id, slot_it->type, slot_it->color, tools[index].color});
+    }
+    return result;
+}
+
+AnycubicTaskSettings build_anycubic_task_settings(const AnycubicPrintSettings& settings)
+{
+    return {
+        settings.auto_leveling ? 1 : 0,
+        settings.vibration_compensation ? 1 : 0,
+        settings.flow_calibration ? 1 : 0,
+        settings.timelapse ? 1 : 0
+    };
+}
+
+namespace {
+
 std::string safe_config_str(DynamicPrintConfig* config, const char* key)
 {
     if (config == nullptr)
@@ -754,13 +800,30 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
         }
     }
 
+    const auto read_toggle = [&upload_data](const char* key, bool fallback) {
+        const std::string value = upload_data.extended(key);
+        return value.empty() ? fallback : value == "1";
+    };
+    const AnycubicTaskSettings task_settings = build_anycubic_task_settings({
+        read_toggle("auto_leveling", true),
+        read_toggle("vibration_compensation", false),
+        read_toggle("flow_calibration", false),
+        read_toggle("timelapse", false)
+    });
+
     // First, attempt to trigger print via our local daemon if available
     try {
         auto http_local = Http::post("http://127.0.0.1:18988/control");
         json ctrl_data = {
             {"action", "start_print_job"},
             {"filename", filename},
-            {"ams_box_mapping", ams_box_mapping}
+            {"ams_box_mapping", ams_box_mapping},
+            {"task_settings", {
+                {"auto_leveling", task_settings.auto_leveling},
+                {"vibration_compensation", task_settings.vibration_compensation},
+                {"flow_calibration", task_settings.flow_calibration},
+                {"timelapse", task_settings.timelapse_status}
+            }}
         };
         bool local_ok = false;
         std::string local_body;
@@ -840,12 +903,12 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
                 {"ams_box_mapping", ams_box_mapping}
             }},
             {"task_settings", {
-                {"auto_leveling", 1},
-                {"vibration_compensation", 0},
-                {"flow_calibration", 0},
+                {"auto_leveling", task_settings.auto_leveling},
+                {"vibration_compensation", task_settings.vibration_compensation},
+                {"flow_calibration", task_settings.flow_calibration},
                 {"dry_mode", 0},
                 {"ai_settings", {{"status", 0}, {"count", 0}, {"type", 0}}},
-                {"timelapse", {{"status", 0}, {"count", 0}, {"type", 0}}},
+                {"timelapse", {{"status", task_settings.timelapse_status}, {"count", 0}, {"type", 0}}},
                 {"drying_settings", {{"status", 0}, {"target_temp", 0}, {"duration", 0}, {"remain_time", 0}}},
                 {"model_objects_skip_parts", json::array()}
             }}
@@ -984,6 +1047,51 @@ bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, E
 bool AnycubicLink::fetch_material_slots(std::vector<AnycubicMaterialSlot>& slots, wxString& msg) const
 {
     slots.clear();
+    bool success = false;
+    std::string response_body;
+    auto http = Http::get("http://127.0.0.1:18988/status");
+    http.timeout_connect(1)
+        .timeout_max(3)
+        .on_complete([&](std::string body, unsigned status) {
+            if (status == 200) {
+                success = true;
+                response_body = std::move(body);
+            }
+        })
+        .on_error([&](std::string, std::string error, unsigned) {
+            msg = GUI::from_u8(error);
+        })
+        .perform_sync();
+
+    if (!success) {
+        if (msg.empty())
+            msg = _(L("Unable to read ACE Pro material slots from the local LAN bridge."));
+        return false;
+    }
+
+    const auto payload = json::parse(response_body, nullptr, false, true);
+    if (payload.is_discarded() || !payload.value("connected", false) || !payload.contains("filaments") || !payload["filaments"].is_array()) {
+        msg = _(L("The local LAN bridge did not report connected ACE Pro slots."));
+        return false;
+    }
+
+    for (const auto& item : payload["filaments"]) {
+        AnycubicMaterialSlot slot;
+        slot.slot_id = item.value("slot", -1);
+        slot.box_id  = -1;
+        slot.type    = item.value("type", "");
+        slot.color   = item.value("color", "#D0D0D0");
+        // The daemon reports the active feeder with `loaded`; every reported slot
+        // still contains a spool and is valid for mapping.
+        slot.loaded  = slot.slot_id >= 1 && slot.slot_id <= 4 && !slot.type.empty();
+        if (slot.loaded)
+            slots.push_back(std::move(slot));
+    }
+
+    if (slots.empty()) {
+        msg = _(L("No usable ACE Pro material slots were reported."));
+        return false;
+    }
     return true;
 }
 

@@ -13,6 +13,7 @@
 #include "MsgDialog.hpp"
 #include "../Utils/PrintHost.hpp"
 #include "../Utils/Flashforge.hpp"
+#include "../Utils/AnycubicLink.hpp"
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/ProjectTask.hpp"
 class wxButton;
@@ -277,6 +278,43 @@ private:
     const char* CONFIG_KEY_LEVELING  = "flashforge_leveling_before_print";
     const char* CONFIG_KEY_TIMELAPSE = "flashforge_timelapse_video";
     const char* CONFIG_KEY_IFS       = "flashforge_use_material_station";
+};
+
+class AnycubicPrintHostSendDialog : public PrintHostSendDialog
+{
+public:
+    AnycubicPrintHostSendDialog(const boost::filesystem::path& path,
+                                PrintHostPostUploadActions post_actions,
+                                const wxArrayString& groups,
+                                const wxArrayString& storage_paths,
+                                const wxArrayString& storage_names,
+                                bool switch_to_device_tab,
+                                const Slic3r::AnycubicLink* host,
+                                std::vector<Slic3r::AnycubicMaterialSlot> slots,
+                                std::vector<Slic3r::AnycubicToolFilament> project_filaments);
+
+    void init() override;
+    void EndModal(int ret) override;
+    std::map<std::string, std::string> extendedInfo() const override;
+
+private:
+    void auto_assign_mappings();
+    bool validate_before_close();
+    bool slot_matches_tool(const Slic3r::AnycubicMaterialSlot& slot, const Slic3r::AnycubicToolFilament& tool) const;
+
+    const Slic3r::AnycubicLink* m_host {nullptr};
+    std::vector<Slic3r::AnycubicMaterialSlot> m_slots;
+    std::vector<Slic3r::AnycubicToolFilament> m_project_filaments;
+    std::vector<BitmapComboBox*> m_slot_combos;
+    bool m_auto_leveling {true};
+    bool m_resonance_compensation {false};
+    bool m_flow_calibration {false};
+    bool m_timelapse {false};
+
+    const char* CONFIG_KEY_LEVELING  = "anycubic_auto_leveling";
+    const char* CONFIG_KEY_RESONANCE = "anycubic_resonance_compensation";
+    const char* CONFIG_KEY_FLOW      = "anycubic_flow_calibration";
+    const char* CONFIG_KEY_TIMELAPSE = "anycubic_timelapse";
 };
 
 wxDECLARE_EVENT(EVT_PRINTHOST_PROGRESS, PrintHostQueueDialog::Event);

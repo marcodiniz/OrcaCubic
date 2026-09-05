@@ -5,6 +5,7 @@ add_executable(${_TEST_NAME}_tests
     test_filament_bitmap_utils.cpp
     test_network_versions.cpp
     test_action_source.cpp
+    test_anycubic_remote_print.cpp
     test_plugin_host_api.cpp
     test_plugin_capability_config.cpp
     test_plugin_config.cpp
