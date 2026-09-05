@@ -1211,10 +1211,12 @@
         }
 
         async function syncFromSlicerToPrinter() {
+            sendToSlicer("request_plate_filaments_to_printer", {});
+            await new Promise(r => setTimeout(r, 250));
+
             let slicerFilaments = window.orcacubic_filaments;
             if (!slicerFilaments || slicerFilaments.length === 0) {
-                sendToSlicer("request_plate_filaments_to_printer", {});
-                alert("Requested filament profiles from Slicer. Please click 'Sync from Slicer' again in a moment.");
+                alert("No active plate filaments found in Slicer. Please select filaments on the Prepare tab first.");
                 return;
             }
 
