@@ -657,9 +657,222 @@
             border-color: var(--primary);
             color: var(--text-main);
         }
+
+        .btn:disabled, .jog-btn:disabled, .speed-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .slot-card {
+            cursor: pointer;
+        }
+
+        .slot-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 210, 255, 0.18);
+        }
+
+        .slot-edit-hint {
+            font-size: 10px;
+            color: var(--primary);
+            opacity: 0.7;
+            margin-top: 2px;
+            transition: opacity 0.15s;
+        }
+
+        .slot-card:hover .slot-edit-hint {
+            opacity: 1;
+            font-weight: 700;
+        }
+
+        /* Modal Dialog */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.72);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            width: 92%;
+            max-width: 440px;
+            box-shadow: 0 12px 36px rgba(0,0,0,0.65);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            animation: modalFadeIn 0.18s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.96); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-header h3 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .modal-close:hover {
+            color: #fff;
+        }
+
+        .modal-body {
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .modal-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .modal-field label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .modal-select {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 9px 12px;
+            color: var(--text-main);
+            font-size: 13px;
+            outline: none;
+        }
+
+        .modal-select:focus {
+            border-color: var(--primary);
+        }
+
+        .swatch-palette {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+
+        .color-swatch {
+            width: 100%;
+            height: 34px;
+            border-radius: var(--radius-sm);
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .color-swatch:hover, .color-swatch.active {
+            border-color: #fff;
+            transform: scale(1.08);
+            box-shadow: 0 0 8px rgba(255,255,255,0.4);
+        }
+
+        .modal-color-input {
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            background: none;
+        }
+
+        .modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 12px 18px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-card);
+        }
     </style>
 </head>
 <body>
+
+    <!-- Filament Slot Edit Modal -->
+    <div id="slot-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-slot-title">🎨 Edit Slot 1 Filament</h3>
+                <button class="modal-close" onclick="closeSlotEditModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-field">
+                    <label>Filament Material</label>
+                    <select id="modal-slot-type" class="modal-select">
+                        <option value="PLA">PLA</option>
+                        <option value="PLA+">PLA+</option>
+                        <option value="PETG">PETG</option>
+                        <option value="ABS">ABS</option>
+                        <option value="TPU">TPU</option>
+                        <option value="ASA">ASA</option>
+                        <option value="PC">PC</option>
+                        <option value="PA">PA (Nylon)</option>
+                        <option value="PLA-CF">PLA-CF</option>
+                        <option value="PETG-CF">PETG-CF</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="modal-field">
+                    <label>Filament Color</label>
+                    <div class="swatch-palette">
+                        <div class="color-swatch" style="background: #23a3c7;" onclick="pickModalColor('#23a3c7')"></div>
+                        <div class="color-swatch" style="background: #009639;" onclick="pickModalColor('#009639')"></div>
+                        <div class="color-swatch" style="background: #fddb27;" onclick="pickModalColor('#fddb27')"></div>
+                        <div class="color-swatch" style="background: #ff8da1;" onclick="pickModalColor('#ff8da1')"></div>
+                        <div class="color-swatch" style="background: #75787b;" onclick="pickModalColor('#75787b')"></div>
+                        <div class="color-swatch" style="background: #ffffff;" onclick="pickModalColor('#ffffff')"></div>
+                        <div class="color-swatch" style="background: #111827;" onclick="pickModalColor('#111827')"></div>
+                        <div class="color-swatch" style="background: #e11d48;" onclick="pickModalColor('#e11d48')"></div>
+                        <div class="color-swatch" style="background: #ea580c;" onclick="pickModalColor('#ea580c')"></div>
+                        <div class="color-swatch" style="background: #9333ea;" onclick="pickModalColor('#9333ea')"></div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                        <input type="color" id="modal-slot-color" class="modal-color-input" onchange="onModalColorPickerChange(this.value)">
+                        <span id="modal-color-hex" style="font-family: monospace; font-size: 13px; color: var(--text-main);">#23a3c7</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-sm" onclick="closeSlotEditModal()">Cancel</button>
+                <button class="btn btn-primary btn-sm" id="btn-save-slot" onclick="saveSlotFilament()">💾 Save to Printer</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Header -->
     <header>
@@ -761,9 +974,9 @@
                 </div>
 
                 <div class="job-actions">
-                    <button class="btn" onclick="sendControl('pause')">⏸ Pause</button>
-                    <button class="btn" onclick="sendControl('resume')">▶ Resume</button>
-                    <button class="btn btn-danger" onclick="sendControl('stop')">⏹ Cancel Job</button>
+                    <button class="btn" id="btn-pause" onclick="sendControl('pause')" disabled>⏸ Pause</button>
+                    <button class="btn" id="btn-resume" onclick="sendControl('resume')" disabled>▶ Resume</button>
+                    <button class="btn btn-danger" id="btn-stop" onclick="sendControl('stop')" disabled>⏹ Cancel Job</button>
                 </div>
             </div>
 
@@ -808,40 +1021,44 @@
                 </div>
                 <div class="slots-container" id="slots-container">
                     <!-- Slot 1 -->
-                    <div class="slot-card" id="slot-0">
+                    <div class="slot-card" id="slot-0" onclick="openSlotEditModal(0)">
                         <span class="slot-badge">1</span>
                         <div class="slot-color-circle" style="background: #009639;"></div>
                         <div class="slot-material">PLA</div>
                         <div class="slot-temp">210°C</div>
                         <div class="slot-level">Ready</div>
+                        <div class="slot-edit-hint">✏️ Edit</div>
                     </div>
                     <!-- Slot 2 -->
-                    <div class="slot-card" id="slot-1">
+                    <div class="slot-card" id="slot-1" onclick="openSlotEditModal(1)">
                         <span class="slot-badge">2</span>
                         <div class="slot-color-circle" style="background: #75787b;"></div>
                         <div class="slot-material">PLA</div>
                         <div class="slot-temp">210°C</div>
                         <div class="slot-level">Ready</div>
+                        <div class="slot-edit-hint">✏️ Edit</div>
                     </div>
                     <!-- Slot 3 -->
-                    <div class="slot-card active" id="slot-2">
+                    <div class="slot-card active" id="slot-2" onclick="openSlotEditModal(2)">
                         <span class="slot-badge">3</span>
                         <div class="slot-color-circle" style="background: #fddb27;"></div>
-                        <div class="slot-material">PLA+</div>
-                        <div class="slot-temp">235°C</div>
+                        <div class="slot-material">PLA</div>
+                        <div class="slot-temp">210°C</div>
                         <div class="slot-level" style="color:#10b981;font-weight:700;">● Active</div>
+                        <div class="slot-edit-hint">✏️ Edit</div>
                     </div>
                     <!-- Slot 4 -->
-                    <div class="slot-card" id="slot-3">
+                    <div class="slot-card" id="slot-3" onclick="openSlotEditModal(3)">
                         <span class="slot-badge">4</span>
                         <div class="slot-color-circle" style="background: #ff8da1;"></div>
                         <div class="slot-material">PLA</div>
                         <div class="slot-temp">210°C</div>
                         <div class="slot-level">Ready</div>
+                        <div class="slot-edit-hint">✏️ Edit</div>
                     </div>
                 </div>
                 <p style="font-size: 11px; color: var(--text-dim); text-align: center;">
-                    Click "Sync to Slicer" to sync these filaments with OrcaSlicer's plate.
+                    Click any slot card to edit material and color.
                 </p>
             </div>
 
@@ -852,24 +1069,24 @@
                     <span class="tag">Real-time</span>
                 </div>
                 <div class="temp-grid">
-                    <div class="temp-item">
+                    <div class="temp-item" style="cursor: pointer;" onclick="promptSetTemp('nozzle')" title="Click to set nozzle temperature">
                         <div class="temp-label">
-                            <span>Nozzle</span>
-                            <span class="temp-target">Target: <span id="target-nozzle">235</span>°C</span>
+                            <span>Nozzle ✏️</span>
+                            <span class="temp-target">Target: <span id="target-nozzle">0</span>°C</span>
                         </div>
-                        <div class="temp-val"><span id="cur-nozzle">235</span>°C</div>
+                        <div class="temp-val"><span id="cur-nozzle">30</span>°C</div>
                         <div class="temp-bar-bg">
-                            <div class="temp-bar-fill bar-nozzle" id="bar-nozzle" style="width: 78%;"></div>
+                            <div class="temp-bar-fill bar-nozzle" id="bar-nozzle" style="width: 10%;"></div>
                         </div>
                     </div>
-                    <div class="temp-item">
+                    <div class="temp-item" style="cursor: pointer;" onclick="promptSetTemp('bed')" title="Click to set heatbed temperature">
                         <div class="temp-label">
-                            <span>Heatbed</span>
-                            <span class="temp-target">Target: <span id="target-bed">60</span>°C</span>
+                            <span>Heatbed ✏️</span>
+                            <span class="temp-target">Target: <span id="target-bed">0</span>°C</span>
                         </div>
-                        <div class="temp-val"><span id="cur-bed">60</span>°C</div>
+                        <div class="temp-val"><span id="cur-bed">26</span>°C</div>
                         <div class="temp-bar-bg">
-                            <div class="temp-bar-fill bar-bed" id="bar-bed" style="width: 55%;"></div>
+                            <div class="temp-bar-fill bar-bed" id="bar-bed" style="width: 10%;"></div>
                         </div>
                     </div>
                 </div>
@@ -884,7 +1101,7 @@
             <!-- Motion & Jog Controls -->
             <div class="card">
                 <div class="card-header">
-                    <h2>🕹️ Axis Motion & Jog</h2>
+                    <h2>🕹️ Axis Motion & Extrusion</h2>
                     <div class="jog-step-chips">
                         <div class="jog-step-chip" onclick="setJogStep(0.1, this)">0.1</div>
                         <div class="jog-step-chip" onclick="setJogStep(1, this)">1</div>
@@ -912,6 +1129,26 @@
                     <p id="jog-hint" style="font-size: 11px; color: var(--text-dim); text-align: center;">
                         Jogging ready. (Click 🏠 Home first if motors were reset).
                     </p>
+
+                    <!-- Extrusion Controls -->
+                    <div class="extrusion-box" style="margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--border);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-size: 12px; font-weight: 600; color: var(--text-main);">🧵 Extruder (E-Axis)</span>
+                            <div class="jog-step-chips">
+                                <div class="jog-step-chip" onclick="setExtrudeDist(5, this)">5mm</div>
+                                <div class="jog-step-chip active" onclick="setExtrudeDist(10, this)">10mm</div>
+                                <div class="jog-step-chip" onclick="setExtrudeDist(20, this)">20mm</div>
+                                <div class="jog-step-chip" onclick="setExtrudeDist(50, this)">50mm</div>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <button class="btn btn-sm" id="btn-extrude" onclick="extrudeFilament('extrude')">⤓ Extrude</button>
+                            <button class="btn btn-sm" id="btn-retract" onclick="extrudeFilament('retract')">⤒ Retract</button>
+                        </div>
+                        <div id="extrude-status" style="font-size: 11px; color: var(--text-dim); text-align: center; margin-top: 6px;">
+                            Requires heated nozzle (≥ 170°C).
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1264,9 +1501,172 @@
             } catch(e) {}
         }
 
-        function preheat(nozzle, bed) {
+        // --- Custom Temperature Setting ---
+        async function promptSetTemp(heater) {
+            const isNozzle = heater === 'nozzle';
+            const curTarget = isNozzle ? 
+                (document.getElementById("target-nozzle").innerText || "0") : 
+                (document.getElementById("target-bed").innerText || "0");
+            const promptMsg = isNozzle ? 
+                "Enter target Nozzle temperature in °C (0 to 300):" : 
+                "Enter target Heatbed temperature in °C (0 to 110):";
+            const input = prompt(promptMsg, curTarget);
+            if (input === null) return;
+            const val = parseInt(input.trim(), 10);
+            if (isNaN(val) || val < 0 || (isNozzle && val > 300) || (!isNozzle && val > 120)) {
+                alert("Invalid temperature. Please enter a valid number (0 - " + (isNozzle ? "300" : "120") + "°C).");
+                return;
+            }
+            await setTargetTemp(heater, val);
+        }
+
+        async function setTargetTemp(heater, val) {
+            try {
+                await fetch("http://127.0.0.1:18988/control", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "temp", heater: heater, value: val })
+                });
+                if (heater === 'nozzle') {
+                    document.getElementById("target-nozzle").innerText = val;
+                } else {
+                    document.getElementById("target-bed").innerText = val;
+                }
+            } catch(e) {
+                alert("Failed to set temperature: " + e.message);
+            }
+        }
+
+        async function preheat(nozzle, bed) {
             document.getElementById("target-nozzle").innerText = nozzle;
             document.getElementById("target-bed").innerText = bed;
+            await setTargetTemp('nozzle', nozzle);
+            await setTargetTemp('bed', bed);
+        }
+
+        // --- Extrusion Controls ---
+        let extrudeDistance = 10;
+
+        function setExtrudeDist(dist, el) {
+            extrudeDistance = dist;
+            document.querySelectorAll(".extrusion-box .jog-step-chip").forEach(c => c.classList.remove("active"));
+            if (el) el.classList.add("active");
+        }
+
+        async function extrudeFilament(dir) {
+            const curNozzle = parseFloat(document.getElementById("cur-nozzle").innerText) || 0;
+            if (curNozzle < 170) {
+                if (confirm("Current nozzle temperature (" + Math.round(curNozzle) + "°C) is below 170°C.\nExtrusion requires a heated nozzle to prevent motor stall.\n\nHeat nozzle to 210°C now?")) {
+                    await setTargetTemp('nozzle', 210);
+                    alert("Preheating nozzle to 210°C started. Click " + (dir === 'extrude' ? 'Extrude' : 'Retract') + " once hot.");
+                }
+                return;
+            }
+            const statusEl = document.getElementById("extrude-status");
+            if (statusEl) statusEl.innerText = "⏳ Extruding " + extrudeDistance + "mm (" + dir + ")...";
+            try {
+                const res = await fetch("http://127.0.0.1:18988/control", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "extrude", dir: dir, dist: extrudeDistance })
+                });
+                const data = await res.json();
+                if (data.status === "ok") {
+                    if (statusEl) statusEl.innerText = "✅ " + (dir === 'extrude' ? 'Extruded' : 'Retracted') + " " + extrudeDistance + "mm successfully.";
+                    setTimeout(() => { if (statusEl) statusEl.innerText = "Requires heated nozzle (≥ 170°C)."; }, 4000);
+                } else {
+                    if (statusEl) statusEl.innerText = "⚠️ Extrude error: " + (data.message || "failed");
+                }
+            } catch(e) {
+                if (statusEl) statusEl.innerText = "❌ Extrude failed: " + e.message;
+            }
+        }
+
+        // --- Slot Edit Modal ---
+        let currentEditingSlot = 0;
+        let selectedModalColor = "#23a3c7";
+
+        function openSlotEditModal(slotIdx) {
+            currentEditingSlot = slotIdx;
+            const slotNum = slotIdx + 1;
+            document.getElementById("modal-slot-title").innerText = `🎨 Edit Slot ${slotNum} Filament`;
+            const currentFilament = filaments[slotIdx] || {};
+            const curType = currentFilament.type || "PLA";
+            const curColor = currentFilament.color || "#23a3c7";
+
+            document.getElementById("modal-slot-type").value = curType;
+            pickModalColor(curColor);
+
+            document.getElementById("slot-modal").style.display = "flex";
+        }
+
+        function closeSlotEditModal() {
+            document.getElementById("slot-modal").style.display = "none";
+        }
+
+        function pickModalColor(hex) {
+            selectedModalColor = hex;
+            document.getElementById("modal-slot-color").value = hex;
+            document.getElementById("modal-color-hex").innerText = hex.toUpperCase();
+            document.querySelectorAll(".color-swatch").forEach(s => {
+                if (s.style.backgroundColor && hexToRgbStr(s.style.backgroundColor) === hexToRgbStr(hex)) {
+                    s.classList.add("active");
+                } else {
+                    s.classList.remove("active");
+                }
+            });
+        }
+
+        function hexToRgbStr(hexOrRgb) {
+            if (hexOrRgb.startsWith("rgb")) return hexOrRgb;
+            let c = hexOrRgb.replace("#", "");
+            if (c.length === 3) c = c.split("").map(x => x + x).join("");
+            const num = parseInt(c, 16);
+            return `rgb(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255})`;
+        }
+
+        function onModalColorPickerChange(hex) {
+            pickModalColor(hex);
+        }
+
+        async function saveSlotFilament() {
+            const btn = document.getElementById("btn-save-slot");
+            btn.innerText = "⏳ Saving...";
+            btn.disabled = true;
+
+            const newType = document.getElementById("modal-slot-type").value;
+            const newColor = selectedModalColor;
+
+            try {
+                const res = await fetch("http://127.0.0.1:18988/sync_to_printer", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        slots: [{
+                            index: currentEditingSlot,
+                            type: newType,
+                            color: newColor
+                        }]
+                    })
+                });
+                const data = await res.json();
+                if (data.status === "ok") {
+                    if (filaments[currentEditingSlot]) {
+                        filaments[currentEditingSlot].type = newType;
+                        filaments[currentEditingSlot].color = newColor;
+                        updateFilamentUI(filaments);
+                    }
+                    closeSlotEditModal();
+                    pollTelemetry();
+                } else {
+                    alert("Failed to update slot: " + (data.message || "error"));
+                }
+            } catch(e) {
+                alert("Network error updating slot: " + e.message);
+            } finally {
+                btn.innerText = "💾 Save to Printer";
+                btn.disabled = false;
+            }
         }
 
         function refreshStatus() {
@@ -1281,6 +1681,8 @@
                 const div = document.createElement("div");
                 div.className = "slot-card" + (f.loaded ? " active" : "");
                 div.id = "slot-" + idx;
+                div.title = "Click to edit material and color";
+                div.onclick = () => openSlotEditModal(idx);
                 div.innerHTML = `
                     <span class="slot-badge">${f.slot || idx + 1}</span>
                     <div class="slot-color-circle" style="background: ${f.color || '#00d2ff'};"></div>
@@ -1289,6 +1691,7 @@
                     <div class="slot-level" style="${f.loaded ? 'color:#10b981;font-weight:700;' : ''}">
                         ${f.loaded ? '● Active' : 'Ready'}
                     </div>
+                    <div class="slot-edit-hint">✏️ Edit</div>
                 `;
                 container.appendChild(div);
             });
@@ -1309,24 +1712,44 @@
             if (data.target_bed_temp !== undefined && data.target_bed_temp > 0) {
                 document.getElementById("target-bed").innerText = Math.round(data.target_bed_temp);
             }
-            if (data.print_state) {
-                currentPrinterState = data.print_state.toLowerCase();
-                document.getElementById("print-state").innerText = data.print_state;
-                const isPrinting = (currentPrinterState === "printing" || currentPrinterState === "busy");
-                document.querySelectorAll(".jog-btn").forEach(btn => {
-                    btn.disabled = isPrinting;
-                });
-                const hintEl = document.getElementById("jog-hint");
-                if (data.axis_error) {
-                    hintEl.innerText = "⚠️ " + data.axis_error;
-                    hintEl.style.color = "#f87171";
-                } else if (isPrinting) {
-                    hintEl.innerText = "⚠️ Jogging locked during active print.";
-                    hintEl.style.color = "var(--text-dim)";
-                } else {
-                    hintEl.innerText = "Jogging ready. (Click 🏠 Home first if motors were reset).";
-                    hintEl.style.color = "var(--text-dim)";
-                }
+            
+            // Printer status and control button states
+            const state = (data.state || data.print_state || "free").toLowerCase();
+            currentPrinterState = state;
+            document.getElementById("print-state").innerText = data.state || data.print_state || "Ready";
+
+            const isPrinting = (state === "printing" || state === "busy");
+            const isPaused = (state === "paused");
+            const hasActiveJob = (isPrinting || isPaused);
+
+            // Active Print Job controls: disabled when there is no active job
+            const btnPause = document.getElementById("btn-pause");
+            const btnResume = document.getElementById("btn-resume");
+            const btnStop = document.getElementById("btn-stop");
+
+            if (btnPause) btnPause.disabled = !isPrinting;
+            if (btnResume) btnResume.disabled = !isPaused;
+            if (btnStop) btnStop.disabled = !hasActiveJob;
+
+            // Jog buttons & Extrusion buttons: disabled during active printing
+            document.querySelectorAll(".jog-btn").forEach(btn => {
+                btn.disabled = isPrinting;
+            });
+            const btnExtrude = document.getElementById("btn-extrude");
+            const btnRetract = document.getElementById("btn-retract");
+            if (btnExtrude) btnExtrude.disabled = isPrinting;
+            if (btnRetract) btnRetract.disabled = isPrinting;
+
+            const hintEl = document.getElementById("jog-hint");
+            if (data.axis_error) {
+                hintEl.innerText = "⚠️ " + data.axis_error;
+                hintEl.style.color = "#f87171";
+            } else if (isPrinting) {
+                hintEl.innerText = "⚠️ Jogging locked during active print.";
+                hintEl.style.color = "var(--text-dim)";
+            } else {
+                hintEl.innerText = "Jogging ready. (Click 🏠 Home first if motors were reset).";
+                hintEl.style.color = "var(--text-dim)";
             }
             if (data.progress !== undefined) {
                 document.getElementById("job-pct").innerText = Math.round(data.progress) + "%";

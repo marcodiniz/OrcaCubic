@@ -528,6 +528,47 @@ class BridgeServer(BaseHTTPRequestHandler):
                     mqtt_client.publish(topic, json.dumps(msg))
                     print("[Bridge] Published Motor Turn Off")
 
+            elif action == "temp":
+                heater = data.get("heater", "nozzle")
+                val = int(data.get("value", 0))
+                topic_temp = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/tempature"
+                if heater == "nozzle":
+                    t_type = 0
+                    bed_val = 0
+                    nozzle_val = val
+                    telemetry["target_nozzle_temp"] = val
+                else:
+                    t_type = 1
+                    bed_val = val
+                    nozzle_val = 0
+                    telemetry["target_bed_temp"] = val
+                msg = {
+                    "type": "tempature",
+                    "action": "set",
+                    "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                    "timestamp": int(time.time() * 1000),
+                    "data": {
+                        "type": t_type,
+                        "target_hotbed_temp": bed_val,
+                        "target_nozzle_temp": nozzle_val
+                    }
+                }
+                if mqtt_client:
+                    mqtt_client.publish(topic_temp, json.dumps(msg))
+                    print(f"[Bridge] Published set tempature {heater}={val} to {topic_temp}")
+
+            elif action == "extrude":
+                direction = data.get("dir", "extrude")
+                dist = abs(float(data.get("dist", 10)))
+                sign = 1 if direction == "extrude" else -1
+                e_dist = sign * dist
+                gcode = f"; Extrude filament\nM83\nG1 E{e_dist:.1f} F150\nM400\n"
+                try:
+                    result = upload_and_run_gcode(gcode, delete_after=True)
+                    print(f"[Bridge] Extrude executed: {direction} {dist}mm")
+                except Exception as e:
+                    result = {"status": "error", "message": str(e)}
+
         elif self.path.endswith("/mach_mqtt/publish"):
             topic = data.get("topic", "")
             payload_raw = data.get("payload", "")
