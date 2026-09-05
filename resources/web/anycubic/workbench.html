@@ -837,7 +837,7 @@
             align-items: start;
         }
         .wb3-grid > .card { margin: 0; min-width: 0; padding: 15px; border-radius: 12px; }
-        .wb3-task { grid-area: task; min-height: 250px; }
+        .wb3-task { grid-area: task; min-height: 250px; align-self:stretch; }
         .wb3-control { grid-area: control; min-height: 250px; align-self:stretch; }
         .wb3-device { grid-area: device; min-height: 250px; align-self:stretch; }
         .wb3-camera { grid-area: camera; min-height: 310px; align-self:stretch; }
@@ -1121,7 +1121,7 @@
         <!-- Row 1 / Column 1: Task -->
         <section class="card job-card wb3-task">
             <div class="card-header">
-                <h2>Active Print Job</h2>
+                <h2>Print</h2>
                 <span class="tag" id="print-state">Ready</span>
             </div>
             <div class="job-title-row">
@@ -1219,7 +1219,7 @@
         <!-- Row 2 / Column 2: Run G-code File -->
         <section class="card wb3-gcode">
             <div class="card-header"><h2>Run G-code File</h2><span class="tag">LAN Exec</span></div>
-            <div class="gcode-container"><textarea class="gcode-textarea" id="gcode-input" placeholder="; One command per line"></textarea><div class="gcode-bottom"><label><input type="checkbox" id="chk-delete-after" checked> Auto-delete after execution</label><div><button class="btn btn-sm" onclick="clearGcode()">Clear</button><button class="btn btn-primary btn-sm" onclick="runGcodeFile()">Run on Printer</button></div></div><div class="gcode-status" id="gcode-status"></div></div>
+            <div class="gcode-container"><textarea class="gcode-textarea" id="gcode-input" placeholder="; Home all axes&#10;G28&#10;M400&#10;; Move X 10mm&#10;G91&#10;G1 X10 F3000&#10;G90&#10;; Move Y 10mm&#10;G91&#10;G1 Y10 F3000&#10;G90&#10;; Raise Z 5mm&#10;G91&#10;G1 Z5 F600&#10;G90&#10;; Wait 2 seconds&#10;G4 P2000"></textarea><div class="gcode-bottom"><label><input type="checkbox" id="chk-delete-after" checked> Auto-delete after execution</label><div><button class="btn btn-sm" onclick="clearGcode()">Clear</button><button class="btn btn-primary btn-sm" onclick="runGcodeFile()">Run on Printer</button></div></div><div class="gcode-status" id="gcode-status"></div></div>
         </section>
 
         <!-- Row 2 / Column 3: Axis -->
