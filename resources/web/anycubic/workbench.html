@@ -1943,14 +1943,12 @@
         function updateTelemetryUI(data) {
             if (data.nozzle_temp !== undefined) {
                 document.getElementById("cur-nozzle").innerText = Math.round(data.nozzle_temp);
-                document.getElementById("bar-nozzle").style.width = Math.min(100, (data.nozzle_temp / 300) * 100) + "%";
             }
             if (data.target_nozzle_temp !== undefined && data.target_nozzle_temp > 0) {
                 document.getElementById("target-nozzle").innerText = Math.round(data.target_nozzle_temp);
             }
             if (data.bed_temp !== undefined) {
                 document.getElementById("cur-bed").innerText = Math.round(data.bed_temp);
-                document.getElementById("bar-bed").style.width = Math.min(100, (data.bed_temp / 110) * 100) + "%";
             }
             if (data.target_bed_temp !== undefined && data.target_bed_temp > 0) {
                 document.getElementById("target-bed").innerText = Math.round(data.target_bed_temp);
