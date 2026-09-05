@@ -360,9 +360,14 @@ public:
             m_ctx = nullptr;
         }
         if (m_socket) {
-            boost::system::error_code ec;
-            m_socket->close(ec);
-            m_socket.reset();
+            try {
+                boost::system::error_code ec;
+                m_socket->shutdown(tcp::socket::shutdown_both, ec);
+                m_socket->close(ec);
+            } catch (...) {}
+            // Do not delete or reset socket pointer synchronously while Windows IOCP may have pending operations
+            auto leaked_sock = m_socket.release();
+            (void)leaked_sock;
         }
     }
 
@@ -569,6 +574,36 @@ bool AnycubicLink::fetch_credentials(wxString& error_msg) const
 
 bool AnycubicLink::fetch_upload_url_via_mqtt(std::string& upload_token, wxString& error_msg) const
 {
+    // First, check if our high-performance local LAN bridge daemon is running on localhost
+    // which maintains a robust persistent MQTT TLS connection and always has the latest upload URL.
+    try {
+        auto http_local = Http::get("http://127.0.0.1:18988/status");
+        bool local_ok = false;
+        std::string local_body;
+        http_local.timeout_connect(1)
+                  .timeout_max(2)
+                  .on_complete([&](std::string body, unsigned status) {
+                      if (status == 200) {
+                          local_ok = true;
+                          local_body = std::move(body);
+                      }
+                  })
+                  .perform_sync();
+        if (local_ok) {
+            auto parsed = json::parse(local_body, nullptr, false, true);
+            if (!parsed.is_discarded() && parsed.contains("upload_url")) {
+                std::string up_url = parsed.value("upload_url", "");
+                auto s_idx = up_url.find("?s=");
+                if (s_idx != std::string::npos) {
+                    upload_token = up_url.substr(s_idx + 3);
+                    const_cast<AnycubicLink*>(this)->m_upload_token = upload_token;
+                    BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Acquired session upload token via local LAN bridge: " << upload_token;
+                    return true;
+                }
+            }
+        }
+    } catch (...) {}
+
     if (m_device_id.empty() || m_username.empty() || m_device_crt.empty() || m_device_pk.empty()) {
         if (!fetch_credentials(error_msg))
             return false;
@@ -582,14 +617,14 @@ bool AnycubicLink::fetch_upload_url_via_mqtt(std::string& upload_token, wxString
     }
 
     std::string client_id = "orca-" + (m_device_id.size() >= 8 ? m_device_id.substr(0, 8) : generate_nonce(8));
-    MqttTlsSession mqtt;
-    if (!mqtt.connect(m_host, mqtt_port, m_username, m_password, m_device_crt, m_device_pk, client_id, error_msg)) {
+    auto mqtt = std::make_shared<MqttTlsSession>();
+    if (!mqtt->connect(m_host, mqtt_port, m_username, m_password, m_device_crt, m_device_pk, client_id, error_msg)) {
         BOOST_LOG_TRIVIAL(warning) << "[AnycubicLink] MQTT connect failed during upload token fetch: " << error_msg.ToUTF8().data();
         return false;
     }
 
     std::string sub_topic = (boost::format("anycubic/anycubicCloud/v1/printer/public/%1%/%2%/#") % m_mode_id % m_device_id).str();
-    if (!mqtt.subscribe(1, sub_topic, error_msg))
+    if (!mqtt->subscribe(1, sub_topic, error_msg))
         return false;
 
     std::string pub_topic = (boost::format("anycubic/anycubicCloud/v1/slicer/printer/%1%/%2%/info") % m_mode_id % m_device_id).str();
@@ -601,11 +636,11 @@ bool AnycubicLink::fetch_upload_url_via_mqtt(std::string& upload_token, wxString
         {"data", json::object()}
     };
 
-    if (!mqtt.publish(pub_topic, query_req.dump(), error_msg))
+    if (!mqtt->publish(pub_topic, query_req.dump(), error_msg))
         return false;
 
     std::string resp_json;
-    if (mqtt.read_json_response(resp_json, 4)) {
+    if (mqtt->read_json_response(resp_json, 4)) {
         auto parsed = json::parse(resp_json, nullptr, false, true);
         if (!parsed.is_discarded() && parsed.contains("data") && parsed["data"].is_object() && parsed["data"].contains("urls")) {
             std::string file_upload_url = parsed["data"]["urls"].value("fileUploadurl", "");
@@ -625,6 +660,35 @@ bool AnycubicLink::fetch_upload_url_via_mqtt(std::string& upload_token, wxString
 
 bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename, const PrintHostUpload& upload_data) const
 {
+    // First, attempt to trigger print via our local daemon if available
+    try {
+        auto http_local = Http::post("http://127.0.0.1:18988/control");
+        json ctrl_data = {
+            {"action", "start_print_job"},
+            {"filename", filename}
+        };
+        bool local_ok = false;
+        std::string local_body;
+        http_local.header("Content-Type", "application/json")
+                  .set_post_body(ctrl_data.dump())
+                  .timeout_connect(1)
+                  .timeout_max(3)
+                  .on_complete([&](std::string body, unsigned status) {
+                      if (status == 200) {
+                          local_ok = true;
+                          local_body = std::move(body);
+                      }
+                  })
+                  .perform_sync();
+        if (local_ok) {
+            auto parsed = json::parse(local_body, nullptr, false, true);
+            if (!parsed.is_discarded() && parsed.value("status", "") == "ok") {
+                BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Successfully triggered print via local LAN bridge: " << filename;
+                return true;
+            }
+        }
+    } catch (...) {}
+
     if (m_device_id.empty() || m_username.empty() || m_device_crt.empty() || m_device_pk.empty()) {
         if (!fetch_credentials(error_msg))
             return false;
@@ -638,15 +702,15 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
     }
 
     std::string client_id = "orca-" + (m_device_id.size() >= 8 ? m_device_id.substr(0, 8) : generate_nonce(8));
-    MqttTlsSession mqtt;
-    if (!mqtt.connect(m_host, mqtt_port, m_username, m_password, m_device_crt, m_device_pk, client_id, error_msg)) {
+    auto mqtt = std::make_shared<MqttTlsSession>();
+    if (!mqtt->connect(m_host, mqtt_port, m_username, m_password, m_device_crt, m_device_pk, client_id, error_msg)) {
         BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] MQTT connect failed for start_print: " << error_msg.ToUTF8().data();
         return false;
     }
 
     std::string sub_topic = (boost::format("anycubic/anycubicCloud/v1/printer/public/%1%/%2%/#") % m_mode_id % m_device_id).str();
     wxString sub_err;
-    mqtt.subscribe(1, sub_topic, sub_err);
+    mqtt->subscribe(1, sub_topic, sub_err);
 
     std::string pub_topic = (boost::format("anycubic/anycubicCloud/v1/slicer/printer/%1%/%2%/print") % m_mode_id % m_device_id).str();
 
@@ -717,13 +781,13 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
     };
 
     BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Sending print start command for " << filename << " to " << pub_topic;
-    if (!mqtt.publish(pub_topic, payload.dump(), error_msg)) {
+    if (!mqtt->publish(pub_topic, payload.dump(), error_msg)) {
         BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] Failed to publish start_print command: " << error_msg.ToUTF8().data();
         return false;
     }
 
     std::string print_ack_json;
-    if (mqtt.read_json_response(print_ack_json, 3)) {
+    if (mqtt->read_json_response(print_ack_json, 3)) {
         BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Received response after print start: " << print_ack_json;
     }
 

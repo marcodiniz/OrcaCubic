@@ -528,6 +528,74 @@ class BridgeServer(BaseHTTPRequestHandler):
                     mqtt_client.publish(topic, json.dumps(msg))
                     print("[Bridge] Published Motor Turn Off")
 
+            elif action == "start_print_job":
+                filename = data.get("filename", "")
+                if filename and mqtt_client:
+                    topic_print = f"anycubic/anycubicCloud/v1/slicer/printer/{model_id}/{device_id}/print"
+                    msg = {
+                        "type": "print",
+                        "action": "start",
+                        "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                        "timestamp": int(time.time() * 1000),
+                        "data": {
+                            "taskid": "-1",
+                            "filename": filename,
+                            "url": "",
+                            "md5": "",
+                            "filepath": None,
+                            "filetype": 1,
+                            "project_type": 1,
+                            "filesize": 0,
+                            "ams_settings": {
+                                "use_ams": True,
+                                "ams_box_mapping": [
+                                    {
+                                        "ams_index": 2,
+                                        "paint_index": 0,
+                                        "material_type": "PLA",
+                                        "ams_color": [253, 219, 39],
+                                        "paint_color": [253, 219, 39]
+                                    }
+                                ]
+                            },
+                            "task_settings": {
+                                "auto_leveling": 1,
+                                "vibration_compensation": 0,
+                                "flow_calibration": 0,
+                                "dry_mode": 0,
+                                "ai_settings": {"status": 0, "count": 0, "type": 0},
+                                "timelapse": {"status": 0, "count": 0, "type": 0},
+                                "drying_settings": {"status": 0, "target_temp": 0, "duration": 0, "remain_time": 0},
+                                "model_objects_skip_parts": []
+                            }
+                        }
+                    }
+                    mqtt_client.publish(topic_print, json.dumps(msg))
+                    print(f"[Bridge] Published print:start for {filename} to {topic_print}")
+
+            elif action == "feed_filament":
+                slot_idx = int(data.get("slot", 0))
+                m_type = data.get("type", "PLA")
+                topic_feed = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/multiColorBox"
+                msg = {
+                    "type": "multiColorBox",
+                    "action": "feedFilament",
+                    "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                    "timestamp": int(time.time() * 1000),
+                    "data": {
+                        "multi_color_box": [{
+                            "id": -1,
+                            "feed_status": {
+                                "slot_index": slot_idx,
+                                "type": m_type
+                            }
+                        }]
+                    }
+                }
+                if mqtt_client:
+                    mqtt_client.publish(topic_feed, json.dumps(msg))
+                    print(f"[Bridge] Published feedFilament slot {slot_idx} ({m_type})")
+
             elif action == "temp":
                 heater = data.get("heater", "nozzle")
                 val = int(data.get("value", 0))
