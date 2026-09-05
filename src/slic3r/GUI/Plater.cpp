@@ -1991,8 +1991,8 @@ void Sidebar::priv::update_extruder_separator_icon(bool show, bool ready)
 bool Sidebar::priv::sync_extruder_list(bool &only_external_material, bool is_manual)
 {
     PresetBundle *bundle = wxGetApp().preset_bundle;
-    if (bundle != nullptr && bundle->printers.get_selected_idx() != size_t(-1)) {
-        const Preset &cur_printer = bundle->printers.get_selected_preset();
+    if (bundle != nullptr) {
+        const Preset &cur_printer = bundle->printers.get_edited_preset();
         std::string host_type = cur_printer.config.opt_string("host_type");
         if (host_type == "anycubic" || boost::icontains(cur_printer.name, "Anycubic") || boost::icontains(cur_printer.name, "Kobra")) {
             BOOST_LOG_TRIVIAL(info) << "[Sidebar::sync_extruder_list] Anycubic printer detected, executing sync_ams_list";
@@ -5856,8 +5856,8 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
 
     // Check if Anycubic printer is active
     bool is_anycubic = false;
-    if (wxGetApp().preset_bundle && wxGetApp().preset_bundle->printers.get_selected_idx() != size_t(-1)) {
-        const auto& cur_printer = wxGetApp().preset_bundle->printers.get_selected_preset();
+    if (wxGetApp().preset_bundle) {
+        const auto& cur_printer = wxGetApp().preset_bundle->printers.get_edited_preset();
         std::string host_type = cur_printer.config.opt_string("host_type");
         if (host_type == "anycubic" || boost::icontains(cur_printer.name, "Anycubic") || boost::icontains(cur_printer.name, "Kobra")) {
             is_anycubic = true;
@@ -5880,17 +5880,12 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
                 auto j = json::parse(status_body);
                 if (j.contains("filaments") && j["filaments"].is_array()) {
                     auto& filaments_array = j["filaments"];
-                    size_t num_filaments = filaments_array.size();
+                    unsigned int num_filaments = static_cast<unsigned int>(filaments_array.size());
                     if (num_filaments > 0) {
-                        // Ensure plater has exactly this many filament rows
-                        while (p->combos_filament.size() < num_filaments) {
-                            add_filament();
-                        }
-                        while (p->combos_filament.size() > num_filaments && p->combos_filament.size() > 1) {
-                            delete_filament(p->combos_filament.size() - 1, -1);
-                        }
+                        // Use PresetBundle::set_num_filaments to resize all arrays atomically
+                        wxGetApp().preset_bundle->set_num_filaments(num_filaments, "#00d2ff");
 
-                        // Apply colors and types
+                        // Apply the exact colors from the physical spools
                         auto& project_config = wxGetApp().preset_bundle->project_config;
                         auto* color_opt = project_config.option<ConfigOptionStrings>("filament_colour");
                         if (color_opt) {
@@ -5899,7 +5894,8 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
                             }
                         }
 
-                        wxGetApp().plater()->on_filament_count_change(p->combos_filament.size());
+                        // Notify plater and sidebar of count change
+                        wxGetApp().plater()->on_filament_count_change(num_filaments);
                         for (auto& c : p->combos_filament)
                             c->update();
                         update_filaments_area_height();
