@@ -1401,7 +1401,8 @@
         }
 
         let isCameraStreaming = false;
-        let userStoppedCamera = false;
+        // Camera is opt-in. Loading/reloading the Device tab must never start it.
+        let userStoppedCamera = true;
 
         async function toggleCameraStream() {
             if (isCameraStreaming) {

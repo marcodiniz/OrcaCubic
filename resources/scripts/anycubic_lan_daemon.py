@@ -97,19 +97,6 @@ def on_mqtt_connect(c, userdata, flags, rc, properties=None):
     telemetry["connected"] = True
     c.subscribe(f"anycubic/anycubicCloud/v1/printer/public/{model_id}/{device_id}/#")
     query_all()
-    # Trigger video startCapture
-    try:
-        v_topic = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/video"
-        v_msg = {
-            "type": "video",
-            "action": "startCapture",
-            "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
-            "timestamp": int(time.time() * 1000),
-            "data": None
-        }
-        c.publish(v_topic, json.dumps(v_msg))
-    except:
-        pass
 
 def on_mqtt_message(c, userdata, msg):
     global telemetry, pending_cleanup
