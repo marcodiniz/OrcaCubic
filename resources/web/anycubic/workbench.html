@@ -1032,23 +1032,6 @@
         </div>
     </div>
 
-    <!-- Header -->
-    <header>
-        <div class="header-left">
-            <div class="logo-badge">K</div>
-            <div class="header-title">
-                <h1>Anycubic Kobra X</h1>
-                <p id="sub-info">IP: 192.168.1.133 · Model: 20030 · CN: 7526-2504-37CE-E5A2</p>
-            </div>
-        </div>
-        <div class="header-right">
-            <div class="status-pill">
-                <div class="status-dot"></div>
-                <span id="conn-state">LAN Live (18910/9883)</span>
-            </div>
-            <button class="btn" onclick="refreshStatus()">🔄 Refresh</button>
-        </div>
-    </header>
 
     <!-- Alert Banner for LCD notices -->
     <div id="printer-alert-banner" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: var(--radius-md); padding: 10px 16px; margin-bottom: 16px; align-items: center; justify-content: space-between; color: #fca5a5;">
@@ -2020,9 +2003,7 @@
                 const res = await fetch("http://127.0.0.1:18988/status", { cache: "no-store" });
                 if (res.ok) {
                     const data = await res.json();
-                    if (data.connected) {
-                        document.getElementById("conn-state").innerText = "LAN Live (18910/9883)";
-                    }
+
                     if (data.camera_url && data.camera_url.startsWith("http")) {
                         activeCameraUrl = data.camera_url;
                         if (!flvPlayer && !userStoppedCamera) {
