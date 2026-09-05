@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OrcaCubic Workbench</title>
     <script src="flv.min.js"></script>
+    <script src="color-groups.js"></script>
     <style>
         :root {
             --bg-base: #0f1117;
@@ -922,6 +923,28 @@
         .color-swatch-circle.gradient { background:linear-gradient(135deg,#23a3c7,#9333ea); }
         .color-swatch-circle.luminous { background:linear-gradient(135deg,#33a13a 0 48%,#7fff64 52%); box-shadow:0 0 8px rgba(127,255,100,.38); }
         #swatch-grid-7x5 { align-content:start; }
+        .original-color-picker { display:grid; grid-template-columns:76px minmax(0,1fr); gap:12px; min-height:290px; }
+        .original-color-tabs { display:flex; flex-direction:column; gap:4px; padding-top:3px; }
+        .original-color-tabs button { background:transparent; border:0; border-left:3px solid transparent; color:#777b85; text-align:left; padding:7px 8px; font-size:12px; cursor:pointer; }
+        .original-color-tabs button.active { border-left-color:#1677ff; color:#fff; font-weight:650; }
+        .original-color-sections { max-height:290px; overflow:auto; scroll-behavior:smooth; padding-right:5px; }
+        .original-color-section { padding-bottom:17px; }
+        .original-color-section h4 { color:#8e929c; font-size:10px; font-weight:600; margin:1px 0 7px; text-transform:uppercase; letter-spacing:.08em; }
+        .original-color-grid { display:grid; grid-template-columns:repeat(7,26px); gap:9px; align-items:center; }
+        .original-color-dot { width:26px; height:26px; border-radius:50%; border:2px solid transparent; padding:0; cursor:pointer; position:relative; background:#333; }
+        .original-color-dot:hover { transform:scale(1.08); }
+        .original-color-dot.selected { border-color:#1677ff; box-shadow:0 0 0 2px rgba(22,119,255,.25); }
+        .original-color-dot.luminous::before { content:""; position:absolute; inset:-7px; border-radius:50%; background:var(--night-glow,#7fff64); opacity:.24; filter:blur(5px); z-index:-1; }
+        .original-color-add { width:26px; height:26px; border-radius:50%; border:1px dashed #6b6f79; background:#252830; color:#c7cad0; cursor:pointer; display:grid; place-items:center; font-size:20px; line-height:1; }
+        .original-color-add:hover { border-color:#1677ff; color:#fff; }
+        .custom-color-card { width:min(390px,92vw); background:#202228; border:1px solid #3a3d46; border-radius:12px; box-shadow:0 18px 60px rgba(0,0,0,.55); overflow:hidden; }
+        .custom-color-body { padding:18px; display:grid; gap:14px; }
+        .custom-kind-controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; color:#b9bcc4; font-size:12px; }
+        .custom-kind-controls[hidden] { display:none; }
+        .custom-kind-controls label { display:flex; align-items:center; gap:7px; }
+        .custom-kind-controls input[type=color] { width:35px; height:31px; border:0; padding:0; background:transparent; }
+        .custom-kind-controls select { background:#272a31; color:#fff; border:1px solid #41444e; border-radius:6px; padding:5px 7px; }
+        .custom-color-preview { height:58px; border:1px solid #424550; border-radius:8px; background:#23a3c7; }
 
     </style>
 </head>
@@ -1000,28 +1023,19 @@
                         </div>
                     </div>
 
-                    <!-- Category Tab & Swatches -->
-                    <div style="display: flex; gap: 14px; margin-top: 4px;">
-                        <div style="width: 75px; display: flex; flex-direction: column; gap: 8px; padding-top: 4px;">
-                            <div class="finish-tab active" id="tab-solid" onclick="switchFinishTab('solid')" style="padding: 4px 6px; font-size: 13px; font-weight: 600; color: #fff; cursor: pointer; border-left: 3px solid #2563eb;">Solid</div>
-                            <div class="finish-tab" id="tab-gradient" onclick="switchFinishTab('gradient')" style="padding: 4px 6px; font-size: 13px; color: #6b7280; cursor: pointer; border-left: 3px solid transparent;">Gradient</div>
-                            <div class="finish-tab" id="tab-luminous" onclick="switchFinishTab('luminous')" style="padding: 4px 6px; font-size: 13px; color: #6b7280; cursor: pointer; border-left: 3px solid transparent;">Luminous</div>
+                    <!-- Original Workbench color sections: palette entries plus one add item per section -->
+                    <div class="original-color-picker">
+                        <nav class="original-color-tabs">
+                            <button id="tab-solid" class="active" onclick="scrollToColorSection('solid')">Solid</button>
+                            <button id="tab-gradient" onclick="scrollToColorSection('gradient')">Gradient</button>
+                            <button id="tab-luminous" onclick="scrollToColorSection('luminous')">Luminous</button>
+                        </nav>
+                        <div id="original-color-sections" class="original-color-sections">
+                            <section id="color-section-solid" class="original-color-section"><h4>Solid</h4><div id="solid-color-grid" class="original-color-grid"></div></section>
+                            <section id="color-section-gradient" class="original-color-section"><h4>Gradient</h4><div id="gradient-color-grid" class="original-color-grid"></div></section>
+                            <section id="color-section-luminous" class="original-color-section"><h4>Luminous</h4><div id="luminous-color-grid" class="original-color-grid"></div></section>
                         </div>
-                        <div style="flex: 1;">
-                            <div id="swatch-grid-7x5" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 9px;"></div>
-                            <div id="finish-solid-editor" class="finish-editor active">
-                                <div class="finish-editor-row"><label>Custom solid</label><input type="color" id="modal-slot-color" value="#009639" onchange="setCustomSolid(this.value)"><span id="modal-color-hex" style="font-family:monospace;font-size:12px;color:#fff">#009639</span><button class="btn btn-sm" onclick="addCustomFinishColor()">+ Add color</button></div>
-                            </div>
-                            <div id="finish-gradient-editor" class="finish-editor">
-                                <div class="finish-editor-row"><label>Gradient colors</label><select id="gradient-count" class="gradient-direction" onchange="updateGradientEditor()"><option value="2">2 colors</option><option value="3">3 colors</option><option value="4" selected>4 colors</option></select><input type="color" id="gradient-color-1" value="#23a3c7" onchange="updateGradientEditor()"><input type="color" id="gradient-color-2" value="#9333ea" onchange="updateGradientEditor()"><input type="color" id="gradient-color-3" value="#ff8da1" onchange="updateGradientEditor()"><input type="color" id="gradient-color-4" value="#fddb27" onchange="updateGradientEditor()"><select id="gradient-direction" class="gradient-direction" onchange="updateGradientEditor()"><option value="180">Vertical</option><option value="90">Horizontal</option></select></div>
-                                <div id="gradient-preview" class="gradient-preview"></div><div class="custom-color-row"><button onclick="applyGradientFinish()">Use gradient</button><button onclick="addCustomGradientFinish()">+ Add gradient</button></div>
-                            </div>
-                            <div id="finish-luminous-editor" class="finish-editor">
-                                <div class="finish-editor-row"><label>Day</label><input type="color" id="luminous-day" value="#33a13a" onchange="updateLuminousEditor()"><label>Glow</label><input type="color" id="luminous-night" value="#7fff64" onchange="updateLuminousEditor()"></div>
-                                <div id="luminous-preview" class="luminous-preview"></div><div class="custom-color-row"><button onclick="applyLuminousFinish()">Use luminous pair</button><button onclick="addCustomLuminousFinish()">+ Add luminous</button></div>
-                            </div>
-                            <div id="custom-finish-colors" class="custom-color-row"></div>
-                        </div>
+                        <div id="custom-finish-colors" class="custom-color-row"></div>
                     </div>
                 </div>
             </div>
@@ -1029,6 +1043,20 @@
                 <button class="btn btn-sm" onclick="closeSlotEditModal()" style="border-radius: 20px; padding: 6px 18px; background: #262a36; color: #fff;">Cancel</button>
                 <button class="btn btn-primary btn-sm" id="btn-save-slot" onclick="saveSlotFilament()" style="border-radius: 20px; padding: 6px 20px; background: #2563eb; color: #fff; font-weight: 600;">Save</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Original-style custom color editor, opened by the + item in each section -->
+    <div id="custom-color-modal" class="modal-backdrop" style="display:none; z-index:10020;">
+        <div class="custom-color-card">
+            <div class="modal-header"><h3 id="custom-color-title">Add Solid Color</h3><button class="modal-close" onclick="closeCustomColorDialog()">✕</button></div>
+            <div class="custom-color-body">
+                <div id="custom-solid-controls" class="custom-kind-controls"><label>Color <input type="color" id="modal-slot-color" value="#23a3c7" onchange="updateCustomPreview()"></label><span id="modal-color-hex">#23A3C7</span></div>
+                <div id="custom-gradient-controls" class="custom-kind-controls" hidden><label>Colors <select id="gradient-count" onchange="updateCustomPreview()"><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option></select></label><input type="color" id="gradient-color-1" value="#23a3c7" onchange="updateCustomPreview()"><input type="color" id="gradient-color-2" value="#9333ea" onchange="updateCustomPreview()"><input type="color" id="gradient-color-3" value="#ff8da1" onchange="updateCustomPreview()"><input type="color" id="gradient-color-4" value="#fddb27" onchange="updateCustomPreview()"><select id="gradient-direction" onchange="updateCustomPreview()"><option value="180">Vertical</option><option value="90">Horizontal</option></select></div>
+                <div id="custom-luminous-controls" class="custom-kind-controls" hidden><label>Day <input type="color" id="luminous-day" value="#33a13a" onchange="updateCustomPreview()"></label><label>Glow <input type="color" id="luminous-night" value="#7fff64" onchange="updateCustomPreview()"></label></div>
+                <div id="custom-color-preview" class="custom-color-preview"></div>
+            </div>
+            <div class="modal-footer"><button class="btn" onclick="closeCustomColorDialog()">Cancel</button><button class="btn btn-primary" onclick="saveCustomColorDialog()">Add</button></div>
         </div>
     </div>
 
@@ -2053,200 +2081,151 @@
             } catch (err) {}
         }
 
-        // Workbench V3 finish state and inline controls.
+        // Original Anycubic LAN color catalog + persisted user colors.
         let selectedFinishType = "solid";
         let selectedColorGroup = ["#23a3c7"];
         let selectedIconType = 0;
+        let selectedCatalogKey = "";
         let modelFanPct = 0;
-        let customFinishColors = JSON.parse(localStorage.getItem("orcacubic_custom_colors") || "[]");
-        let customGradients = JSON.parse(localStorage.getItem("orcacubic_custom_gradients") || "[]");
-        let customLuminous = JSON.parse(localStorage.getItem("orcacubic_custom_luminous") || "[]");
+        let activeColorSection = "solid";
+        const COLOR_STORAGE_KEY = "orca_ac_lan_user_color_groups_v1";
+        const TYPE_TO_GROUP = {solid:"flat_color",gradient:"gradient_color",luminous:"luminous_color"};
+        const TYPE_TO_PROTOCOL = {solid:1,gradient:2,luminous:3};
 
-        function refreshFinishEditors() {
-            ["solid","gradient","luminous"].forEach(type => {
-                const editor = document.getElementById("finish-" + type + "-editor");
-                const tab = document.getElementById("tab-" + type);
-                if (editor) editor.classList.toggle("active", selectedFinishType === type);
-                if (tab) {
-                    tab.style.borderLeft = selectedFinishType === type ? "3px solid #1677ff" : "3px solid transparent";
-                    tab.style.color = selectedFinishType === type ? "#fff" : "#6b7280";
-                }
-            });
-            renderCustomFinishColors();
-            updateGradientEditor(false);
-            updateLuminousEditor(false);
+        function rgbaToHex(value) {
+            if (!Array.isArray(value) || value.length < 3) return "#afafaf";
+            return "#" + value.slice(0,3).map(v=>Math.max(0,Math.min(255,Number(v)||0)).toString(16).padStart(2,"0")).join("");
         }
 
-        function switchFinishTab(type) {
-            selectedFinishType = type;
-            refreshFinishEditors();
-            window.setTimeout(refreshFinishEditors, 0);
+        function normalizeGroup(group) {
+            return (Array.isArray(group)?group:[]).filter(v=>Array.isArray(v)&&v.length>=3).map(v=>[Number(v[0]),Number(v[1]),Number(v[2]),v[3]==null?255:Number(v[3])]);
         }
 
-        function setCustomSolid(color) {
-            selectedFinishType = "solid";
-            selectedColorGroup = [color];
-            selectedIconType = 0;
-            const wound = document.getElementById("spool-wound-fill");
-            if (wound) wound.style.filter = "none";
-            pickModalColor(color);
+        function readUserColors() {
+            try { const parsed=JSON.parse(localStorage.getItem(COLOR_STORAGE_KEY)||"[]"); return Array.isArray(parsed)?parsed:[]; } catch(e) { return []; }
         }
 
-        function addCustomFinishColor() {
-            const color = document.getElementById("modal-slot-color").value;
-            if (!customFinishColors.includes(color)) customFinishColors.unshift(color);
-            customFinishColors = customFinishColors.slice(0,20);
-            localStorage.setItem("orcacubic_custom_colors", JSON.stringify(customFinishColors));
-            setCustomSolid(color);
-            renderCustomFinishColors();
+        function writeUserColors(items) { localStorage.setItem(COLOR_STORAGE_KEY,JSON.stringify(items)); }
+
+        function originalColorGroups() {
+            const base=Array.isArray(window.ORCACUBIC_COLOR_GROUPS)?JSON.parse(JSON.stringify(window.ORCACUBIC_COLOR_GROUPS)):[];
+            const byKey=new Map(base.map(g=>[g.key,g]));
+            readUserColors().forEach(item=>{ const key=TYPE_TO_GROUP[item.finish_type]||TYPE_TO_GROUP.solid; const group=byKey.get(key); if(group){ if(!Array.isArray(group.color))group.color=[]; group.color.push(item); } });
+            return base;
         }
 
-        function renderCustomFinishColors() {
-            const host = document.getElementById("custom-finish-colors");
-            if (!host) return;
-            const hasCustom = customFinishColors.length || customGradients.length || customLuminous.length;
-            host.innerHTML = hasCustom ? '<span style="font-size:11px;color:#8d919b">Custom</span>' : '';
-            customFinishColors.forEach(color => {
-                const button = document.createElement("button");
-                button.title = color;
-                button.style.cssText = `width:25px;height:25px;border-radius:50%;padding:0;background:${color};border:1px solid #5a5d66`;
-                button.onclick = () => setCustomSolid(color);
-                host.appendChild(button);
-            });
-            customGradients.forEach(entry => {
-                const button = document.createElement("button");
-                button.title = "Custom gradient";
-                button.style.cssText = `width:34px;height:25px;border-radius:6px;padding:0;background:linear-gradient(${entry.angle || 180}deg,${entry.colors.join(',')});border:1px solid #5a5d66`;
-                button.onclick = () => { selectedFinishType="gradient"; selectedColorGroup=[...entry.colors]; selectedIconType=entry.angle===90?2:1; pickModalColor(entry.colors[0]); refreshFinishEditors(); };
-                host.appendChild(button);
-            });
-            customLuminous.forEach(entry => {
-                const button = document.createElement("button");
-                button.title = "Custom luminous pair";
-                button.style.cssText = `width:34px;height:25px;border-radius:6px;padding:0;background:linear-gradient(90deg,${entry[0]} 0 50%,${entry[1]} 50% 100%);border:1px solid #5a5d66;box-shadow:0 0 6px ${entry[1]}`;
-                button.onclick = () => { selectedFinishType="luminous"; selectedColorGroup=[...entry]; selectedIconType=3; pickModalColor(entry[0]); refreshFinishEditors(); };
-                host.appendChild(button);
+        function colorItemStyle(item,type) {
+            const colors=normalizeGroup(item.color_group).map(rgbaToHex);
+            if(type==="gradient") return `linear-gradient(${Number(item.icon_type)===2?90:180}deg,${colors.join(',')})`;
+            if(type==="luminous") return `linear-gradient(90deg,${colors[0]||'#afafaf'} 0 50%,${colors[1]||colors[0]||'#7fff64'} 50% 100%)`;
+            if(normalizeGroup(item.color_group)[0]?.[3]===0) return "repeating-conic-gradient(#858585 0 25%,#fff 0 50%) 50%/8px 8px";
+            return colors[0]||"#afafaf";
+        }
+
+        function itemCatalogKey(item,type,index) { return `${type}-${index}-${item.id||0}-${item.name||''}`; }
+
+        function renderOriginalColorPicker() {
+            const groups=originalColorGroups();
+            ["solid","gradient","luminous"].forEach(type=>{
+                const container=document.getElementById(type+"-color-grid"); if(!container)return; container.innerHTML="";
+                const group=groups.find(g=>g.key===TYPE_TO_GROUP[type]);
+                const list=group&&Array.isArray(group.color)?group.color:[];
+                list.forEach((item,index)=>{
+                    const button=document.createElement("button");
+                    const key=itemCatalogKey(item,type,index);
+                    button.className="original-color-dot"+(type==="luminous"?" luminous":"")+(selectedCatalogKey===key?" selected":"");
+                    button.title=item.name||`${type} color`;
+                    button.style.background=colorItemStyle(item,type);
+                    if(type==="luminous")button.style.setProperty("--night-glow",rgbaToHex(normalizeGroup(item.color_group)[1]||normalizeGroup(item.color_group)[0]));
+                    button.onclick=()=>selectCatalogColor(item,type,key);
+                    container.appendChild(button);
+                });
+                const count=list.filter(item=>Number(item.type)===1).length;
+                if(count<20){const add=document.createElement("button");add.className="original-color-add";add.title=`Add custom ${type} color`;add.innerText="+";add.onclick=()=>openCustomColorDialog(type);container.appendChild(add);}
             });
         }
 
-        function updateGradientEditor(select=true) {
-            const count = Number(document.getElementById("gradient-count")?.value || 4);
-            const allInputs = [1,2,3,4].map(i => document.getElementById("gradient-color-"+i));
-            allInputs.forEach((el,index) => { if (el) el.style.display = index < count ? "inline-block" : "none"; });
-            const colors = allInputs.slice(0,count).map(el => el?.value).filter(Boolean);
-            const angle = Number(document.getElementById("gradient-direction")?.value || 180);
-            const preview = document.getElementById("gradient-preview");
-            if (preview) preview.style.background = `linear-gradient(${angle}deg, ${colors.join(',')})`;
-            if (select) { selectedFinishType="gradient"; selectedColorGroup=colors; selectedIconType=angle===90?2:1; }
+        function scrollToColorSection(type) {
+            activeColorSection=type;
+            document.querySelectorAll(".original-color-tabs button").forEach(b=>b.classList.toggle("active",b.id==="tab-"+type));
+            document.getElementById("color-section-"+type)?.scrollIntoView({behavior:"smooth",block:"nearest"});
         }
 
-        function applyGradientFinish() {
-            updateGradientEditor(true);
-            updateSpoolGradient();
-            pickModalColor(selectedColorGroup[0]);
-            refreshFinishEditors();
+        function selectCatalogColor(item,type,key) {
+            const group=normalizeGroup(item.color_group);
+            if(!group.length)return;
+            selectedFinishType=type;
+            selectedColorGroup=group.map(rgbaToHex);
+            selectedIconType=Number(item.icon_type)||({gradient:1,luminous:3}[type]||0);
+            selectedCatalogKey=key;
+            activeColorSection=type;
+            applySpoolFinish();
+            renderOriginalColorPicker();
+            scrollToColorSection(type);
         }
 
-        function updateSpoolGradient() {
-            const angle = Number(document.getElementById("gradient-direction")?.value || 180);
-            const stops = [0,1,2,3];
-            stops.forEach((idx) => {
-                const stop = document.getElementById("spool-stop-" + idx);
-                const color = selectedColorGroup[Math.min(idx, selectedColorGroup.length - 1)];
-                if (stop && color) {
-                    stop.setAttribute("stop-color", color);
-                    stop.setAttribute("offset", selectedColorGroup.length <= 1 ? "0%" : `${Math.round((idx / (stops.length - 1)) * 100)}%`);
-                }
-            });
-            const gradient = document.getElementById("spool-dynamic-gradient");
-            if (gradient) {
-                gradient.setAttribute("x1", "0"); gradient.setAttribute("y1", "0");
-                gradient.setAttribute("x2", angle === 90 ? "1" : "0"); gradient.setAttribute("y2", angle === 90 ? "0" : "1");
+        function applySpoolFinish() {
+            const wound=document.getElementById("spool-wound-fill"); if(!wound)return;
+            wound.style.filter="none";
+            if(selectedFinishType==="gradient"&&selectedColorGroup.length>=2){
+                const stops=[0,1,2,3]; stops.forEach((idx)=>{const stop=document.getElementById("spool-stop-"+idx);const color=selectedColorGroup[Math.min(idx,selectedColorGroup.length-1)];if(stop&&color){stop.setAttribute("stop-color",color);stop.setAttribute("offset",`${Math.round(idx/3*100)}%`);}});
+                const gradient=document.getElementById("spool-dynamic-gradient");if(gradient){gradient.setAttribute("x2",selectedIconType===2?"1":"0");gradient.setAttribute("y2",selectedIconType===2?"0":"1");}wound.setAttribute("fill","url(#spool-dynamic-gradient)");
+            }else{wound.setAttribute("fill",selectedColorGroup[0]||"#afafaf");if(selectedFinishType==="luminous"&&selectedColorGroup[1])wound.style.filter=`drop-shadow(0 0 5px ${selectedColorGroup[1]})`;}
+            const label=selectedFinishType==="gradient"?`Gradient: ${selectedColorGroup.join(" → ")}`:selectedFinishType==="luminous"?`Luminous: ${selectedColorGroup.join(" / ")}`:(selectedColorGroup[0]||"").toUpperCase();
+            const hex=document.getElementById("modal-spool-hex");if(hex)hex.innerText=label;
+        }
+
+        function openCustomColorDialog(type) {
+            activeColorSection=type;
+            document.getElementById("custom-color-title").innerText={solid:"Add Solid Color",gradient:"Add Gradient Color",luminous:"Add Luminous Color"}[type];
+            document.getElementById("custom-solid-controls").hidden=type!=="solid";
+            document.getElementById("custom-gradient-controls").hidden=type!=="gradient";
+            document.getElementById("custom-luminous-controls").hidden=type!=="luminous";
+            document.getElementById("custom-color-modal").style.display="flex";
+            updateCustomPreview();
+        }
+
+        function closeCustomColorDialog(){document.getElementById("custom-color-modal").style.display="none";}
+
+        function updateCustomPreview(){
+            const preview=document.getElementById("custom-color-preview"); if(!preview)return;
+            if(activeColorSection==="solid"){
+                const color=document.getElementById("modal-slot-color").value;preview.style.background=color;document.getElementById("modal-color-hex").innerText=color.toUpperCase();
+            }else if(activeColorSection==="gradient"){
+                const count=Number(document.getElementById("gradient-count").value||2);const inputs=[1,2,3,4].map(i=>document.getElementById("gradient-color-"+i));inputs.forEach((el,i)=>el.style.display=i<count?"inline-block":"none");const colors=inputs.slice(0,count).map(el=>el.value);const angle=Number(document.getElementById("gradient-direction").value||180);preview.style.background=`linear-gradient(${angle}deg,${colors.join(',')})`;
+            }else{
+                const day=document.getElementById("luminous-day").value,night=document.getElementById("luminous-night").value;preview.style.background=`linear-gradient(90deg,${day} 0 50%,${night} 50% 100%)`;preview.style.boxShadow=`0 0 12px ${night}`;
             }
-            const wound = document.getElementById("spool-wound-fill");
-            if (wound) wound.setAttribute("fill", "url(#spool-dynamic-gradient)");
         }
 
-        function addCustomGradientFinish() {
-            updateGradientEditor(true);
-            const angle = Number(document.getElementById("gradient-direction")?.value || 180);
-            const entry = {colors:[...selectedColorGroup], angle};
-            if (!customGradients.some(item => JSON.stringify(item) === JSON.stringify(entry))) customGradients.unshift(entry);
-            customGradients = customGradients.slice(0,20);
-            localStorage.setItem("orcacubic_custom_gradients", JSON.stringify(customGradients));
-            applyGradientFinish();
-            renderCustomFinishColors();
-        }
-
-        function updateLuminousEditor(select=true) {
-            const day = document.getElementById("luminous-day")?.value || "#33a13a";
-            const night = document.getElementById("luminous-night")?.value || "#7fff64";
-            const preview = document.getElementById("luminous-preview");
-            if (preview) preview.style.background = `linear-gradient(90deg, ${day} 0 50%, ${night} 50% 100%)`;
-            if (select) { selectedFinishType="luminous"; selectedColorGroup=[day,night]; selectedIconType=3; }
-        }
-
-        function applyLuminousFinish() {
-            updateLuminousEditor(true);
-            const wound = document.getElementById("spool-wound-fill");
-            if (wound) {
-                wound.setAttribute("fill", selectedColorGroup[0]);
-                wound.style.filter = `drop-shadow(0 0 5px ${selectedColorGroup[1]})`;
-            }
-            pickModalColor(selectedColorGroup[0]);
-            refreshFinishEditors();
-        }
-
-        function addCustomLuminousFinish() {
-            updateLuminousEditor(true);
-            if (!customLuminous.some(entry => entry[0] === selectedColorGroup[0] && entry[1] === selectedColorGroup[1])) customLuminous.unshift([...selectedColorGroup]);
-            customLuminous = customLuminous.slice(0,20);
-            localStorage.setItem("orcacubic_custom_luminous", JSON.stringify(customLuminous));
-            applyLuminousFinish();
-            renderCustomFinishColors();
+        function saveCustomColorDialog(){
+            let colors=[],icon=0;
+            if(activeColorSection==="solid")colors=[document.getElementById("modal-slot-color").value];
+            else if(activeColorSection==="gradient"){const count=Number(document.getElementById("gradient-count").value||2);colors=[1,2,3,4].slice(0,count).map(i=>document.getElementById("gradient-color-"+i).value);icon=Number(document.getElementById("gradient-direction").value)===90?2:1;}
+            else{colors=[document.getElementById("luminous-day").value,document.getElementById("luminous-night").value];icon=3;}
+            const rgba=colors.map(hex=>{const h=hex.slice(1);return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16),255];});
+            const items=readUserColors();const item={id:`lan-user-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,9)}`,name:"",type:1,color_type:TYPE_TO_PROTOCOL[activeColorSection],finish_type:activeColorSection,icon_type:icon,color_group:rgba};items.push(item);writeUserColors(items);
+            closeCustomColorDialog();renderOriginalColorPicker();
+            const group=originalColorGroups().find(g=>g.key===TYPE_TO_GROUP[activeColorSection]);const index=group.color.length-1;selectCatalogColor(group.color[index],activeColorSection,itemCatalogKey(group.color[index],activeColorSection,index));
         }
 
         function openSlotEditModal(slotIdx) {
-            currentEditingSlot = slotIdx;
-            const f = filaments[slotIdx] || {};
-            document.getElementById("modal-slot-title").innerText = "Material Settings";
-            document.getElementById("modal-slot-type").value = f.type || "PLA";
-            document.getElementById("modal-brand-select").value = f.brand || "Anycubic";
-            selectedFinishType = f.finish_type || "solid";
-            selectedColorGroup = Array.isArray(f.color_group_hex) && f.color_group_hex.length ? f.color_group_hex : [f.color || "#23a3c7"];
-            selectedIconType = Number(f.icon_type || (selectedFinishType === "gradient" ? 1 : selectedFinishType === "luminous" ? 3 : 0));
-            const color = selectedColorGroup[0];
-            document.getElementById("modal-slot-color").value = color;
-            if (selectedFinishType === "gradient") {
-                const gradientCount=document.getElementById("gradient-count"); if(gradientCount) gradientCount.value=String(Math.max(2,Math.min(4,selectedColorGroup.length)));
-                selectedColorGroup.slice(0,4).forEach((c,i) => { const el=document.getElementById("gradient-color-"+(i+1)); if(el) el.value=c; });
-                document.getElementById("gradient-direction").value = selectedIconType === 2 ? "90" : "180";
-                updateSpoolGradient();
-            } else if (selectedFinishType === "luminous") {
-                document.getElementById("luminous-day").value = selectedColorGroup[0] || "#33a13a";
-                document.getElementById("luminous-night").value = selectedColorGroup[1] || "#7fff64";
-                const wound=document.getElementById("spool-wound-fill"); if(wound) wound.style.filter=`drop-shadow(0 0 5px ${selectedColorGroup[1] || '#7fff64'})`;
-            } else {
-                const wound=document.getElementById("spool-wound-fill"); if(wound) wound.style.filter="none";
-            }
-            pickModalColor(color);
-            refreshFinishEditors();
-            document.getElementById("slot-modal").style.display = "flex";
+            currentEditingSlot=slotIdx;const f=filaments[slotIdx]||{};
+            document.getElementById("modal-slot-title").innerText="Material Settings";
+            document.getElementById("modal-slot-type").value=f.type||"PLA";
+            document.getElementById("modal-brand-select").value=f.brand||"Anycubic";
+            selectedFinishType=f.finish_type||"solid";
+            selectedColorGroup=Array.isArray(f.color_group_hex)&&f.color_group_hex.length?f.color_group_hex:[f.color||"#23a3c7"];
+            selectedIconType=Number(f.icon_type)||({gradient:1,luminous:3}[selectedFinishType]||0);
+            selectedCatalogKey="";
+            applySpoolFinish();renderOriginalColorPicker();scrollToColorSection(selectedFinishType);
+            document.getElementById("slot-modal").style.display="flex";
         }
 
         async function saveSlotFilament() {
-            const btn=document.getElementById("btn-save-slot");
-            btn.disabled=true; btn.innerText="Saving…";
-            const type=document.getElementById("modal-slot-type").value;
-            const brand=document.getElementById("modal-brand-select").value;
-            try {
-                const response=await fetch("http://127.0.0.1:18988/sync_to_printer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({slots:[{index:currentEditingSlot,type,brand,color:selectedColorGroup[0],finish_type:selectedFinishType,icon_type:selectedIconType,color_group:selectedColorGroup}]})});
-                const data=await response.json();
-                if(data.status!=="ok") throw new Error(data.message||"Printer rejected setting");
-                Object.assign(filaments[currentEditingSlot],{type,brand,color:selectedColorGroup[0],finish_type:selectedFinishType,icon_type:selectedIconType,color_group_hex:[...selectedColorGroup]});
-                updateFilamentUI(filaments); closeSlotEditModal(); setTimeout(pollTelemetry,500);
-            } catch(e) { alert("Failed to update slot: "+e.message); }
-            finally { btn.disabled=false; btn.innerText="Save"; }
+            const btn=document.getElementById("btn-save-slot");btn.disabled=true;btn.innerText="Saving…";
+            const type=document.getElementById("modal-slot-type").value,brand=document.getElementById("modal-brand-select").value;
+            try{const response=await fetch("http://127.0.0.1:18988/sync_to_printer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({slots:[{index:currentEditingSlot,type,brand,color:selectedColorGroup[0],finish_type:selectedFinishType,icon_type:selectedIconType,color_group:selectedColorGroup}]})});const data=await response.json();if(data.status!=="ok")throw new Error(data.message||"Printer rejected setting");Object.assign(filaments[currentEditingSlot],{type,brand,color:selectedColorGroup[0],finish_type:selectedFinishType,icon_type:selectedIconType,color_group_hex:[...selectedColorGroup]});updateFilamentUI(filaments);closeSlotEditModal();setTimeout(pollTelemetry,500);}catch(e){alert("Failed to update slot: "+e.message);}finally{btn.disabled=false;btn.innerText="Save";}
         }
 
         function startInlineTempEdit(type) {
@@ -2270,9 +2249,7 @@
 
         function cycleSpeedMode() { setSpeed(currentSpeedMode >= 4 ? 1 : currentSpeedMode + 1); }
 
-        initSwatchGrid();
-        renderCustomFinishColors();
-        refreshFinishEditors();
+        renderOriginalColorPicker();
         updateFilamentUI(filaments);
         const savedPlate=localStorage.getItem("anycubic_buildplate"); if(savedPlate) document.getElementById("device-buildplate-type").value=savedPlate;
         const savedNozzle=localStorage.getItem("anycubic_nozzle"); if(savedNozzle) document.getElementById("device-nozzle-type").value=savedNozzle;
