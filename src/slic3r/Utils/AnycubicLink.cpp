@@ -660,12 +660,107 @@ bool AnycubicLink::fetch_upload_url_via_mqtt(std::string& upload_token, wxString
 
 bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename, const PrintHostUpload& upload_data) const
 {
+    bool use_ams = true;
+    json ams_box_mapping = json::array();
+
+    std::string custom_mapping = upload_data.extended("ams_mapping");
+    if (!custom_mapping.empty()) {
+        try {
+            ams_box_mapping = json::parse(custom_mapping);
+            use_ams = true;
+        } catch (...) {}
+    }
+
+    if (ams_box_mapping.empty()) {
+        auto parse_rgb = [](const std::string& hex, int& r, int& g, int& b) {
+            std::string h = hex;
+            if (!h.empty() && h[0] == '#') h = h.substr(1);
+            if (h.size() >= 6) {
+                try {
+                    r = std::stoi(h.substr(0, 2), nullptr, 16);
+                    g = std::stoi(h.substr(2, 2), nullptr, 16);
+                    b = std::stoi(h.substr(4, 2), nullptr, 16);
+                } catch (...) { r = 35; g = 163; b = 199; }
+            } else {
+                r = 35; g = 163; b = 199;
+            }
+        };
+
+        // If plate_extruders was explicitly resolved by the slicer (e.g. "1,4")
+        std::string extruders_str = upload_data.extended("plate_extruders");
+        std::vector<int> used_extruders;
+        if (!extruders_str.empty()) {
+            std::vector<std::string> tokens;
+            boost::split(tokens, extruders_str, boost::is_any_of(","));
+            for (const auto& tok : tokens) {
+                try {
+                    int val = std::stoi(tok);
+                    if (val >= 1 && val <= 4)
+                        used_extruders.push_back(val);
+                } catch (...) {}
+            }
+        }
+
+        if (GUI::wxGetApp().preset_bundle) {
+            auto full_cfg = GUI::wxGetApp().preset_bundle->full_config();
+            const auto* colors = full_cfg.option<ConfigOptionStrings>("filament_colour");
+            const auto* types  = full_cfg.option<ConfigOptionStrings>("filament_type");
+            
+            if (!used_extruders.empty()) {
+                // Map only the specific extruders used by this print plate
+                for (int ext_1based : used_extruders) {
+                    size_t idx = static_cast<size_t>(ext_1based - 1); // 0-based
+                    std::string c_hex = (colors && idx < colors->values.size()) ? colors->values[idx] : "#23a3c7";
+                    std::string m_type = (types && idx < types->values.size()) ? types->values[idx] : "PLA";
+                    int r = 35, g = 163, b = 199;
+                    parse_rgb(c_hex, r, g, b);
+                    ams_box_mapping.push_back({
+                        {"ams_index", static_cast<int>(idx)},    // maps to ACE Pro slot index (0 = slot 1, 3 = slot 4)
+                        {"paint_index", static_cast<int>(idx)},  // matches G-code extruder index T0, T3
+                        {"material_type", m_type},
+                        {"ams_color", {r, g, b}},
+                        {"paint_color", {r, g, b}}
+                    });
+                }
+            } else {
+                // Default full 4-slot 1-to-1 mapping
+                size_t count = colors ? colors->values.size() : (types ? types->values.size() : 4);
+                count = std::min(count, size_t(4));
+                for (size_t i = 0; i < count; ++i) {
+                    std::string c_hex = (colors && i < colors->values.size()) ? colors->values[i] : "#23a3c7";
+                    std::string m_type = (types && i < types->values.size()) ? types->values[i] : "PLA";
+                    int r = 35, g = 163, b = 199;
+                    parse_rgb(c_hex, r, g, b);
+                    ams_box_mapping.push_back({
+                        {"ams_index", static_cast<int>(i)},
+                        {"paint_index", static_cast<int>(i)},
+                        {"material_type", m_type},
+                        {"ams_color", {r, g, b}},
+                        {"paint_color", {r, g, b}}
+                    });
+                }
+            }
+        }
+        if (ams_box_mapping.empty()) {
+            for (int i = 0; i < 4; ++i) {
+                ams_box_mapping.push_back({
+                    {"ams_index", i},
+                    {"paint_index", i},
+                    {"material_type", "PLA"},
+                    {"ams_color", {35, 163, 199}},
+                    {"paint_color", {35, 163, 199}}
+                });
+            }
+        }
+    }
+
     // First, attempt to trigger print via our local daemon if available
     try {
         auto http_local = Http::post("http://127.0.0.1:18988/control");
         json ctrl_data = {
             {"action", "start_print_job"},
-            {"filename", filename}
+            {"filename", filename},
+            {"ams_box_mapping", ams_box_mapping}
         };
         bool local_ok = false;
         std::string local_body;
@@ -725,29 +820,6 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
         bbl_calc_md5(src_path, file_md5);
         boost::algorithm::to_lower(file_md5);
     } catch (...) {}
-
-    bool use_ams = true;
-    json ams_box_mapping = json::array();
-
-    std::string custom_mapping = upload_data.extended("ams_mapping");
-    if (!custom_mapping.empty()) {
-        try {
-            ams_box_mapping = json::parse(custom_mapping);
-            use_ams = true;
-        } catch (...) {}
-    }
-
-    if (ams_box_mapping.empty()) {
-        // Map available material slots for ACE Pro feeder
-        json mapping_item = {
-            {"ams_index", 2},
-            {"paint_index", 0},
-            {"material_type", "PLA"},
-            {"ams_color", {253, 219, 39}},
-            {"paint_color", {253, 219, 39}}
-        };
-        ams_box_mapping.push_back(mapping_item);
-    }
 
     json payload = {
         {"type", "print"},

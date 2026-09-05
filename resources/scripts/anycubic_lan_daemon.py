@@ -532,6 +532,30 @@ class BridgeServer(BaseHTTPRequestHandler):
                 filename = data.get("filename", "")
                 if filename and mqtt_client:
                     topic_print = f"anycubic/anycubicCloud/v1/slicer/printer/{model_id}/{device_id}/print"
+                    # Construct 1-to-1 AMS box mapping for all 4 slots matching physical feeder
+                    ams_mapping = data.get("ams_box_mapping")
+                    if not ams_mapping:
+                        ams_mapping = []
+                        fils = telemetry.get("filaments", [])
+                        for i in range(min(4, len(fils) if fils else 4)):
+                            f = fils[i] if fils and i < len(fils) else {}
+                            col = f.get("color", "#23a3c7")
+                            if isinstance(col, str) and col.startswith("#"):
+                                c_hex = col.lstrip("#")
+                                r = int(c_hex[0:2], 16) if len(c_hex) >= 2 else 0
+                                g = int(c_hex[2:4], 16) if len(c_hex) >= 4 else 210
+                                b = int(c_hex[4:6], 16) if len(c_hex) >= 6 else 255
+                                rgb = [r, g, b]
+                            else:
+                                rgb = [35, 163, 199]
+                            ams_mapping.append({
+                                "ams_index": i,
+                                "paint_index": i,
+                                "material_type": f.get("type", "PLA"),
+                                "ams_color": rgb,
+                                "paint_color": rgb
+                            })
+
                     msg = {
                         "type": "print",
                         "action": "start",
@@ -548,15 +572,7 @@ class BridgeServer(BaseHTTPRequestHandler):
                             "filesize": 0,
                             "ams_settings": {
                                 "use_ams": True,
-                                "ams_box_mapping": [
-                                    {
-                                        "ams_index": 2,
-                                        "paint_index": 0,
-                                        "material_type": "PLA",
-                                        "ams_color": [253, 219, 39],
-                                        "paint_color": [253, 219, 39]
-                                    }
-                                ]
+                                "ams_box_mapping": ams_mapping
                             },
                             "task_settings": {
                                 "auto_leveling": 1,
@@ -571,7 +587,7 @@ class BridgeServer(BaseHTTPRequestHandler):
                         }
                     }
                     mqtt_client.publish(topic_print, json.dumps(msg))
-                    print(f"[Bridge] Published print:start for {filename} to {topic_print}")
+                    print(f"[Bridge] Published print:start for {filename} with {len(ams_mapping)} mapped slots to {topic_print}")
 
             elif action == "feed_filament":
                 slot_idx = int(data.get("slot", 0))

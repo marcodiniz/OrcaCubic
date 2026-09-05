@@ -19379,6 +19379,19 @@ void Plater::send_gcode_legacy(int plate_idx, Export3mfProgressFn proFn)
         if (use_3mf) {
             const int plateindex = (plate_idx == PLATE_ALL_IDX ? get_partplate_list().get_curr_plate_index() : resolved_plate_idx) + 1;
             upload_job.upload_data.extended_info["plateindex"] = std::to_string(plateindex);
+
+            // Pass resolved plate extruders to upload_data for Anycubic ACE Pro mapping
+            if (PartPlate* plate = get_partplate_list().get_plate(resolved_plate_idx); plate != nullptr) {
+                std::vector<int> used_extruders = plate->get_extruders();
+                std::sort(used_extruders.begin(), used_extruders.end());
+                used_extruders.erase(std::unique(used_extruders.begin(), used_extruders.end()), used_extruders.end());
+                std::string extruders_str;
+                for (size_t i = 0; i < used_extruders.size(); ++i) {
+                    if (i > 0) extruders_str += ",";
+                    extruders_str += std::to_string(used_extruders[i]);
+                }
+                upload_job.upload_data.extended_info["plate_extruders"] = extruders_str;
+            }
         }
     }
 
