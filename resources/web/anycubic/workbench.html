@@ -391,13 +391,6 @@
         }
 
 
-        .slot-level {
-            font-size: 10px;
-            color: #34d399;
-            background: rgba(16, 185, 129, 0.12);
-            padding: 2px 6px;
-            border-radius: 8px;
-        }
 
         /* Job Card */
         .job-card {
@@ -879,8 +872,11 @@
         .card-actions { display:flex; gap:5px; }
         .card-actions button { background:#24272e; border:1px solid #383b44; color:#c4c6cc; border-radius:15px; padding:4px 9px; font-size:10px; cursor:pointer; }
         .card-actions button:hover { border-color:#1677ff; color:#fff; }
-        .wb3-consumable .slots-container { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
-        .wb3-consumable .slot-card { min-height:112px; padding:12px 8px 9px; }
+        .wb3-consumable .slots-container { grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
+        .wb3-consumable .slot-card { min-height:82px; padding:9px 4px 7px; gap:4px; }
+        .wb3-consumable .slot-color-circle { width:30px; height:30px; margin-top:4px; }
+        .wb3-consumable .slot-material { font-size:11px; }
+        .wb3-consumable .slot-edit-hint { margin-top:0; font-size:9px; }
         .module-note { color:#747883; font-size:10px; text-align:center; margin-top:10px; }
         .axis-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:13px; }
         .axis-steps { background:#1a1c22; border-radius:20px; padding:2px; display:flex; }
@@ -1931,9 +1927,6 @@
                     <div class="slot-color-circle" style="background: ${colorStyle};"></div>
                     <div class="slot-material">${f.type || 'PLA'}</div>
 
-                    <div class="slot-level" style="${f.loaded ? 'color:#10b981;font-weight:700;' : ''}">
-                        ${f.loaded ? '● Active' : (f.finish_type === 'gradient' ? 'Gradient' : f.finish_type === 'luminous' ? 'Luminous' : 'Ready')}
-                    </div>
                     <div class="slot-edit-hint">Edit</div>
                 `;
                 container.appendChild(div);
