@@ -4,7 +4,7 @@
     <launchable type="desktop-id">com.orcaslicer.OrcaCubic.desktop</launchable>
     <name>OrcaCubic</name>
     <summary>OrcaSlicer fork for the Anycubic Kobra X</summary>
-    <developer id="io.github.marcodiniz.OrcaCubic">
+    <developer id="io.github.marcodiniz">
         <name>OrcaCubic contributors</name>
     </developer>
     <url type="homepage">https://github.com/marcodiniz/OrcaCubic</url>
