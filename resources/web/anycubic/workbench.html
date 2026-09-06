@@ -919,6 +919,10 @@
         .embedded-consumables { margin-top:2px; padding-top:10px; border-top:1px solid #30323a; }
         .embedded-consumables-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; }
         .embedded-consumables-head h3 { font-size:12px; color:#f4f5f7; }
+        .material-box-tabs { display:flex; gap:5px; margin-bottom:8px; overflow-x:auto; }
+        .material-box-tab { flex:0 0 auto; background:#191b21; border:1px solid #343740; border-radius:14px; color:#9498a2; padding:4px 9px; font-size:9px; cursor:pointer; }
+        .material-box-tab.active { border-color:#1677ff; background:rgba(22,119,255,.14); color:#fff; }
+        .material-box-empty { color:#747883; font-size:10px; padding:12px 4px; text-align:center; }
         .embedded-consumables .slots-container { grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
         .embedded-consumables .slot-card { min-height:64px; padding:7px 3px 5px; gap:2px; border-radius:7px; }
         .embedded-consumables .slot-badge { top:4px; left:5px; font-size:8px; }
@@ -1208,6 +1212,7 @@
                     <h3>Material</h3>
                     <div class="card-actions"><button onclick="syncFromSlicerToPrinter()" title="Read the active filament types and colors from the slicer and write them to the printer's ACE slots.">From Slicer</button><button onclick="syncFilamentsToSlicer()" title="Read the printer's current ACE slot materials and colors and apply them to the slicer.">To Slicer</button></div>
                 </div>
+                <div class="material-box-tabs" id="material-box-tabs"></div>
                 <div class="slots-container" id="slots-container"></div>
             </div>
         </section>
@@ -1697,7 +1702,9 @@
         function updateFeedProgress(feedStatus) {
             if (!feedStatus || !activeFeedOperation) return;
             const reportedSlot = Number(feedStatus.slot_index);
-            if (reportedSlot >= 0 && reportedSlot !== activeFeedOperation.slotIndex) return;
+            const current = filaments[activeFeedOperation.slotIndex] || {};
+            if (feedStatus.box_id != null && Number(feedStatus.box_id) !== Number(current.box_id ?? -1)) return;
+            if (reportedSlot >= 0 && reportedSlot !== Number(current.box_slot ?? activeFeedOperation.slotIndex)) return;
             const reportedType = Number(feedStatus.type);
             if (reportedType === 1 || reportedType === 2) activeFeedOperation.type = reportedType;
             activeFeedOperation.status = Number(feedStatus.current_status) || activeFeedOperation.status;
@@ -1708,10 +1715,14 @@
 
         async function sendFeedCommand(action, type) {
             openFeedProgress(type, currentEditingSlot);
+            const current = filaments[currentEditingSlot] || {};
+            if (current.source === "external") {
+                throw new Error("Load or unload an external spool manually at the printer");
+            }
             const response = await fetch("http://127.0.0.1:18988/control", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action, slot: currentEditingSlot, type: document.getElementById("modal-slot-type").value })
+                body: JSON.stringify({ action, box_id:Number(current.box_id ?? -1), slot:Number(current.box_slot ?? currentEditingSlot), type: document.getElementById("modal-slot-type").value })
             });
             const result = await response.json().catch(() => ({}));
             if (!response.ok || result.status !== "ok") throw new Error(result.message || "Printer bridge rejected the command");
@@ -1762,6 +1773,8 @@
         }
 
         let printerIP = "";
+        let materialBoxes = [];
+        let activeMaterialBoxKey = "";
         let filaments = [];
         let currentSpeedMode = 2;
         let lightStatus = 1;
@@ -2084,8 +2097,75 @@
         }
 
         function syncFilamentsToSlicer() {
-            sendToSlicer("sync_filaments_to_slicer", filaments);
+            const available = materialBoxes.flatMap(box => box.slots || []).filter(slot => slot.available !== false);
+            sendToSlicer("sync_filaments_to_slicer", available.length ? available : filaments);
             alert("Filament profiles pushed to OrcaSlicer!");
+        }
+
+        function activeMaterialBox() {
+            return materialBoxes.find(box => String(box.id) + ":" + box.source === activeMaterialBoxKey) || materialBoxes[0] || null;
+        }
+
+        function materialBoxLabel(box, index) {
+            if (box.source === "external") return "External";
+            if (box.source === "rack" || box.source === "external_mcb") return "Rack";
+            return `ACE ${Number(box.id) + 1 || index + 1}`;
+        }
+
+        function materialBoxKey(box) {
+            return String(box.id) + ":" + box.source;
+        }
+
+        function mergeMaterialBoxes(boxes) {
+            const next = [...materialBoxes];
+            (Array.isArray(boxes) ? boxes : []).forEach(box => {
+                if (!box || !Array.isArray(box.slots)) return;
+                const index = next.findIndex(current => materialBoxKey(current) === materialBoxKey(box));
+                if (index < 0) next.push(box);
+                else {
+                    const bySlot = new Map((next[index].slots || []).map(slot => [Number(slot.box_slot ?? slot.slot), slot]));
+                    box.slots.forEach(slot => {
+                        const key = Number(slot.box_slot ?? slot.slot);
+                        bySlot.set(key, {...(bySlot.get(key) || {}),...slot});
+                    });
+                    next[index] = {...next[index],...box,slots:[...bySlot.values()].sort((a,b)=>Number(a.box_slot??a.slot)-Number(b.box_slot??b.slot))};
+                }
+            });
+            return next;
+        }
+
+        function selectMaterialBox(key) {
+            activeMaterialBoxKey = key;
+            renderMaterialBoxes();
+        }
+
+        function updateMaterialBoxes(boxes, fallbackFilaments = []) {
+            materialBoxes = mergeMaterialBoxes(boxes);
+            if (!materialBoxes.length && fallbackFilaments.length) {
+                materialBoxes = [{id:-1,source:"rack",slots:fallbackFilaments}];
+            }
+            if (!materialBoxes.some(box => String(box.id) + ":" + box.source === activeMaterialBoxKey)) {
+                const first = materialBoxes[0];
+                activeMaterialBoxKey = first ? String(first.id) + ":" + first.source : "";
+            }
+            renderMaterialBoxes();
+        }
+
+        function renderMaterialBoxes() {
+            const tabs = document.getElementById("material-box-tabs");
+            if (tabs) {
+                tabs.innerHTML = "";
+                materialBoxes.forEach((box, index) => {
+                    const key = String(box.id) + ":" + box.source;
+                    const button = document.createElement("button");
+                    button.className = "material-box-tab" + (key === activeMaterialBoxKey ? " active" : "");
+                    button.innerText = materialBoxLabel(box, index);
+                    button.onclick = () => selectMaterialBox(key);
+                    tabs.appendChild(button);
+                });
+            }
+            const box = activeMaterialBox();
+            updateFilamentUI(box ? box.slots || [] : []);
         }
 
         async function syncFromSlicerToPrinter() {
@@ -2099,9 +2179,16 @@
             }
 
             let slots = [];
+            const targetBox = activeMaterialBox();
+            const targetSource = targetBox ? targetBox.source : "ace";
+            const targetBoxId = targetBox ? Number(targetBox.id) : -1;
+            const targetSlots = targetBox && Array.isArray(targetBox.slots) ? targetBox.slots : [];
             slicerFilaments.forEach((f, idx) => {
+                const target = targetSlots[idx] || {};
                 slots.push({
-                    index: idx,
+                    index: Number(target.box_slot ?? idx),
+                    box_id: targetBoxId,
+                    source: targetSource,
                     type: f.type || f.material || "PLA",
                     color: f.color || "#00d2ff"
                 });
@@ -2314,6 +2401,10 @@
             filaments = newFilaments;
             const container = document.getElementById("slots-container");
             container.innerHTML = "";
+            if (!newFilaments.length) {
+                container.innerHTML = '<div class="material-box-empty">No material unit reported. OrcaCubic queries ACE and external spool data directly; KX-Bridge is not required.</div>';
+                return;
+            }
             newFilaments.forEach((f, idx) => {
                 const div = document.createElement("div");
                 div.className = "slot-card" + (f.loaded ? " active" : "");
@@ -2328,7 +2419,7 @@
                     colorStyle = `linear-gradient(90deg, ${group[0]} 0 50%, ${group[1]} 50% 100%)`;
                 }
                 div.innerHTML = `
-                    <span class="slot-badge">${f.slot || idx + 1}</span>
+                    <span class="slot-badge">${f.source === 'external' ? 'EXT' : Number(f.box_slot ?? idx) + 1}</span>
                     <div class="slot-color-circle" style="background: ${colorStyle};"></div>
                     <div class="slot-material">${f.type || 'PLA'}</div>
 
@@ -2467,8 +2558,11 @@
                             initFlvVideo(data.camera_url);
                         }
                     }
-                    if (Array.isArray(data.filaments)) {
-                        updateFilamentUI(data.filaments);
+                    if (Array.isArray(data.material_boxes)) {
+                        materialBoxes = data.material_boxes.filter(box => box && Array.isArray(box.slots));
+                        updateMaterialBoxes([], Array.isArray(data.filaments) ? data.filaments : []);
+                    } else if (Array.isArray(data.filaments)) {
+                        updateMaterialBoxes([], data.filaments);
                     }
                     if (data.feed_status) updateFeedProgress(data.feed_status);
                     const isBusyOrPrinting = (data.state && ["printing", "auto_leveling", "heating", "busy"].includes(data.state.toLowerCase()));
@@ -2655,7 +2749,8 @@
         async function saveSlotFilament() {
             const btn=document.getElementById("btn-save-slot");btn.disabled=true;btn.innerText="Saving…";
             const type=document.getElementById("modal-slot-type").value,brand=document.getElementById("modal-brand-select").value;
-            try{const response=await fetch("http://127.0.0.1:18988/sync_to_printer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({slots:[{index:currentEditingSlot,type,brand,color:selectedColorGroup[0],finish_type:selectedFinishType,icon_type:selectedIconType,color_group:selectedColorGroup}]})});const data=await response.json();if(data.status!=="ok")throw new Error(data.message||"Printer rejected setting");Object.assign(filaments[currentEditingSlot],{type,brand,color:selectedColorGroup[0],finish_type:selectedFinishType,icon_type:selectedIconType,color_group_hex:[...selectedColorGroup]});updateFilamentUI(filaments);closeSlotEditModal();setTimeout(pollTelemetry,500);}catch(e){alert("Failed to update slot: "+e.message);}finally{btn.disabled=false;btn.innerText="Save";}
+            const current=filaments[currentEditingSlot]||{};
+            try{const response=await fetch("http://127.0.0.1:18988/sync_to_printer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({slots:[{index:Number(current.box_slot??currentEditingSlot),box_id:Number(current.box_id??-1),source:current.source||"ace",type,brand,color:selectedColorGroup[0],finish_type:selectedFinishType,icon_type:selectedIconType,color_group:selectedColorGroup}]})});const data=await response.json();if(data.status!=="ok")throw new Error(data.message||"Printer rejected setting");Object.assign(filaments[currentEditingSlot],{type,brand,color:selectedColorGroup[0],finish_type:selectedFinishType,icon_type:selectedIconType,color_group_hex:[...selectedColorGroup]});updateFilamentUI(filaments);closeSlotEditModal();setTimeout(pollTelemetry,500);}catch(e){alert("Failed to update slot: "+e.message);}finally{btn.disabled=false;btn.innerText="Save";}
         }
 
         function startInlineTempEdit(type) {

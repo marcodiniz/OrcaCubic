@@ -16,6 +16,8 @@ class DynamicPrintConfig;
 struct AnycubicMaterialSlot {
     int slot_id{-1};
     int box_id{-1};
+    int box_slot{-1};
+    std::string source{"ace"};
     std::string type;
     std::string color;
     bool loaded{false};

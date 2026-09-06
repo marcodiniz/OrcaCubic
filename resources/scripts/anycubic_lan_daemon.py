@@ -58,8 +58,13 @@ telemetry = {
     "light": 1,
     "fan": 0,
     "speed_mode": 2,
+    "has_multi_color_box": False,
+    "head_tools_model": None,
+    "max_box_num": 0,
+    "material_boxes": [],
+    "external_spool": None,
     "filaments": [],
-    "feed_status": {"slot_index": -1, "type": 0, "current_status": 0, "code": 0}
+    "feed_status": {"box_id": None, "slot_index": -1, "type": 0, "current_status": 0, "code": 0}
 }
 
 mqtt_client = None
@@ -76,6 +81,161 @@ def public_telemetry():
 
 def rgb_to_hex(r, g, b):
     return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _as_int(value, fallback=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _normalize_rgb(value, fallback=(175, 175, 175)):
+    if not isinstance(value, (list, tuple)) or len(value) < 3:
+        value = fallback
+    return [max(0, min(255, _as_int(value[i], fallback[i]))) for i in range(3)]
+
+
+def _slot_has_material(slot):
+    if not isinstance(slot, dict):
+        return False
+    if "available" in slot:
+        return bool(slot.get("available"))
+    if slot.get("_empty") is True:
+        return False
+    if _as_int(slot.get("status"), -1) in (0, 4) or _as_int(slot.get("edit_status"), -1) == 2:
+        return False
+    material = str(slot.get("type") or "").strip()
+    return material not in ("", "?")
+
+
+def _normalize_slot(slot, box_id, source, loaded_slot=-1):
+    local_index = max(0, _as_int(slot.get("index", slot.get("box_slot")), 0))
+    raw_color = slot.get("color", [175, 175, 175])
+    if isinstance(raw_color, str) and raw_color.startswith("#") and len(raw_color) >= 7:
+        raw_color = [int(raw_color[1:3], 16), int(raw_color[3:5], 16), int(raw_color[5:7], 16)]
+    color = _normalize_rgb(raw_color, (175, 175, 175))
+    material = str(slot.get("type") or "?").strip() or "?"
+    color_group = []
+    for group_color in slot.get("color_group", []) or []:
+        if isinstance(group_color, (list, tuple)) and len(group_color) >= 3:
+            color_group.append(rgb_to_hex(*_normalize_rgb(group_color)))
+    icon_type = _as_int(slot.get("icon_type"), 0)
+    global_slot = box_id * 4 + local_index if box_id >= 0 else (local_index if source == "rack" else -1)
+    return {
+        "slot": global_slot,
+        "box_id": box_id,
+        "box_slot": local_index,
+        "source": source,
+        "color": rgb_to_hex(*color),
+        "type": material,
+        "temp": 235 if "PETG" in material.upper() or "+" in material else 210,
+        "loaded": bool(slot.get("loaded")) or local_index == loaded_slot or _as_int(slot.get("status"), -1) == 5,
+        "available": _slot_has_material(slot),
+        "brand": slot.get("brand") or slot.get("brand_name") or "Anycubic",
+        "icon_type": icon_type,
+        "finish_type": "luminous" if icon_type == 3 else ("gradient" if icon_type in (1, 2) else "solid"),
+        "color_group_hex": color_group or [rgb_to_hex(*color)],
+    }
+
+
+def _merge_reported_slots(existing_slots, reported_slots):
+    by_index = {int(slot.get("index", slot.get("box_slot", 0))): dict(slot) for slot in existing_slots or []}
+    for reported in reported_slots or []:
+        index = _as_int(reported.get("index"), 0)
+        by_index[index] = {**by_index.get(index, {}), **reported}
+    return [by_index[index] for index in sorted(by_index)]
+
+
+def apply_multi_color_box_report(data, code=200, replace=True):
+    box_list = data.get("multi_color_box", []) if isinstance(data, dict) else []
+    if not isinstance(box_list, list):
+        return
+    if replace:
+        telemetry["has_multi_color_box"] = len(box_list) > 0
+    elif box_list:
+        telemetry["has_multi_color_box"] = True
+    telemetry["head_tools_model"] = data.get("head_tools_model", telemetry.get("head_tools_model"))
+    telemetry["max_box_num"] = _as_int(data.get("max_box_num"), telemetry.get("max_box_num") or len(box_list))
+    external_boxes = [dict(box) for box in telemetry.get("material_boxes", []) if box.get("source") == "external"]
+    boxes = [] if replace else [dict(box) for box in telemetry.get("material_boxes", []) if box.get("source") != "external"]
+    for reported in box_list:
+        if not isinstance(reported, dict):
+            continue
+        box_id = _as_int(reported.get("id"), -1)
+        slots = reported.get("slots") or []
+        if not isinstance(slots, list):
+            slots = []
+        loaded_slot = _as_int(reported.get("loaded_slot"), -1)
+        has_ace_box = any(_as_int(box.get("id"), -1) >= 0 for box in box_list if isinstance(box, dict))
+        source = "external_mcb" if box_id < 0 and (_as_int(data.get("head_tools_model"), 0) == 1 or has_ace_box) else ("rack" if box_id < 0 else "ace")
+        previous = next((box for box in boxes if _as_int(box.get("id"), -99) == box_id), None)
+        if previous is not None and not replace:
+            if previous.get("source") in ("rack", "external_mcb"):
+                source = previous["source"]
+            slots = _merge_reported_slots(previous.get("slots", []), slots)
+            boxes.remove(previous)
+        normalized_slots = [_normalize_slot(slot, box_id, source, loaded_slot) for slot in sorted(slots, key=lambda slot: _as_int(slot.get("index", slot.get("box_slot", 0))))]
+        boxes.append({
+            "id": box_id,
+            "source": source,
+            "model_id": reported.get("model_id"),
+            "loaded_slot": loaded_slot,
+            "slots": normalized_slots,
+        })
+        reported_feed = reported.get("feed_status")
+        if reported_feed:
+            telemetry["feed_status"] = {
+                "box_id": box_id,
+                "slot_index": _as_int(reported_feed.get("slot_index"), -1),
+                "type": _as_int(reported_feed.get("type"), 0),
+                "current_status": _as_int(reported_feed.get("current_status"), 0),
+                "code": _as_int(reported_feed.get("code"), code),
+            }
+    if telemetry.get("external_spool") is not None and not any(box.get("source") == "external" for box in boxes):
+        boxes = external_boxes + boxes
+    boxes.sort(key=lambda box: (box.get("source") != "external", _as_int(box.get("id"), -1)))
+    telemetry["material_boxes"] = boxes
+    telemetry["filaments"] = [slot for box in boxes for slot in box.get("slots", [])]
+    if replace and not box_list and telemetry.get("external_spool") is not None:
+        external = telemetry["external_spool"]
+        telemetry["material_boxes"] = [{"id": -1, "source": "external", "loaded_slot": external.get("box_slot", 0), "slots": [external]}]
+        telemetry["filaments"] = [external]
+
+
+def apply_external_spool_report(data, code=200):
+    if not isinstance(data, dict):
+        return
+    previous = telemetry.get("external_spool") or {}
+    slot_index = max(0, _as_int(data.get("loaded_slot"), previous.get("box_slot", 0)))
+    slot = _normalize_slot({
+        "index": slot_index,
+        "type": data.get("type", previous.get("type", "?")),
+        "color": data.get("color", previous.get("color", [175, 175, 175])),
+        "loaded": data.get("loaded", previous.get("loaded", True)),
+        "status": 5 if data.get("loaded", previous.get("loaded", True)) else 4,
+        "edit_status": data.get("edit_status", 1 if previous.get("available") else None),
+        "brand_name": data.get("brand_name", previous.get("brand")),
+        "color_group": data.get("color_group", previous.get("color_group_hex", [])),
+        "icon_type": data.get("icon_type", previous.get("icon_type", 0)),
+    }, -1, "external", slot_index)
+    # External is not an AMS channel. Keep a distinct sentinel so it cannot
+    # collide with ACE 1 slot 1 (global AMS index 0).
+    slot["slot"] = -1
+    telemetry["external_spool"] = slot
+    existing = [box for box in telemetry.get("material_boxes", []) if box.get("source") != "external"]
+    existing.insert(0, {"id": -1, "source": "external", "loaded_slot": slot_index, "slots": [slot]})
+    telemetry["material_boxes"] = existing
+    telemetry["filaments"] = [item for box in existing for item in box.get("slots", [])]
+    if data.get("status_type") is not None or data.get("current_status") is not None:
+        telemetry["feed_status"] = {
+            "box_id": -1,
+            "slot_index": slot_index,
+            "type": _as_int(data.get("status_type"), 0),
+            "current_status": _as_int(data.get("current_status"), 0),
+            "code": _as_int(data.get("code"), code),
+        }
+
 
 def fetch_credentials():
     global creds, model_id, device_id
@@ -208,46 +368,23 @@ def on_mqtt_message(c, userdata, msg):
                     telemetry["light"] = lights[0].get("status", telemetry["light"])
 
         elif t == "multiColorBox":
-            box_list = data.get("multi_color_box", [])
-            if box_list and len(box_list) > 0:
-                reported_feed = next((box.get("feed_status") for box in box_list if box.get("feed_status")), None)
-                if reported_feed:
-                    telemetry["feed_status"] = {
-                        "slot_index": int(reported_feed.get("slot_index", -1)),
-                        "type": int(reported_feed.get("type", 0) or 0),
-                        "current_status": int(reported_feed.get("current_status", 0) or 0),
-                        "code": int(reported_feed.get("code", code) or 0)
-                    }
-                box = next((candidate for candidate in box_list if candidate.get("id") == -1 and candidate.get("slots")), None)
-                if box is None:
-                    box = next((candidate for candidate in box_list if candidate.get("slots")), box_list[0])
-                loaded_slot = box.get("loaded_slot", -1)
-                slots = sorted(box.get("slots", []), key=lambda slot: int(slot.get("index", 0)))
-                new_filaments = []
-                for s in slots:
-                    idx = s.get("index", 0)
-                    col = s.get("color", [0, 210, 255])
-                    hex_col = rgb_to_hex(col[0], col[1], col[2])
-                    m_type = s.get("type", "PLA")
-                    color_group = s.get("color_group", [])
-                    color_group_hex = []
-                    for group_color in color_group:
-                        if isinstance(group_color, list) and len(group_color) >= 3:
-                            color_group_hex.append(rgb_to_hex(group_color[0], group_color[1], group_color[2]))
-                    icon_type = int(s.get("icon_type", 0) or 0)
-                    finish_type = "luminous" if icon_type == 3 else ("gradient" if icon_type in [1, 2] else "solid")
-                    new_filaments.append({
-                        "slot": idx + 1,
-                        "color": hex_col,
-                        "type": m_type,
-                        "temp": 235 if "PETG" in m_type or "+" in m_type else 210,
-                        "loaded": (idx == loaded_slot),
-                        "brand": s.get("brand", "Anycubic"),
-                        "icon_type": icon_type,
-                        "finish_type": finish_type,
-                        "color_group_hex": color_group_hex or [hex_col]
-                    })
-                telemetry["filaments"] = new_filaments
+            # getInfo is a complete snapshot; command acknowledgements may only
+            # contain the box or slot that changed and must not clear others.
+            if isinstance(data, dict) and payload.get("action") == "getInfo":
+                apply_multi_color_box_report(data, code)
+            elif isinstance(data, dict) and payload.get("action") in ("refresh", "setInfo", "feedFilament"):
+                apply_multi_color_box_report(data, code, replace=False)
+
+        elif t == "extfilbox" and payload.get("action") in ("reportInfo", "setInfo", "getInfo", None):
+            if isinstance(data, dict):
+                apply_external_spool_report(data, code)
+
+        elif t == "peripherie":
+            # The original page treats peripherie=0 as a hint and asks for a
+            # fresh multiColorBox snapshot. Only an empty getInfo report is
+            # authoritative enough to clear live ACE data.
+            if isinstance(data, dict) and data.get("multiColorBox"):
+                telemetry["has_multi_color_box"] = True
 
     except Exception as e:
         pass
@@ -256,11 +393,11 @@ def query_all():
     global mqtt_client
     if not mqtt_client:
         return
-    for q_type in ["tempature", "fan", "status", "multiColorBox", "info", "light"]:
+    for q_type in ["tempature", "fan", "status", "peripherie", "multiColorBox", "extfilbox", "info", "light"]:
         topic = f"anycubic/anycubicCloud/v1/slicer/printer/{model_id}/{device_id}/{q_type}"
         msg = {
             "type": q_type,
-            "action": "query" if q_type not in ["multiColorBox"] else "getInfo",
+            "action": "getInfo" if q_type in ["multiColorBox", "extfilbox"] else "query",
             "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
             "timestamp": int(time.time() * 1000),
             "data": None
@@ -269,6 +406,56 @@ def query_all():
             mqtt_client.publish(topic, json.dumps(msg))
         except:
             pass
+
+
+def build_material_update_messages(slots_data):
+    messages = []
+    for s in slots_data or []:
+        idx = int(s.get("index", 0))
+        box_id = int(s.get("box_id", -1))
+        source = s.get("source", "ace")
+        m_type = s.get("type", "PLA")
+        col = s.get("color")
+        if isinstance(col, str) and col.startswith("#"):
+            c_hex = col.lstrip("#")
+            rgb = [
+                int(c_hex[0:2], 16) if len(c_hex) >= 2 else 0,
+                int(c_hex[2:4], 16) if len(c_hex) >= 4 else 210,
+                int(c_hex[4:6], 16) if len(c_hex) >= 6 else 255,
+            ]
+        elif isinstance(col, list) and len(col) >= 3:
+            rgb = [col[0], col[1], col[2]]
+        else:
+            rgb = [35, 163, 199]
+        if source == "external":
+            messages.append(("extfilbox", {
+                "type": "extfilbox", "action": "setInfo", "data": {"type": m_type, "color": rgb}
+            }))
+            continue
+        finish_type = s.get("finish_type", "solid")
+        icon_type = int(s.get("icon_type", 3 if finish_type == "luminous" else (1 if finish_type == "gradient" else 0)))
+        color_group = []
+        for group_color in s.get("color_group", []) or []:
+            if isinstance(group_color, str) and group_color.startswith("#") and len(group_color) >= 7:
+                h = group_color.lstrip("#")
+                color_group.append([int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), 255])
+            elif isinstance(group_color, list) and len(group_color) >= 3:
+                color_group.append([int(group_color[0]), int(group_color[1]), int(group_color[2]), 255])
+        if not color_group:
+            color_group = [rgb + [255]]
+        messages.append(("multiColorBox", {
+            "type": "multiColorBox",
+            "action": "setInfo",
+            "data": {"multi_color_box": [{"id": box_id, "slots": [{
+                "index": idx,
+                "type": m_type,
+                "brand": s.get("brand", "Anycubic"),
+                "color": color_group[0][:3],
+                "color_group": color_group,
+                "icon_type": icon_type,
+            }]}]},
+        }))
+    return messages
 
 def mqtt_worker():
     global mqtt_client
@@ -623,10 +810,11 @@ class BridgeServer(BaseHTTPRequestHandler):
                     topic_print = f"anycubic/anycubicCloud/v1/slicer/printer/{model_id}/{device_id}/print"
                     # Construct 1-to-1 AMS box mapping for all 4 slots matching physical feeder
                     ams_mapping = data.get("ams_box_mapping")
+                    use_ams = bool(data.get("use_ams", True))
                     if not ams_mapping:
                         ams_mapping = []
-                        fils = telemetry.get("filaments", [])
-                        for i in range(min(4, len(fils) if fils else 4)):
+                        fils = [f for f in telemetry.get("filaments", []) if f.get("source") not in ("external", "external_mcb") and f.get("available", True)]
+                        for i in range(len(fils) if fils else (4 if use_ams else 0)):
                             f = fils[i] if fils and i < len(fils) else {}
                             col = f.get("color", "#23a3c7")
                             if isinstance(col, str) and col.startswith("#"):
@@ -638,7 +826,7 @@ class BridgeServer(BaseHTTPRequestHandler):
                             else:
                                 rgb = [35, 163, 199]
                             ams_mapping.append({
-                                "ams_index": i,
+                                "ams_index": int(f.get("slot", i)),
                                 "paint_index": i,
                                 "material_type": f.get("type", "PLA"),
                                 "ams_color": rgb,
@@ -666,7 +854,7 @@ class BridgeServer(BaseHTTPRequestHandler):
                             "project_type": 1,
                             "filesize": 0,
                             "ams_settings": {
-                                "use_ams": True,
+                                "use_ams": use_ams,
                                 "ams_box_mapping": ams_mapping
                             },
                             "task_settings": {
@@ -688,6 +876,7 @@ class BridgeServer(BaseHTTPRequestHandler):
 
             elif action == "feed_filament":
                 slot_idx = int(data.get("slot", 0))
+                box_id = int(data.get("box_id", -1))
                 m_type = data.get("type", "PLA")
                 topic_feed = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/multiColorBox"
                 msg = {
@@ -697,7 +886,7 @@ class BridgeServer(BaseHTTPRequestHandler):
                     "timestamp": int(time.time() * 1000),
                     "data": {
                         "multi_color_box": [{
-                            "id": -1,
+                            "id": box_id,
                             "feed_status": {
                                 "slot_index": slot_idx,
                                 "type": m_type
@@ -707,11 +896,12 @@ class BridgeServer(BaseHTTPRequestHandler):
                 }
                 if mqtt_client:
                     mqtt_client.publish(topic_feed, json.dumps(msg))
-                    telemetry["feed_status"] = {"slot_index": slot_idx, "type": 1, "current_status": 1, "code": 0}
-                    print(f"[Bridge] Published feedFilament slot {slot_idx} ({m_type})")
+                    telemetry["feed_status"] = {"box_id": box_id, "slot_index": slot_idx, "type": 1, "current_status": 1, "code": 0}
+                    print(f"[Bridge] Published feedFilament box {box_id} slot {slot_idx} ({m_type})")
 
             elif action == "unfeed_filament":
                 slot_idx = int(data.get("slot", 0))
+                box_id = int(data.get("box_id", -1))
                 topic_feed = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/multiColorBox"
                 msg = {
                     "type": "multiColorBox",
@@ -720,15 +910,15 @@ class BridgeServer(BaseHTTPRequestHandler):
                     "timestamp": int(time.time() * 1000),
                     "data": {
                         "multi_color_box": [{
-                            "id": -1,
+                            "id": box_id,
                             "feed_status": {"slot_index": slot_idx, "type": 2}
                         }]
                     }
                 }
                 if mqtt_client:
                     mqtt_client.publish(topic_feed, json.dumps(msg))
-                    telemetry["feed_status"] = {"slot_index": slot_idx, "type": 2, "current_status": 1, "code": 0}
-                    print(f"[Bridge] Published unfeed slot {slot_idx}")
+                    telemetry["feed_status"] = {"box_id": box_id, "slot_index": slot_idx, "type": 2, "current_status": 1, "code": 0}
+                    print(f"[Bridge] Published unfeed box {box_id} slot {slot_idx}")
 
             elif action == "fan":
                 fan_value = max(0, min(100, int(data.get("value", 0))))
@@ -808,69 +998,14 @@ class BridgeServer(BaseHTTPRequestHandler):
         elif self.path.startswith("/sync_to_printer"):
             slots_data = data.get("slots", [])
             if slots_data and mqtt_client:
-                # Kobra X firmware setInfo requires ONE slot per message in slots array
-                topic_web = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/multiColorBox"
-                for s in slots_data:
-                    idx = int(s.get("index", 0))
-                    m_type = s.get("type", "PLA")
-                    col = s.get("color")
-                    if isinstance(col, str) and col.startswith("#"):
-                        c_hex = col.lstrip("#")
-                        r = int(c_hex[0:2], 16) if len(c_hex) >= 2 else 0
-                        g = int(c_hex[2:4], 16) if len(c_hex) >= 4 else 210
-                        b = int(c_hex[4:6], 16) if len(c_hex) >= 6 else 255
-                        rgb = [r, g, b]
-                    elif isinstance(col, list) and len(col) >= 3:
-                        rgb = [col[0], col[1], col[2]]
-                    else:
-                        rgb = [35, 163, 199]
-
-                    brand = s.get("brand", "Anycubic")
-                    finish_type = s.get("finish_type", "solid")
-                    icon_type = int(s.get("icon_type", 3 if finish_type == "luminous" else (1 if finish_type == "gradient" else 0)))
-                    raw_group = s.get("color_group", [])
-                    color_group = []
-                    for group_color in raw_group:
-                        if isinstance(group_color, str) and group_color.startswith("#"):
-                            group_hex = group_color.lstrip("#")
-                            if len(group_hex) >= 6:
-                                color_group.append([
-                                    int(group_hex[0:2], 16),
-                                    int(group_hex[2:4], 16),
-                                    int(group_hex[4:6], 16),
-                                    255
-                                ])
-                        elif isinstance(group_color, list) and len(group_color) >= 3:
-                            color_group.append([int(group_color[0]), int(group_color[1]), int(group_color[2]), 255])
-                    if not color_group:
-                        color_group = [rgb + [255]]
-
-                    slot_obj = {
-                        "index": idx,
-                        "type": m_type,
-                        "brand": brand,
-                        "color": color_group[0][:3],
-                        "color_group": color_group,
-                        "icon_type": icon_type
-                    }
-                    msg = {
-                        "type": "multiColorBox",
-                        "action": "setInfo",
-                        "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
-                        "timestamp": int(time.time() * 1000),
-                        "data": {
-                            "multi_color_box": [
-                                {
-                                    "id": -1,
-                                    "slots": [slot_obj]
-                                }
-                            ]
-                        }
-                    }
-                    mqtt_client.publish(topic_web, json.dumps(msg))
-                    print(f"[Bridge] Published setInfo for slot {idx} ({m_type}) to printer")
+                # Kobra X firmware accepts one material update per message.
+                for suffix, material_msg in build_material_update_messages(slots_data):
+                    topic = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/{suffix}"
+                    material_msg["msgid"] = "".join(random.choices(string.hexdigits.lower(), k=32))
+                    material_msg["timestamp"] = int(time.time() * 1000)
+                    mqtt_client.publish(topic, json.dumps(material_msg))
+                    print(f"[Bridge] Published {suffix} material update")
                     time.sleep(0.15)
-
                 time.sleep(0.4)
                 query_all()
             result = {"status": "ok", "ip": PRINTER_IP}

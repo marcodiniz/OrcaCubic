@@ -104,7 +104,11 @@ void AnycubicPrintHostSendDialog::init()
             auto* combo = new BitmapComboBox(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(FromDIP(250), -1), 0, nullptr, wxCB_READONLY);
             for (const auto& slot : m_slots) {
                 wxBitmap* icon = get_extruder_color_icon(slot.color, "", FromDIP(16), FromDIP(16));
-                combo->Append(wxString::Format(_L("ACE Slot %d - %s"), slot.slot_id, from_u8(slot.type)), icon ? *icon : wxNullBitmap);
+                const bool external = slot.source == "external" || slot.source == "external_mcb";
+                const wxString source_name = external ? _L("External spool") :
+                    (slot.source == "rack" ? wxString::Format(_L("Rack Slot %d"), slot.box_slot + 1) :
+                     wxString::Format(_L("ACE %d Slot %d"), slot.box_id + 1, slot.box_slot + 1));
+                combo->Append(wxString::Format("%s - %s", source_name, from_u8(slot.type)), icon ? *icon : wxNullBitmap);
             }
             row->Add(combo, 0, wxALIGN_CENTER_VERTICAL);
             content_sizer->Add(row, 0, wxBOTTOM, FromDIP(8));
@@ -196,17 +200,30 @@ bool AnycubicPrintHostSendDialog::validate_before_close()
             return false;
         }
     }
+    if (m_project_filaments.size() > 1) {
+        for (const auto* combo : m_slot_combos) {
+            const int selection = combo->GetSelection();
+            if (selection >= 0 && selection < static_cast<int>(m_slots.size()) &&
+                (m_slots[selection].source == "external" || m_slots[selection].source == "external_mcb")) {
+                show_error(this, _L("The external spool can only be used for a single-material print."));
+                return false;
+            }
+        }
+    }
     return true;
 }
 
 std::map<std::string, std::string> AnycubicPrintHostSendDialog::extendedInfo() const
 {
     std::vector<int> selections;
+    bool use_ams = true;
     for (const auto* combo : m_slot_combos) {
         const int selected = combo->GetSelection();
         if (selected < 0 || selected >= static_cast<int>(m_slots.size()))
             return {};
         selections.push_back(m_slots[selected].slot_id);
+        if (m_slots[selected].source == "external" || m_slots[selected].source == "external_mcb")
+            use_ams = false;
     }
 
     json mapping = json::array();
@@ -226,6 +243,7 @@ std::map<std::string, std::string> AnycubicPrintHostSendDialog::extendedInfo() c
 
     return {
         {"ams_mapping", mapping.dump()},
+        {"use_ams", use_ams ? "1" : "0"},
         {"auto_leveling", m_auto_leveling ? "1" : "0"},
         {"vibration_compensation", m_resonance_compensation ? "1" : "0"},
         {"flow_calibration", m_flow_calibration ? "1" : "0"},

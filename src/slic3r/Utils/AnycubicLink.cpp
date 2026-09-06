@@ -207,13 +207,14 @@ std::vector<AnycubicAmsMappingEntry> build_anycubic_ams_mapping(
         const auto slot_it = std::find_if(slots.begin(), slots.end(), [&](const AnycubicMaterialSlot& slot) {
             return slot.slot_id == selected_slot_ids[index];
         });
-        if (slot_it == slots.end() || !slot_it->loaded || slot_it->slot_id < 1 || slot_it->slot_id > 4)
+        if (slot_it == slots.end() || !slot_it->loaded || slot_it->slot_id < 0 ||
+            slot_it->source == "external" || slot_it->source == "external_mcb")
             return {};
 
         if (normalize_anycubic_material(slot_it->type) != normalize_anycubic_material(tools[index].type))
             return {};
 
-        result.push_back({slot_it->slot_id - 1, tools[index].tool_id, slot_it->type, slot_it->color, tools[index].color});
+        result.push_back({slot_it->slot_id, tools[index].tool_id, slot_it->type, slot_it->color, tools[index].color});
     }
     return result;
 }
@@ -972,18 +973,19 @@ bool AnycubicLink::fetch_upload_url_via_mqtt(std::string& upload_token, wxString
 
 bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename, const PrintHostUpload& upload_data) const
 {
-    bool use_ams = true;
+    bool use_ams = upload_data.extended("use_ams") != "0";
     json ams_box_mapping = json::array();
 
     std::string custom_mapping = upload_data.extended("ams_mapping");
     if (!custom_mapping.empty()) {
         try {
             ams_box_mapping = json::parse(custom_mapping);
-            use_ams = true;
+            if (!ams_box_mapping.empty())
+                use_ams = true;
         } catch (...) {}
     }
 
-    if (ams_box_mapping.empty()) {
+    if (use_ams && ams_box_mapping.empty()) {
         auto parse_rgb = [](const std::string& hex, int& r, int& g, int& b) {
             std::string h = hex;
             if (!h.empty() && h[0] == '#') h = h.substr(1);
@@ -1083,6 +1085,7 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
         json ctrl_data = {
             {"action", "start_print_job"},
             {"filename", filename},
+            {"use_ams", use_ams},
             {"ams_box_mapping", ams_box_mapping},
             {"task_settings", {
                 {"auto_leveling", task_settings.auto_leveling},
@@ -1339,25 +1342,28 @@ bool AnycubicLink::fetch_material_slots(std::vector<AnycubicMaterialSlot>& slots
 
     const auto payload = json::parse(response_body, nullptr, false, true);
     if (payload.is_discarded() || payload.value("ip", "") != m_host || !payload.value("connected", false) || !payload.contains("filaments") || !payload["filaments"].is_array()) {
-        msg = _(L("The local LAN bridge did not report connected ACE Pro slots."));
+        msg = _(L("The local LAN bridge did not report connected ACE Pro slots or an external spool."));
         return false;
     }
 
     for (const auto& item : payload["filaments"]) {
         AnycubicMaterialSlot slot;
-        slot.slot_id = item.value("slot", -1);
-        slot.box_id  = -1;
+        slot.slot_id  = item.value("slot", -1);
+        slot.box_id   = item.value("box_id", -1);
+        slot.box_slot = item.value("box_slot", -1);
+        slot.source   = item.value("source", "ace");
         slot.type    = item.value("type", "");
         slot.color   = item.value("color", "#D0D0D0");
         // The daemon reports the active feeder with `loaded`; every reported slot
         // still contains a spool and is valid for mapping.
-        slot.loaded  = slot.slot_id >= 1 && slot.slot_id <= 4 && !slot.type.empty();
+        slot.loaded  = (slot.slot_id >= 0 || slot.source == "external" || slot.source == "external_mcb") &&
+                       item.value("available", true) && !slot.type.empty() && slot.type != "?";
         if (slot.loaded)
             slots.push_back(std::move(slot));
     }
 
     if (slots.empty()) {
-        msg = _(L("No usable ACE Pro material slots were reported."));
+        msg = _(L("No usable ACE Pro material slots or external spool were reported."));
         return false;
     }
     return true;
