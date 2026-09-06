@@ -83,6 +83,10 @@ The Device tab provides an Anycubic-style dashboard with:
 - The printer may still perform some preparation steps when a Remote Print calibration option is disabled because those steps are controlled by its firmware.
 - Windows releases are not code-signed yet, so SmartScreen may display a warning.
 
+## Future features
+
+- **Anycubic Cloud printing:** investigated as a possible optional connection mode for printing outside the local network. It is not implemented or supported yet. See the [cloud-printing investigation and validation checklist](docs/FUTURE_ANYCUBIC_CLOUD_PRINTING.md).
+
 ## For contributors
 
 See [BUILD_WIN.md](BUILD_WIN.md) to build OrcaCubic on Windows. Additional upstream build information is available in the [OrcaSlicer documentation](https://github.com/OrcaSlicer/OrcaSlicer/wiki/How-to-build).
