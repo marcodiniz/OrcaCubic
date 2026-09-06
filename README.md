@@ -2,7 +2,7 @@
 
 **OrcaCubic is an experimental fork of [OrcaSlicer](https://github.com/OrcaSlicer/OrcaSlicer) focused on direct, local integration with the Anycubic Kobra X and its four-slot filament system.**
 
-It combines OrcaSlicer's slicing workflow with selected printer-integration ideas from Anycubic Slicer Next and KX-Bridge. The goal is a single desktop application for slicing, material matching, LAN upload, print start, monitoring, and printer control—without requiring the Anycubic cloud or a separately installed bridge service.
+It combines OrcaSlicer's slicing workflow with selected printer-integration ideas from Anycubic Slicer Next and KX-Bridge. The goal is a single desktop application for slicing, material matching, LAN upload, print start, monitoring, and printer control.
 
 > [!IMPORTANT]
 > OrcaCubic has been tested on an **Anycubic Kobra X running firmware 2.0.1.9**. Other Anycubic models and firmware versions are not yet validated.
