@@ -27,10 +27,7 @@ The release is currently unsigned. Windows may show a SmartScreen warning; verif
 
 Before a multi-material job starts, OrcaCubic shows the project tools and live printer slots so each sliced color can be assigned explicitly. It auto-suggests compatible slots by material and color, allows manual changes, and blocks invalid material mappings instead of silently choosing another slot.
 
-<!-- SCREENSHOT: Add the Remote Print / filament matching popup here.
-Suggested file: docs/images/remote-print-material-matching.png
-![Remote Print material matching](docs/images/remote-print-material-matching.png)
--->
+![Remote Print material matching](docs/images/material_matching.png)
 
 ### Local Device dashboard
 
@@ -46,10 +43,7 @@ The Device tab is a local Anycubic-style dashboard with:
 - device information and printer alerts;
 - movement controls locked while a job is printing or paused.
 
-<!-- SCREENSHOT: Add the full Device dashboard here.
-Suggested file: docs/images/device-dashboard.png
-![OrcaCubic Device dashboard](docs/images/device-dashboard.png)
--->
+![OrcaCubic Device dashboard](docs/images/workbench.png)
 
 ### Filament synchronization and editor
 
@@ -59,10 +53,13 @@ Suggested file: docs/images/device-dashboard.png
 - The material picker includes material, brand, finish, swatches, custom colors, and spool preview.
 - Slot writes are paced for Kobra X firmware reliability.
 
-<!-- SCREENSHOT: Add the filament picker here.
-Suggested file: docs/images/filament-picker.png
-![Filament picker](docs/images/filament-picker.png)
--->
+#### Slicer-to-printer synchronization
+
+![Slicer-to-printer filament synchronization](docs/images/slicer_sync.png)
+
+#### Material settings
+
+![Filament material settings](docs/images/material_settings.png)
 
 ### Kobra X-specific safety and reliability work
 
@@ -89,16 +86,6 @@ The bundled bridge listens only on `127.0.0.1`, requires a per-installation auth
 - The bundled LAN bridge is part of OrcaCubic's current architecture and may be replaced by an entirely native implementation later.
 - The printer's `G9111` startup macro can run firmware-defined preparation even when a corresponding Remote Print calibration flag is disabled.
 - Releases are not code-signed yet.
-
-## Screenshots wanted
-
-The README deliberately includes placeholders for:
-
-- the Remote Print filament-matching popup;
-- the complete Device dashboard;
-- the filament picker/editor.
-
-Add images under `docs/images/` and uncomment the matching Markdown blocks above.
 
 ## Build from source
 
