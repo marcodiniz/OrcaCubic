@@ -9,9 +9,20 @@ It combines OrcaSlicer's slicing workflow with selected printer-integration idea
 
 ## Download
 
-Download the current installer or portable build from [GitHub Releases](https://github.com/marcodiniz/OrcaCubic/releases/latest).
+Download the current Windows installer, Windows portable build, or Linux AppImage from [GitHub Releases](https://github.com/marcodiniz/OrcaCubic/releases/latest).
 
-The release is currently unsigned. Windows may show a SmartScreen warning; verify the SHA-256 checksums published with the release before running it.
+### Linux AppImage
+
+The current Linux package targets **x86-64 Ubuntu 24.04 and compatible distributions**. Download the `.AppImage`, make it executable, and open it:
+
+```bash
+chmod +x OrcaCubic_Linux_AppImage_*.AppImage
+./OrcaCubic_Linux_AppImage_*.AppImage
+```
+
+Linux packaging is new and has passed the automated build, package-integrity, dependency, and extraction checks. The Kobra X Device dashboard and physical print workflow still need validation on a Linux desktop, so use the Linux package as an experimental release and report any issues.
+
+The Windows release is currently unsigned. Windows may show a SmartScreen warning; verify the SHA-256 checksums published with the release before running it.
 
 ## What OrcaCubic adds
 
