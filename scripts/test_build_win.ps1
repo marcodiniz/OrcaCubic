@@ -619,7 +619,8 @@ $cases = @(
 
     'failures are reported'
     @{ Name = 'a missing cmake is caught and exits non-zero'; Args = @('-d'); ExpectExit = 1
-       Env = @{ PATH = 'C:\Windows\system32;C:\Windows' }
+       # Hide both PATH CMake and Visual Studio's bundled fallback.
+       Env = @{ PATH = 'C:\Windows\system32;C:\Windows'; 'ProgramFiles(x86)' = $noVs }
        Contains = @('CMake was not found') }
     @{ Name = 'packing does not need cmake, only an archiver'; Args = @('-p')
        Env = @{ PATH = 'C:\Windows\system32;C:\Windows' }
