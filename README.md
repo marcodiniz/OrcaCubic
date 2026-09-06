@@ -1,6 +1,6 @@
 # OrcaCubic
 
-**OrcaCubic is an experimental fork of [OrcaSlicer](https://github.com/OrcaSlicer/OrcaSlicer) focused on direct, local integration with the Anycubic Kobra X and its four-slot filament system.**
+**OrcaCubic is an experimental fork of [OrcaSlicer](https://github.com/OrcaSlicer/OrcaSlicer) for the Anycubic Kobra X, adding local network printing and support for its four-slot filament system.**
 
 It combines OrcaSlicer's slicing workflow with selected printer-integration ideas from Anycubic Slicer Next and KX-Bridge. The goal is a single desktop application for slicing, material matching, LAN upload, print start, monitoring, and printer control.
 
@@ -15,13 +15,12 @@ The release is currently unsigned. Windows may show a SmartScreen warning; verif
 
 ## What OrcaCubic adds
 
-### Native Kobra X LAN printing
+### Print directly to the Kobra X
 
-- Connects directly to the printer's stock LAN services.
-- Uploads `.gcode` and `.gcode.3mf` jobs over the local network.
-- Starts prints with explicit ACE slot mappings.
-- Uses a bundled local bridge process that starts automatically for the configured printer—no separate KX-Bridge, Moonraker, OctoPrint, or Anycubic cloud session is required.
-- Keeps printer credentials and session tokens local and redacts token-bearing URLs from logs and dashboard status responses.
+- Connects to the printer over your local network.
+- Sends sliced jobs directly from OrcaCubic.
+- Lets you check and change which ACE slot will be used for each color before printing.
+- Keeps the printer's connection information private on your computer.
 
 ### Remote Print material matching
 
@@ -31,9 +30,9 @@ Before a multi-material job starts, OrcaCubic shows the project tools and live p
 
 ### Local Device dashboard
 
-The Device tab is a local Anycubic-style dashboard with:
+The Device tab provides an Anycubic-style dashboard with:
 
-- live print progress, layer, elapsed-time, and remaining-time telemetry;
+- live print progress, layer, elapsed time, and remaining time;
 - opt-in camera streaming and chamber/camera light controls;
 - nozzle and bed temperatures, fan control, cooldown, and preheat presets;
 - Quiet, Standard, Sport, and Ludicrous speed modes;
@@ -51,7 +50,7 @@ The Device tab is a local Anycubic-style dashboard with:
 - **To Slicer** imports the printer's live slot materials and colors into the slicer.
 - Solid, gradient, and luminous color definitions are supported.
 - The material picker includes material, brand, finish, swatches, custom colors, and spool preview.
-- Slot writes are paced for Kobra X firmware reliability.
+- Material cards update when a slot is changed directly on the printer.
 
 #### Slicer-to-printer synchronization
 
@@ -61,13 +60,13 @@ The Device tab is a local Anycubic-style dashboard with:
 
 ![Filament material settings](docs/images/material_settings.png)
 
-### Kobra X-specific safety and reliability work
+### Everyday safeguards
 
-- Persistent MQTT lifecycle avoids the Windows socket teardown crash seen with short-lived print-start sessions.
-- Printer upload and camera credentials are not shown in UI errors or diagnostic logs.
-- Camera streaming is strictly opt-in and remains stopped when the Device tab opens or reloads.
-- The four-entry ACE mapping preserves slicer tool-to-slot assignments and avoids hidden Slot 3 fallbacks.
-- The Remote Print dialog exposes calibration switches, although firmware startup macro `G9111` may still perform firmware-defined preparation independently of those task flags.
+- Print upload and startup are handled in the background to prevent the crash seen in early builds.
+- Private printer connection information is not shown in error messages or logs.
+- The camera remains off until you select **Start Stream**.
+- Movement and extrusion controls are disabled while a print is active or paused.
+- Your selected color-to-slot assignments are preserved when the print starts.
 
 ## Setup
 
@@ -78,18 +77,15 @@ The Device tab is a local Anycubic-style dashboard with:
 5. Use **Test** to verify the direct connection.
 6. Slice a plate, select **Print**, review the material-to-ACE mappings, and start the job.
 
-The bundled bridge listens only on `127.0.0.1`, requires a per-installation authentication token for status and control requests, and obtains printer-specific connection data through the Kobra X LAN handshake at runtime. No printer IP, device ID, CN, certificate, private key, password, or session token is embedded in the public source or release.
-
 ## Known limitations
 
 - Hardware validation currently covers only Kobra X firmware `2.0.1.9`.
-- The bundled LAN bridge is part of OrcaCubic's current architecture and may be replaced by an entirely native implementation later.
-- The printer's `G9111` startup macro can run firmware-defined preparation even when a corresponding Remote Print calibration flag is disabled.
-- Releases are not code-signed yet.
+- The printer may still perform some preparation steps when a Remote Print calibration option is disabled because those steps are controlled by its firmware.
+- Windows releases are not code-signed yet, so SmartScreen may display a warning.
 
-## Build from source
+## For contributors
 
-See [BUILD_WIN.md](BUILD_WIN.md) for the Windows build used by this fork. Upstream build information remains available in the [OrcaSlicer documentation](https://github.com/OrcaSlicer/OrcaSlicer/wiki/How-to-build).
+See [BUILD_WIN.md](BUILD_WIN.md) to build OrcaCubic on Windows. Additional upstream build information is available in the [OrcaSlicer documentation](https://github.com/OrcaSlicer/OrcaSlicer/wiki/How-to-build).
 
 ## Thanks and upstream projects
 
@@ -103,6 +99,6 @@ Thank you to all maintainers, reverse engineers, testers, and contributors who m
 
 ## License
 
-OrcaCubic follows OrcaSlicer's GNU Affero General Public License v3.0 terms. See [LICENSE.txt](LICENSE.txt). Bundled third-party components retain their own licenses; the Python bridge's vendored dependency notices are in `resources/scripts/vendor/LICENSES/`.
+OrcaCubic follows OrcaSlicer's GNU Affero General Public License v3.0 terms. See [LICENSE.txt](LICENSE.txt) for details.
 
 OrcaCubic is an independent community project. It is not affiliated with or endorsed by Anycubic or the OrcaSlicer maintainers.
