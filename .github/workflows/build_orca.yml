@@ -552,8 +552,9 @@ jobs:
           # (x86_64 + aarch64) gets tested by its own unit_tests_linux_* job.
           ./build_linux.sh -istrlL
           ./scripts/check_appimage_libs.sh ./build/package ./build/package/bin/orca-slicer
-          appimage=./build/OrcaSlicer_Linux_AppImage${{ env.ubuntu-ver-str }}${{ env.arch_suffix }}_${{ env.ver }}.AppImage
-          mv -n ./build/OrcaSlicer_Linux_V${{ env.ver_pure }}.AppImage "$appimage"
+          appimage=./build/OrcaCubic_Linux_AppImage${{ env.ubuntu-ver-str }}${{ env.arch_suffix }}_${{ env.ver }}.AppImage
+          mv -n ./build/OrcaCubic_Linux_V${{ env.ver_pure }}.AppImage "$appimage"
+          test -s "$appimage"
           chmod +x "$appimage"
           tar -cvf build_tests.tar build/tests
 
@@ -576,7 +577,8 @@ jobs:
           # Both were packed from resources/ before the caches existed, so the
           # AppImage is unpacked first and the caches shipped into it and into
           # the package tree; the source tree keeps its JSONs for later steps.
-          appimage=$(find build -maxdepth 1 -name "OrcaSlicer_Linux_AppImage*.AppImage" | head -1)
+          appimage=$(find build -maxdepth 1 -name "OrcaCubic_Linux_AppImage*.AppImage" | head -1)
+          test -n "$appimage" && test -s "$appimage"
           chmod +x "$appimage"
           "$appimage" --appimage-extract
           ./scripts/build_preset_cache.sh -b build build/package/resources/profiles squashfs-root/resources/profiles
@@ -620,8 +622,9 @@ jobs:
         if: ${{ ! env.ACT && runner.os == 'Linux' }}
         uses: actions/upload-artifact@v7
         with:
-          name: OrcaSlicer_Linux_ubuntu_${{ env.ubuntu-ver }}${{ env.arch_suffix }}_${{ env.ver }}
-          path: "./build/OrcaSlicer_Linux_AppImage${{ env.ubuntu-ver-str }}${{ env.arch_suffix }}_${{ env.ver }}.AppImage"
+          name: OrcaCubic_Linux_ubuntu_${{ env.ubuntu-ver }}${{ env.arch_suffix }}_${{ env.ver }}
+          path: "./build/OrcaCubic_Linux_AppImage${{ env.ubuntu-ver-str }}${{ env.arch_suffix }}_${{ env.ver }}.AppImage"
+          if-no-files-found: error
 
       - name: Upload OrcaSlicer_profile_validator Ubuntu
         if: ${{ ! env.ACT && runner.os == 'Linux' && !vars.SELF_HOSTED && inputs.arch != 'aarch64' }}

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+    <id>com.orcaslicer.OrcaCubic</id>
+    <launchable type="desktop-id">com.orcaslicer.OrcaCubic.desktop</launchable>
+    <name>OrcaCubic</name>
+    <summary>OrcaSlicer fork for the Anycubic Kobra X</summary>
+    <developer id="io.github.marcodiniz.OrcaCubic">
+        <name>OrcaCubic contributors</name>
+    </developer>
+    <url type="homepage">https://github.com/marcodiniz/OrcaCubic</url>
+    <url type="bugtracker">https://github.com/marcodiniz/OrcaCubic/issues</url>
+    <url type="vcs-browser">https://github.com/marcodiniz/OrcaCubic</url>
+    <metadata_license>0BSD</metadata_license>
+    <project_license>AGPL-3.0-only</project_license>
+    <content_rating type="oars-1.1" />
+    <requires>
+        <display_length compare="gt">768</display_length>
+    </requires>
+    <recommends>
+        <control>keyboard</control>
+        <control>pointing</control>
+    </recommends>
+    <description>
+        <p>OrcaCubic is an experimental OrcaSlicer fork for the Anycubic Kobra X. It adds local-network printing, ACE material matching, monitoring, and printer controls.</p>
+        <p>Hardware validation currently covers the Kobra X running firmware 2.0.1.9.</p>
+    </description>
+    <branding>
+        <color type="primary" scheme_preference="light">#00A896</color>
+        <color type="primary" scheme_preference="dark">#007D72</color>
+    </branding>
+    <releases>
+        <release version="2.5.0-orcacubic.3" date="2026-09-06">
+            <url type="details">https://github.com/marcodiniz/OrcaCubic/releases/tag/v2.5.0-orcacubic.3</url>
+        </release>
+    </releases>
+</component>
