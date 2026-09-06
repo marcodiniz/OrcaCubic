@@ -85,6 +85,7 @@ The Device tab provides an Anycubic-style dashboard with:
 
 ## Future features
 
+- **Flatpak package:** planned as a future Linux installation option after its application identity, sandbox permissions, and Kobra X connection workflow have been validated. See the [Flatpak validation checklist](docs/FUTURE_FLATPAK.md).
 - **Anycubic Cloud printing:** investigated as a possible optional connection mode for printing outside the local network. It is not implemented or supported yet. See the [cloud-printing investigation and validation checklist](docs/FUTURE_ANYCUBIC_CLOUD_PRINTING.md).
 
 ## For contributors
