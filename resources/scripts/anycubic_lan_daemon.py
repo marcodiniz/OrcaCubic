@@ -218,9 +218,11 @@ def on_mqtt_message(c, userdata, msg):
                         "current_status": int(reported_feed.get("current_status", 0) or 0),
                         "code": int(reported_feed.get("code", code) or 0)
                     }
-                box = box_list[0]
+                box = next((candidate for candidate in box_list if candidate.get("id") == -1 and candidate.get("slots")), None)
+                if box is None:
+                    box = next((candidate for candidate in box_list if candidate.get("slots")), box_list[0])
                 loaded_slot = box.get("loaded_slot", -1)
-                slots = box.get("slots", [])
+                slots = sorted(box.get("slots", []), key=lambda slot: int(slot.get("index", 0)))
                 new_filaments = []
                 for s in slots:
                     idx = s.get("index", 0)
@@ -245,8 +247,7 @@ def on_mqtt_message(c, userdata, msg):
                         "finish_type": finish_type,
                         "color_group_hex": color_group_hex or [hex_col]
                     })
-                if new_filaments:
-                    telemetry["filaments"] = new_filaments
+                telemetry["filaments"] = new_filaments
 
     except Exception as e:
         pass

@@ -1479,12 +1479,7 @@
         }
 
         let printerIP = "";
-        let filaments = [
-            {"slot": 1, "color": "#009639", "type": "PLA", "temp": 210, "loaded": false},
-            {"slot": 2, "color": "#75787b", "type": "PLA", "temp": 210, "loaded": false},
-            {"slot": 3, "color": "#fddb27", "type": "PLA+", "temp": 235, "loaded": true},
-            {"slot": 4, "color": "#ff8da1", "type": "PLA", "temp": 210, "loaded": false}
-        ];
+        let filaments = [];
         let currentSpeedMode = 2;
         let lightStatus = 1;
         let jogStep = 10;
@@ -2160,7 +2155,7 @@
                             initFlvVideo(data.camera_url);
                         }
                     }
-                    if (data.filaments && Array.isArray(data.filaments) && data.filaments.length > 0) {
+                    if (Array.isArray(data.filaments)) {
                         updateFilamentUI(data.filaments);
                     }
                     if (data.feed_status) updateFeedProgress(data.feed_status);
