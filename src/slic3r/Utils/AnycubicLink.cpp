@@ -105,42 +105,59 @@ bool local_anycubic_bridge_running()
     return running;
 }
 
-void ensure_anycubic_bridge(const std::string& host)
+bool ensure_anycubic_bridge(const std::string& host)
 {
     if (host.empty())
-        return;
+        return false;
 
     std::lock_guard<std::mutex> lock(g_anycubic_bridge_mutex);
     if (g_anycubic_bridge_process && g_anycubic_bridge_process->running() && g_anycubic_bridge_host == host)
-        return;
+        return true;
     if (local_anycubic_bridge_matches(host)) {
         // A compatible bridge may have been started by another OrcaCubic process.
         // It is intentionally not adopted or terminated by this process.
         g_anycubic_bridge_token = read_anycubic_bridge_token();
-        return;
-    }
-    if (local_anycubic_bridge_running()) {
-        BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] Local bridge port 18988 is owned by a bridge configured for another printer";
-        return;
+        g_anycubic_bridge_host = host;
+        return !g_anycubic_bridge_token.empty();
     }
 
+    // Retarget a bridge owned by this process before treating the shared port as
+    // an incompatible bridge owned by another OrcaCubic process.
     if (g_anycubic_bridge_process && g_anycubic_bridge_process->running()) {
-        g_anycubic_bridge_process->terminate();
+        try {
+            auto request = Http::post("http://127.0.0.1:18988/shutdown");
+            request.header("X-OrcaCubic-Token", g_anycubic_bridge_token)
+                .set_post_body(std::string("{}"))
+                .timeout_connect(1)
+                .timeout_max(2)
+                .perform_sync();
+        } catch (...) {}
+        for (int attempt = 0; attempt < 20 && g_anycubic_bridge_process->running(); ++attempt)
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        if (g_anycubic_bridge_process->running())
+            g_anycubic_bridge_process->terminate();
         g_anycubic_bridge_process->wait();
+        g_anycubic_bridge_process.reset();
+        g_anycubic_bridge_host.clear();
+        g_anycubic_bridge_token.clear();
     }
-    g_anycubic_bridge_process.reset();
+
+    if (local_anycubic_bridge_running()) {
+        BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] Local bridge port 18988 is owned by a bridge configured for another printer";
+        return false;
+    }
 
     const fs::path script = fs::path(resources_dir()) / "scripts" / "anycubic_lan_daemon.py";
     const std::string python = PythonInterpreter::bundled_python_executable();
     if (python.empty() || !fs::exists(script)) {
         BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] Bundled LAN bridge runtime is unavailable";
-        return;
+        return false;
     }
 
     g_anycubic_bridge_token = create_anycubic_bridge_token();
     if (g_anycubic_bridge_token.empty()) {
         BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] Could not create the local bridge authentication token";
-        return;
+        return false;
     }
 
     try {
@@ -157,8 +174,13 @@ void ensure_anycubic_bridge(const std::string& host)
             boost::process::std_err > boost::process::null);
         g_anycubic_bridge_host = host;
         BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Started bundled LAN bridge for configured printer host";
+        return true;
     } catch (const std::exception& error) {
         BOOST_LOG_TRIVIAL(error) << "[AnycubicLink] Failed to start bundled LAN bridge: " << error.what();
+        g_anycubic_bridge_process.reset();
+        g_anycubic_bridge_host.clear();
+        g_anycubic_bridge_token.clear();
+        return false;
     }
 }
 
@@ -204,6 +226,73 @@ AnycubicTaskSettings build_anycubic_task_settings(const AnycubicPrintSettings& s
         settings.flow_calibration ? 1 : 0,
         settings.timelapse ? 1 : 0
     };
+}
+
+std::vector<AnycubicPrinterListEntry> build_anycubic_printer_list(
+    const std::vector<AnycubicPrinterCandidate>& candidates,
+    const std::string& active_host,
+    const std::string& monitored_host)
+{
+    const auto normalize_host = [](std::string host) {
+        boost::trim(host);
+        if (boost::starts_with(host, "http://"))
+            host.erase(0, 7);
+        else if (boost::starts_with(host, "https://"))
+            host.erase(0, 8);
+        while (!host.empty() && host.back() == '/')
+            host.pop_back();
+        return host;
+    };
+    const std::string normalized_active_host = normalize_host(active_host);
+    const std::string normalized_monitored_host = normalize_host(monitored_host);
+
+    std::vector<AnycubicPrinterListEntry> result;
+    for (const AnycubicPrinterCandidate& candidate : candidates) {
+        if (candidate.host_type != "anycubic" || candidate.host.empty())
+            continue;
+
+        const std::string host = normalize_host(candidate.host);
+        if (host.empty())
+            continue;
+
+        const bool active = host == normalized_active_host || (normalized_active_host.empty() && candidate.selected);
+        const bool monitored = normalized_monitored_host.empty() ? active : host == normalized_monitored_host;
+        result.push_back({candidate.preset_name, candidate.model_name, host, active, monitored, candidate.selected});
+    }
+    return result;
+}
+
+int find_anycubic_printer_candidate(
+    const std::vector<AnycubicPrinterCandidate>& candidates,
+    const std::string& preset_name)
+{
+    for (size_t index = 0; index < candidates.size(); ++index)
+        if (candidates[index].preset_name == preset_name &&
+            candidates[index].host_type == "anycubic" && !candidates[index].host.empty())
+            return static_cast<int>(index);
+    return -1;
+}
+
+std::optional<AnycubicPrinterSelection> choose_anycubic_printer(
+    const std::vector<AnycubicPrinterCandidate>& candidates,
+    const std::string& preset_name,
+    bool make_active)
+{
+    const int index = find_anycubic_printer_candidate(candidates, preset_name);
+    if (index < 0)
+        return std::nullopt;
+
+    std::string host = candidates[static_cast<size_t>(index)].host;
+    boost::trim(host);
+    if (boost::starts_with(host, "http://"))
+        host.erase(0, 7);
+    else if (boost::starts_with(host, "https://"))
+        host.erase(0, 8);
+    while (!host.empty() && host.back() == '/')
+        host.pop_back();
+    if (host.empty())
+        return std::nullopt;
+    return AnycubicPrinterSelection{preset_name, host, make_active};
 }
 
 namespace {
@@ -582,6 +671,17 @@ void reconcile_anycubic_lan_bridge(DynamicPrintConfig* config)
         return;
     }
     ensure_anycubic_bridge(Http::get_host_from_url(safe_config_str(config, "print_host")));
+}
+
+bool activate_anycubic_lan_bridge(const std::string& host)
+{
+    return ensure_anycubic_bridge(Http::get_host_from_url(host));
+}
+
+std::string anycubic_lan_bridge_host()
+{
+    std::lock_guard<std::mutex> lock(g_anycubic_bridge_mutex);
+    return g_anycubic_bridge_host;
 }
 
 std::string anycubic_lan_bridge_token()

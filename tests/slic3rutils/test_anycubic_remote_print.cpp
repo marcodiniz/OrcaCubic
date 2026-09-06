@@ -58,3 +58,84 @@ TEST_CASE("Anycubic task settings reflect remote print calibration toggles", "[a
     CHECK(task.flow_calibration == 1);
     CHECK(task.timelapse_status == 1);
 }
+
+
+TEST_CASE("Anycubic printer list contains only configured Anycubic printers", "[anycubic][multi-printer]")
+{
+    std::vector<Slic3r::AnycubicPrinterCandidate> candidates {
+        {"Workshop Kobra X", "Anycubic Kobra X 0.4 nozzle", "anycubic", "192.0.2.10", true},
+        {"Empty Anycubic preset", "Anycubic Kobra X 0.4 nozzle", "anycubic", "", false},
+        {"OctoPrint printer", "Generic Marlin", "octoprint", "192.0.2.11", false},
+        {"Second Kobra X", "Anycubic Kobra X 0.4 nozzle", "anycubic", "http://192.0.2.12", false},
+    };
+
+    const auto printers = Slic3r::build_anycubic_printer_list(candidates, "192.0.2.12");
+
+    REQUIRE(printers.size() == 2);
+    CHECK(printers[0].preset_name == "Workshop Kobra X");
+    CHECK(printers[0].host == "192.0.2.10");
+    CHECK(printers[0].selected);
+    CHECK(printers[1].preset_name == "Second Kobra X");
+    CHECK(printers[1].host == "192.0.2.12");
+    CHECK_FALSE(printers[1].selected);
+}
+
+TEST_CASE("Anycubic printer switching matches exact preset names", "[anycubic][multi-printer]")
+{
+    const std::vector<Slic3r::AnycubicPrinterCandidate> candidates {
+        {"Kobra X", "Anycubic Kobra X 0.4 nozzle", "anycubic", "192.0.2.20", true},
+        {"Kobra X Backup", "Anycubic Kobra X 0.4 nozzle", "anycubic", "192.0.2.21", false},
+    };
+
+    CHECK(Slic3r::find_anycubic_printer_candidate(candidates, "Kobra X Backup") == 1);
+    CHECK(Slic3r::find_anycubic_printer_candidate(candidates, "kobra x backup") == -1);
+    CHECK(Slic3r::find_anycubic_printer_candidate(candidates, "Kobra X Backup ") == -1);
+}
+
+TEST_CASE("Anycubic printer list distinguishes active slicer printer from monitored Device printer", "[anycubic][multi-printer]")
+{
+    std::vector<Slic3r::AnycubicPrinterCandidate> candidates {
+        {"Workshop Kobra X", "Anycubic Kobra X 0.4 nozzle", "anycubic", "192.0.2.10", true},
+        {"Second Kobra X", "Anycubic Kobra X 0.4 nozzle", "anycubic", "192.0.2.12", false},
+    };
+
+    const auto printers = Slic3r::build_anycubic_printer_list(candidates, "192.0.2.10", "192.0.2.12");
+
+    REQUIRE(printers.size() == 2);
+    CHECK(printers[0].active);
+    CHECK_FALSE(printers[0].monitored);
+    CHECK(printers[0].selected);
+    CHECK_FALSE(printers[1].active);
+    CHECK(printers[1].monitored);
+    CHECK_FALSE(printers[1].selected);
+}
+
+TEST_CASE("Anycubic printer selection can monitor without changing the active printer", "[anycubic][multi-printer]")
+{
+    std::vector<Slic3r::AnycubicPrinterCandidate> candidates {
+        {"Workshop Kobra X", "Anycubic Kobra X 0.4 nozzle", "anycubic", "192.0.2.10", true},
+        {"Second Kobra X", "Anycubic Kobra X 0.4 nozzle", "anycubic", "192.0.2.12", false},
+    };
+
+    const auto selection = Slic3r::choose_anycubic_printer(candidates, "Second Kobra X", false);
+
+    REQUIRE(selection.has_value());
+    CHECK(selection->preset_name == "Second Kobra X");
+    CHECK(selection->host == "192.0.2.12");
+    CHECK_FALSE(selection->make_active);
+}
+
+TEST_CASE("Anycubic printer selection requires an explicit Make Active action", "[anycubic][multi-printer]")
+{
+    std::vector<Slic3r::AnycubicPrinterCandidate> candidates {
+        {"Workshop Kobra X", "Anycubic Kobra X 0.4 nozzle", "anycubic", "192.0.2.10", true},
+        {"Second Kobra X", "Anycubic Kobra X 0.4 nozzle", "anycubic", "http://192.0.2.12/", false},
+    };
+
+    const auto selection = Slic3r::choose_anycubic_printer(candidates, "Second Kobra X", true);
+
+    REQUIRE(selection.has_value());
+    CHECK(selection->host == "192.0.2.12");
+    CHECK(selection->make_active);
+    CHECK_FALSE(Slic3r::choose_anycubic_printer(candidates, "Missing printer", true).has_value());
+}

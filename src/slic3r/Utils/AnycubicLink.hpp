@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <optional>
 #include <wx/string.h>
 #include "PrintHost.hpp"
 #include "libslic3r/PrintConfig.hpp"
@@ -49,12 +50,48 @@ struct AnycubicTaskSettings {
     int timelapse_status{0};
 };
 
+struct AnycubicPrinterCandidate {
+    std::string preset_name;
+    std::string model_name;
+    std::string host_type;
+    std::string host;
+    bool selected{false};
+};
+
+struct AnycubicPrinterListEntry {
+    std::string preset_name;
+    std::string model_name;
+    std::string host;
+    bool active{false};
+    bool monitored{false};
+    bool selected{false};
+};
+
+struct AnycubicPrinterSelection {
+    std::string preset_name;
+    std::string host;
+    bool make_active{false};
+};
+
 std::vector<AnycubicAmsMappingEntry> build_anycubic_ams_mapping(
     const std::vector<AnycubicToolFilament>& tools,
     const std::vector<AnycubicMaterialSlot>& slots,
     const std::vector<int>& selected_slot_ids);
 AnycubicTaskSettings build_anycubic_task_settings(const AnycubicPrintSettings& settings);
+std::vector<AnycubicPrinterListEntry> build_anycubic_printer_list(
+    const std::vector<AnycubicPrinterCandidate>& candidates,
+    const std::string& active_host,
+    const std::string& monitored_host = {});
+int find_anycubic_printer_candidate(
+    const std::vector<AnycubicPrinterCandidate>& candidates,
+    const std::string& preset_name);
+std::optional<AnycubicPrinterSelection> choose_anycubic_printer(
+    const std::vector<AnycubicPrinterCandidate>& candidates,
+    const std::string& preset_name,
+    bool make_active);
 void reconcile_anycubic_lan_bridge(DynamicPrintConfig* config);
+bool activate_anycubic_lan_bridge(const std::string& host);
+std::string anycubic_lan_bridge_host();
 std::string anycubic_lan_bridge_token();
 void shutdown_anycubic_lan_bridge();
 

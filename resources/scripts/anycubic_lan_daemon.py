@@ -412,7 +412,7 @@ class BridgeServer(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-OrcaCubic-Token")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-OrcaCubic-Token, X-OrcaCubic-Printer")
         self.end_headers()
 
     def do_GET(self):
@@ -450,6 +450,14 @@ class BridgeServer(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.require_authorized():
+            return
+        expected_printer = self.headers.get("X-OrcaCubic-Printer", "")
+        if expected_printer and expected_printer != PRINTER_IP:
+            self.send_response(409)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "error", "message": "Device selection changed"}).encode("utf-8"))
             return
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"

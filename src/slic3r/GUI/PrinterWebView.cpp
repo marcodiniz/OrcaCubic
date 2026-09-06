@@ -203,7 +203,8 @@ void PrinterWebView::set_bridge_token(const wxString& token)
         "const url=typeof resource==='string'?resource:(resource&&resource.url?resource.url:'');"
         "if(url.indexOf('http://127.0.0.1:18988/')===0){init=Object.assign({},init||{});"
         "const headers=new Headers((init&&init.headers)||(resource instanceof Request?resource.headers:undefined));"
-        "headers.set('X-OrcaCubic-Token',window.__orcacubicBridgeToken);init.headers=headers;}"
+        "headers.set('X-OrcaCubic-Token',window.__orcacubicBridgeToken);"
+        "if(window.__orcacubicPrinterHost)headers.set('X-OrcaCubic-Printer',window.__orcacubicPrinterHost);init.headers=headers;}"
         "return original.call(this,resource,init);};})();";
     m_browser->AddUserScript(wxString::FromUTF8(source), wxWEBVIEW_INJECT_AT_DOCUMENT_START);
 }

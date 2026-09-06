@@ -3,8 +3,11 @@
 #include "I18N.hpp"
 #include "PartPlate.hpp"
 #include "Plater.hpp"
+#include "PhysicalPrinterDialog.hpp"
 #include "PrinterWebView.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
+#include "slic3r/GUI/MainFrame.hpp"
+#include "slic3r/GUI/Tab.hpp"
 #include "slic3r/GUI/Widgets/WebView.hpp"
 #include "slic3r/Utils/PrintHost.hpp"
 #include "slic3r/Utils/AnycubicLink.hpp"
@@ -357,7 +360,9 @@ public:
     void on_loaded(wxWebViewEvent &evt) override
     {
         BOOST_LOG_TRIVIAL(info) << "[AnycubicPrinterWebViewHandler] on_loaded: " << evt.GetURL().ToUTF8().data();
+        inject_bridge_token();
         inject_ac_localhost_interceptor();
+        sync_printers_to_webview();
         sync_filaments_to_webview();
         sync_login_info_to_webview();
     }
@@ -392,6 +397,26 @@ public:
         if (method == "sync_filaments_to_slicer") {
             wxGetApp().CallAfter([]() {
                 wxGetApp().sidebar().sync_ams_list(true);
+            });
+            send_ipc_message("response", request_id, method, 0, "success");
+            return;
+        }
+        if (method == "get_anycubic_printers") {
+            sync_printers_to_webview(request_id);
+            return;
+        }
+        if (method == "monitor_anycubic_printer") {
+            select_printer(request_id, json_string(params, "preset_name"), false);
+            return;
+        }
+        if (method == "activate_anycubic_printer") {
+            select_printer(request_id, json_string(params, "preset_name"), true);
+            return;
+        }
+        if (method == "open_anycubic_printer_settings") {
+            wxGetApp().CallAfter([]() {
+                PhysicalPrinterDialog dialog(wxGetApp().mainframe);
+                dialog.ShowModal();
             });
             send_ipc_message("response", request_id, method, 0, "success");
             return;
@@ -488,6 +513,83 @@ public:
     }
 
 private:
+    std::vector<AnycubicPrinterCandidate> printer_candidates() const
+    {
+        std::vector<AnycubicPrinterCandidate> candidates;
+        if (wxGetApp().preset_bundle == nullptr)
+            return candidates;
+
+        const std::string selected_name = wxGetApp().preset_bundle->printers.get_edited_preset().name;
+        for (const Preset& preset : wxGetApp().preset_bundle->printers.get_presets()) {
+            const auto* host_type = preset.config.option<ConfigOptionEnum<PrintHostType>>("host_type");
+            const auto* host = preset.config.option<ConfigOptionString>("print_host");
+            if (host_type == nullptr || host == nullptr)
+                continue;
+
+            const auto* model = preset.config.option<ConfigOptionString>("printer_model");
+            candidates.push_back({preset.name,
+                                  model == nullptr ? std::string{} : model->value,
+                                  host_type->value == htAnycubic ? "anycubic" : "other",
+                                  host->value,
+                                  preset.name == selected_name});
+        }
+        return candidates;
+    }
+
+    void sync_printers_to_webview(const std::string& request_id = "")
+    {
+        std::string active_host;
+        if (DynamicPrintConfig* config = get_active_printer_config())
+            if (const auto* host = config->option<ConfigOptionString>("print_host"))
+                active_host = host->value;
+
+        json items = json::array();
+        for (const AnycubicPrinterListEntry& printer : build_anycubic_printer_list(
+                 printer_candidates(), active_host, anycubic_lan_bridge_host())) {
+            items.push_back({{"preset_name", printer.preset_name},
+                             {"name", printer.preset_name},
+                             {"model", printer.model_name.empty() ? "Anycubic Printer" : printer.model_name},
+                             {"host", printer.host},
+                             {"active", printer.active},
+                             {"monitored", printer.monitored},
+                             {"selected", printer.selected}});
+        }
+        send_ipc_message("response", request_id, "get_anycubic_printers", 0, "success",
+                         json({{"printers", std::move(items)}}).dump());
+    }
+
+    void select_printer(const std::string& request_id, const std::string& preset_name, bool make_active)
+    {
+        const std::vector<AnycubicPrinterCandidate> candidates = printer_candidates();
+        const auto selection = choose_anycubic_printer(candidates, preset_name, make_active);
+        const char* method = make_active ? "activate_anycubic_printer" : "monitor_anycubic_printer";
+        if (!selection) {
+            send_ipc_message("response", request_id, method, 1, "Printer preset was not found");
+            return;
+        }
+
+        wxGetApp().CallAfter([this, request_id, selection = *selection, method = std::string(method)]() {
+            if (selection.make_active) {
+                Tab* printer_tab = wxGetApp().get_tab(Preset::TYPE_PRINTER);
+                if (printer_tab == nullptr || !printer_tab->select_preset(selection.preset_name)) {
+                    send_ipc_message("response", request_id, method, 1, "Printer switch was cancelled");
+                    sync_printers_to_webview();
+                    return;
+                }
+            }
+
+            if (!activate_anycubic_lan_bridge(selection.host)) {
+                send_ipc_message("response", request_id, method, 1, "Could not connect the Device view to that printer");
+                sync_printers_to_webview();
+                return;
+            }
+
+            inject_bridge_token();
+            send_ipc_message("response", request_id, method, 0, "success");
+            sync_printers_to_webview();
+        });
+    }
+
     void send_ipc_message(const char* type, const std::string& request_id, const std::string& method, int code,
                           const std::string& message, const std::string& data_json = "{}")
     {
@@ -521,6 +623,18 @@ private:
             if (browser() != nullptr)
                 WebView::RunScript(browser(), script);
         });
+    }
+
+    void inject_bridge_token()
+    {
+        if (browser() == nullptr)
+            return;
+        const std::string token_json = json(anycubic_lan_bridge_token()).dump();
+        const std::string host_json = json(anycubic_lan_bridge_host()).dump();
+        const wxString script = wxString::FromUTF8(
+            "window.__orcacubicBridgeToken=" + token_json + ";window.__orcacubicPrinterHost=" + host_json + ";");
+        if (!WebView::RunScript(browser(), script))
+            BOOST_LOG_TRIVIAL(warning) << "[AnycubicPrinterWebViewHandler] Could not update the active bridge token";
     }
 
     void inject_ac_localhost_interceptor()

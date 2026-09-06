@@ -826,6 +826,36 @@
             background: var(--bg-card);
         }
 
+
+        .device-shell { display:grid; grid-template-columns:clamp(160px,13.75vw,264px) minmax(0,1fr); gap:12px; align-items:start; }
+        .printer-sidebar { position:sticky; top:0; height:calc(100vh - 32px); min-height:470px; background:#222; border:1px solid rgba(255,255,255,.08); border-radius:12px; display:flex; flex-direction:column; overflow:hidden; }
+        .printer-tabs { height:36px; display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid rgba(255,255,255,.08); }
+        .printer-tab { border:0; background:#1e1e1e; color:#777b85; font-size:12px; cursor:pointer; }
+        .printer-tab.active { color:#fff; background:#222; font-weight:650; }
+        .printer-tab:disabled { opacity:.38; cursor:not-allowed; }
+        .printer-list { display:grid; gap:10px; padding:12px 10px; overflow:auto; align-content:start; flex:1; }
+        .printer-list-empty { color:#747985; font-size:11px; line-height:1.5; padding:12px 4px; }
+        .printer-list-item { width:100%; text-align:left; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:5px 8px; align-items:center; border:1px solid transparent; border-radius:8px; padding:8px 14px; background:rgba(255,255,255,.02); color:#e7e9ee; cursor:pointer; }
+        .printer-list-item:hover { background:rgba(255,255,255,.06); }
+        .printer-list-item.monitored { background:rgba(0,117,255,.12); border-color:#0075ff; }
+        .printer-list-copy { min-width:0; }
+        .printer-list-name { display:block; font-size:13px; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .printer-list-item.monitored .printer-list-name { color:#0075ff; }
+        .printer-list-model { display:block; color:#a4a8b1; font-size:13px; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .printer-list-item.monitored .printer-list-model { color:rgba(0,117,255,.6); }
+        .printer-list-status { grid-column:2; grid-row:1/span 2; justify-self:end; font-size:11px; color:#8c9099; }
+        .printer-list-status.free { color:#45d483; }
+        .printer-list-status.busy { color:#f5a623; }
+        .printer-active-badge { display:inline-block; margin-left:5px; color:#45d483; font-size:10px; }
+        .printer-sidebar-footer { min-height:60px; border-top:1px solid rgba(255,255,255,.08); display:grid; gap:7px; place-items:center; padding:8px; }
+        .printer-add { width:28px; height:28px; border:0; border-radius:50%; background:#0075ff; color:#fff; font-size:20px; line-height:1; cursor:pointer; }
+        .printer-make-active { border:1px solid #0075ff; border-radius:16px; padding:5px 11px; background:rgba(0,117,255,.12); color:#6aa7ff; font-size:10px; cursor:pointer; }
+        .printer-make-active[hidden] { display:none; }
+        .printer-switch-note { min-height:18px; color:#a4a8b1; font-size:10px; text-align:center; }
+        .printer-switch-note.error { color:#f87171; }
+        .device-content { min-width:0; }
+        @media (max-width:980px) { .device-shell { grid-template-columns:1fr; } .printer-sidebar { position:static; height:auto; min-height:0; } .printer-list { grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); max-height:230px; } }
+
         /* Workbench V3 stock layout: task/control/device, camera/G-code/axis */
         .wb3-grid {
             display: grid;
@@ -1113,6 +1143,27 @@
         </div>
     </div>
 
+    <div id="printer-config-modal" class="modal-backdrop" style="display:none; z-index:2300;">
+        <div class="modal-card" style="width:min(470px,92vw);">
+            <div class="modal-header"><h3>Saved Printer</h3><button class="modal-close" onclick="closePrinterConfig()">✕</button></div>
+            <div class="modal-body">
+                <div class="modal-field"><label for="printer-config-name">Name</label><input class="modal-select" id="printer-config-name" placeholder="Workshop Kobra X"></div>
+                <div class="modal-field"><label for="printer-config-model">Model</label><input class="modal-select" id="printer-config-model" value="Anycubic Kobra X"></div>
+                <div class="modal-field"><label for="printer-config-host">Printer IP address</label><input class="modal-select" id="printer-config-host" placeholder="192.168.1.100"></div>
+                <div id="printer-config-error" style="color:#f87171;font-size:11px;"></div>
+            </div>
+            <div class="modal-footer"><button class="btn" onclick="closePrinterConfig()">Cancel</button><button class="btn btn-primary" onclick="savePrinterConfig()">Save</button></div>
+        </div>
+    </div>
+
+    <div class="device-shell">
+        <aside class="printer-sidebar" aria-label="Configured printers">
+            <div class="printer-tabs"><button class="printer-tab" type="button" disabled>Cloud Printer</button><button class="printer-tab active" type="button">LAN Printer</button></div>
+            <div class="printer-list" id="printer-list"><div class="printer-list-empty">Loading configured printers…</div></div>
+            <div class="printer-sidebar-footer"><button class="printer-add" type="button" onclick="requestPrinterSettings()" title="Add or configure a printer" aria-label="Add printer">+</button><button class="printer-make-active" id="printer-make-active" type="button" onclick="makeMonitoredPrinterActive()" hidden>Make Active for Slicing</button><div class="printer-switch-note" id="printer-switch-note"></div></div>
+        </aside>
+        <div class="device-content">
+
     <!-- Alert Banner for LCD notices -->
     <div id="printer-alert-banner" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: var(--radius-md); padding: 10px 16px; margin-bottom: 16px; align-items: center; justify-content: space-between; color: #fca5a5;">
         <div style="display: flex; align-items: center; gap: 10px;">
@@ -1216,7 +1267,7 @@
 
         <!-- Row 2 / Column 1: Camera -->
         <section class="card wb3-camera">
-            <div class="card-header"><h2>Camera</h2><span class="tag">Live View</span></div>
+            <div class="card-header"><h2>Camera</h2><span class="tag" id="camera-status-tag">Stopped</span></div>
             <div class="camera-container" id="cam-box">
                 <video id="cam-video" autoplay muted playsinline></video>
                 <div class="camera-placeholder" id="cam-placeholder"><img src="img/video-monitor.aa65df82.png"><span>Camera stream stopped</span></div>
@@ -1254,7 +1305,239 @@
         </section>
     </main>
 
+        </div>
+    </div>
+
     <script>
+
+        let configuredPrinters = [];
+        let monitoredPresetName = "";
+        let printerRequestSequence = 0;
+        let pendingPrinterRequests = new Map();
+        const PRINTER_STORAGE_KEY = "orcacubic_saved_printers_v1";
+        const MONITORED_PRINTER_STORAGE_KEY = "orcacubic_monitored_printer_v1";
+        const BROWSER_TEST_MODE = !window.wx && !(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.wx) && !(window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === "function");
+        window.orcacubicOpenPrinterConfig = () => requestPrinterSettings();
+
+        function normalizeStoredPrinter(printer, index) {
+            if (!printer || typeof printer !== "object") return null;
+            const host = String(printer.host || "").trim().replace(/^https?:\/\//i, "").replace(/\/$/, "");
+            if (!host) return null;
+            const presetName = String(printer.preset_name || printer.name || `Anycubic Printer ${index + 1}`).trim();
+            return {
+                preset_name: presetName,
+                name: String(printer.name || presetName),
+                model: String(printer.model || "Anycubic Printer"),
+                host,
+                active: !!printer.active,
+                monitored: !!printer.monitored,
+                selected: !!printer.selected
+            };
+        }
+
+        function readStoredPrinters() {
+            try {
+                const parsed = JSON.parse(localStorage.getItem(PRINTER_STORAGE_KEY) || "[]");
+                if (!Array.isArray(parsed)) return [];
+                const monitored = localStorage.getItem(MONITORED_PRINTER_STORAGE_KEY) || "";
+                return parsed.map(normalizeStoredPrinter).filter(Boolean).map(printer => ({
+                    ...printer,
+                    monitored: printer.preset_name === monitored || (!monitored && printer.monitored)
+                }));
+            } catch (_) {
+                return [];
+            }
+        }
+
+        function writeStoredPrinters(printers) {
+            const normalized = (Array.isArray(printers) ? printers : []).map(normalizeStoredPrinter).filter(Boolean);
+            localStorage.setItem(PRINTER_STORAGE_KEY, JSON.stringify(normalized));
+            const monitored = normalized.find(printer => printer.monitored);
+            if (monitored) localStorage.setItem(MONITORED_PRINTER_STORAGE_KEY, monitored.preset_name);
+            return normalized;
+        }
+
+        function mockSlicerMessage(body) {
+            setTimeout(() => {
+                let printers = readStoredPrinters();
+                if (body.command === "get_anycubic_printers") {
+                    handlePrinterMessage({type:"response", command:body.command, id:body.id, code:0, data:{printers}});
+                    return;
+                }
+                if (body.command === "monitor_anycubic_printer") {
+                    printers = printers.map(printer => ({...printer, monitored:printer.preset_name === body.data.preset_name}));
+                    writeStoredPrinters(printers);
+                } else if (body.command === "activate_anycubic_printer") {
+                    printers = printers.map(printer => ({...printer, active:printer.preset_name === body.data.preset_name, selected:printer.preset_name === body.data.preset_name}));
+                    writeStoredPrinters(printers);
+                }
+                handlePrinterMessage({type:"response", command:body.command, id:body.id, code:0, message:"success", data:{}});
+            }, 30);
+        }
+
+        function postOrcaMessage(payload) {
+            sendToSlicer(payload.command || payload.method || "", payload.data || {}, payload.id || payload.sequence_id || "");
+        }
+
+        function requestPrinterList() {
+            const stored = readStoredPrinters();
+            if (stored.length) renderPrinterList(stored);
+            const id = "printer-list-" + (++printerRequestSequence);
+            postOrcaMessage({ id, sequence_id:id, command:"get_anycubic_printers", data:{} });
+        }
+
+        function renderPrinterList(items) {
+            configuredPrinters = Array.isArray(items) ? items : [];
+            const list = document.getElementById("printer-list");
+            if (!list) return;
+            list.innerHTML = "";
+            let monitored = configuredPrinters.find(printer => printer.monitored);
+            if (monitoredPresetName) {
+                const requested = configuredPrinters.find(printer => printer.preset_name === monitoredPresetName);
+                if (requested && pendingPrinterRequests.size) monitored = requested;
+            }
+            monitored = monitored || configuredPrinters.find(printer => printer.active) || configuredPrinters[0];
+            monitoredPresetName = monitored ? monitored.preset_name : "";
+            if (!configuredPrinters.length) {
+                list.innerHTML = '<div class="printer-list-empty">Add a configured Anycubic printer preset to see it here.</div>';
+                updateMakeActiveButton();
+                return;
+            }
+            configuredPrinters.forEach(printer => {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "printer-list-item" + (printer.monitored ? " monitored" : "");
+                button.title = printer.monitored ? "Currently shown in Device" : "Monitor " + printer.name;
+                button.setAttribute("aria-pressed", printer.monitored ? "true" : "false");
+                button.onclick = () => monitorPrinter(printer.preset_name);
+                const copy = document.createElement("span");
+                copy.className = "printer-list-copy";
+                const name = document.createElement("span");
+                name.className = "printer-list-name";
+                name.innerText = printer.name || printer.preset_name || "Anycubic Printer";
+                if (printer.active) {
+                    const active = document.createElement("span");
+                    active.className = "printer-active-badge";
+                    active.innerText = "Active";
+                    name.appendChild(active);
+                }
+                const model = document.createElement("span");
+                model.className = "printer-list-model";
+                model.innerText = printer.model || "Anycubic Printer";
+                copy.append(name, model);
+                const status = document.createElement("span");
+                const isBusy = printer.monitored && ["printing", "paused", "auto_leveling", "heating", "busy"].includes(String(currentPrinterState).toLowerCase());
+                status.className = "printer-list-status " + (printer.monitored ? (isBusy ? "busy" : "free") : "offline");
+                status.innerText = printer.monitored ? (isBusy ? "Busy" : "Free") : "Saved";
+                button.append(copy, status);
+                list.appendChild(button);
+            });
+            updateMakeActiveButton();
+        }
+
+        function updateMakeActiveButton() {
+            const button = document.getElementById("printer-make-active");
+            if (!button) return;
+            const monitored = configuredPrinters.find(printer => printer.preset_name === monitoredPresetName);
+            button.hidden = !monitored || !!monitored.active;
+        }
+
+        function setDeviceControlsDisabled(disabled) {
+            document.querySelectorAll('.device-content button, .device-content input, .device-content select, .device-content textarea').forEach(control => {
+                control.disabled = !!disabled;
+            });
+        }
+
+        function requestPrinterSelection(presetName, makeActive) {
+            const current = configuredPrinters.find(printer => printer.monitored);
+            if (!makeActive && current && current.preset_name === presetName) return;
+            stopCameraStream();
+            const note = document.getElementById("printer-switch-note");
+            if (note) { note.className="printer-switch-note"; note.innerText=makeActive ? "Making printer active…" : "Connecting Device…"; }
+            document.querySelectorAll(".printer-list-item,.printer-make-active").forEach(button => button.disabled = true);
+            setDeviceControlsDisabled(true);
+            const id = (makeActive ? "printer-activate-" : "printer-monitor-") + (++printerRequestSequence);
+            pendingPrinterRequests.set(id, { presetName, makeActive });
+            postOrcaMessage({ id, sequence_id:id, command:makeActive ? "activate_anycubic_printer" : "monitor_anycubic_printer", data:{ preset_name:presetName } });
+        }
+
+        function monitorPrinter(presetName) {
+            monitoredPresetName = presetName;
+            requestPrinterSelection(presetName, false);
+        }
+
+        function makeMonitoredPrinterActive() {
+            if (monitoredPresetName) requestPrinterSelection(monitoredPresetName, true);
+        }
+
+        function requestPrinterSettings() {
+            const testMode = BROWSER_TEST_MODE || new URLSearchParams(window.location.search).get("orcacubic_test") === "1";
+            if (testMode) {
+                const modal = document.getElementById("printer-config-modal");
+                if (modal) {
+                    modal.style.display = "flex";
+                    document.getElementById("printer-config-name").focus();
+                }
+                return;
+            }
+            const id = "printer-settings-" + (++printerRequestSequence);
+            postOrcaMessage({ id, sequence_id:id, command:"open_anycubic_printer_settings", data:{} });
+        }
+
+        function closePrinterConfig() {
+            document.getElementById("printer-config-modal").style.display = "none";
+            document.getElementById("printer-config-error").innerText = "";
+        }
+
+        function savePrinterConfig() {
+            const name = document.getElementById("printer-config-name").value.trim();
+            const model = document.getElementById("printer-config-model").value.trim() || "Anycubic Printer";
+            const host = document.getElementById("printer-config-host").value.trim().replace(/^https?:\/\//i, "").replace(/\/$/, "");
+            const error = document.getElementById("printer-config-error");
+            if (!name || !host) { error.innerText = "Enter a printer name and IP address."; return; }
+            let printers = readStoredPrinters();
+            const existing = printers.findIndex(printer => printer.preset_name === name);
+            const first = printers.length === 0;
+            const item = {preset_name:name,name,model,host,active:first,selected:first,monitored:first};
+            if (existing >= 0) printers[existing] = {...printers[existing],...item,active:printers[existing].active,selected:printers[existing].selected,monitored:printers[existing].monitored};
+            else printers.push(item);
+            writeStoredPrinters(printers);
+            closePrinterConfig();
+            requestPrinterList();
+        }
+
+        function handlePrinterMessage(message) {
+            if (typeof message === "string") { try { message = JSON.parse(message); } catch (_) { return; } }
+            if (!message || typeof message !== "object") return;
+            if (message.command === "get_anycubic_printers" || message.method === "get_anycubic_printers") {
+                const printers = message.data?.printers || message.printers || [];
+                if (Array.isArray(printers) && printers.length) writeStoredPrinters(printers);
+                renderPrinterList(printers);
+            }
+            const method = message.command || message.method;
+            if ((method === "monitor_anycubic_printer" || method === "activate_anycubic_printer") && message.type === "response") {
+                const note = document.getElementById("printer-switch-note");
+                const pending = pendingPrinterRequests.get(message.id || message.sequence_id);
+                if (message.code) {
+                    if (note) { note.className="printer-switch-note error"; note.innerText=message.message || "Printer connection failed"; }
+                    const current = configuredPrinters.find(printer => printer.monitored);
+                    monitoredPresetName = current ? current.preset_name : "";
+                } else if (note) {
+                    if (pending && !pending.makeActive) monitoredPresetName = pending.presetName;
+                    note.className="printer-switch-note";
+                    note.innerText = method === "activate_anycubic_printer" ? "Active printer updated" : "Device connected";
+                    setTimeout(() => { if (note.innerText === "Active printer updated" || note.innerText === "Device connected") note.innerText = ""; }, 1800);
+                }
+                document.querySelectorAll(".printer-list-item,.printer-make-active").forEach(button => button.disabled = false);
+                setDeviceControlsDisabled(false);
+                requestPrinterList();
+                pendingPrinterRequests.delete(message.id || message.sequence_id);
+            }
+        }
+
+        window.addEventListener("message", event => handlePrinterMessage(event.data));
+        window.__orcacubicHandlePrinterMessage = handlePrinterMessage;
+
 
         // --- 35 Anycubic Swatches Palette ---
         const ANYCUBIC_SWATCHES = [
@@ -1517,6 +1800,8 @@
             userStoppedCamera = false;
             const btn = document.getElementById("btn-cam-stream");
             if (btn) btn.innerText = "⏳ Connecting...";
+            const tag = document.getElementById("camera-status-tag");
+            if (tag) tag.innerText = "Connecting";
             try {
                 await fetch("http://127.0.0.1:18988/control", {
                     method: "POST",
@@ -1539,6 +1824,8 @@
                 btn.innerText = "▶ Start Stream";
                 btn.classList.remove("btn-danger");
             }
+            const tag = document.getElementById("camera-status-tag");
+            if (tag) tag.innerText = "Stopped";
             if (flvPlayer) {
                 try {
                     flvPlayer.pause();
@@ -1605,6 +1892,8 @@
                             btn.innerText = "⏹ Stop Stream";
                             btn.classList.add("btn-danger");
                         }
+                        const tag = document.getElementById("camera-status-tag");
+                        if (tag) tag.innerText = "Live";
                     }).catch(e => {
                         console.log("Play catch:", e);
                         isCameraStreaming = false;
@@ -1613,6 +1902,8 @@
                             btn.innerText = "▶ Start Stream";
                             btn.classList.remove("btn-danger");
                         }
+                        const tag = document.getElementById("camera-status-tag");
+                        if (tag) tag.innerText = "Stopped";
                     });
 
                     flvPlayer.on(flvjs.Events.ERROR, (errType, errDetail, errInfo) => {
@@ -1623,6 +1914,8 @@
                             btn.innerText = "▶ Start Stream";
                             btn.classList.remove("btn-danger");
                         }
+                        const tag = document.getElementById("camera-status-tag");
+                        if (tag) tag.innerText = "Stopped";
                     });
                 } catch(e) {
                     console.error("Failed to init flv player:", e);
@@ -1772,12 +2065,21 @@
             document.getElementById("gcode-status").innerText = "";
         }
 
-        function sendToSlicer(command, data) {
-            const payload = JSON.stringify({ command: command, data: data });
+        function sendToSlicer(command, data, requestId = "") {
+            const body = { command: command, data: data };
+            if (requestId) {
+                body.id = requestId;
+                body.sequence_id = requestId;
+            }
+            const payload = JSON.stringify(body);
             if (window.wx && typeof window.wx.postMessage === 'function') {
                 window.wx.postMessage(payload);
+            } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.wx) {
+                window.webkit.messageHandlers.wx.postMessage(payload);
             } else if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
                 window.chrome.webview.postMessage(payload);
+            } else if (BROWSER_TEST_MODE) {
+                mockSlicerMessage(body);
             }
         }
 
@@ -1839,11 +2141,11 @@
         // --- Custom Temperature Setting ---
         async function promptSetTemp(heater) {
             const isNozzle = heater === 'nozzle';
-            const curTarget = isNozzle ? 
-                (document.getElementById("target-nozzle").innerText || "0") : 
+            const curTarget = isNozzle ?
+                (document.getElementById("target-nozzle").innerText || "0") :
                 (document.getElementById("target-bed").innerText || "0");
-            const promptMsg = isNozzle ? 
-                "Enter target Nozzle temperature in °C (0 to 300):" : 
+            const promptMsg = isNozzle ?
+                "Enter target Nozzle temperature in °C (0 to 300):" :
                 "Enter target Heatbed temperature in °C (0 to 110):";
             const input = prompt(promptMsg, curTarget);
             if (input === null) return;
@@ -2049,7 +2351,7 @@
             if (data.target_bed_temp !== undefined && data.target_bed_temp > 0) {
                 document.getElementById("target-bed").innerText = Math.round(data.target_bed_temp);
             }
-            
+
             // Printer status and control button states
             const state = (data.state || data.print_state || "free").toLowerCase();
             currentPrinterState = state;
@@ -2119,6 +2421,14 @@
             if (data.light !== undefined) {
                 updateLightUI(data.light);
             }
+            if (configuredPrinters.length) {
+                const row = document.querySelector('.printer-list-item.monitored .printer-list-status');
+                if (row) {
+                    const busy = ["printing", "paused", "auto_leveling", "heating", "busy"].includes(String(currentPrinterState).toLowerCase());
+                    row.className = "printer-list-status " + (busy ? "busy" : "free");
+                    row.innerText = busy ? "Busy" : "Free";
+                }
+            }
         }
 
         async function pollTelemetry() {
@@ -2126,6 +2436,8 @@
                 const res = await fetch("http://127.0.0.1:18988/status", { cache: "no-store" });
                 if (res.ok) {
                     const data = await res.json();
+                    const monitored = configuredPrinters.find(printer => printer.preset_name === monitoredPresetName);
+                    if (monitored && data.ip && String(data.ip) !== String(monitored.host)) return;
 
                     if (data.ip) {
                         printerIP = data.ip;
@@ -2408,6 +2720,8 @@
         const savedNozzle=localStorage.getItem("anycubic_nozzle"); if(savedNozzle) document.getElementById("device-nozzle-type").value=savedNozzle;
         setInterval(pollTelemetry, 1500);
         pollTelemetry();
-    </script>
+
+        requestPrinterList();
+</script>
 </body>
 </html>
