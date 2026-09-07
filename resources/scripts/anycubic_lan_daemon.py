@@ -167,8 +167,9 @@ def apply_multi_color_box_report(data, code=200, replace=True):
         if not isinstance(slots, list):
             slots = []
         loaded_slot = _as_int(reported.get("loaded_slot"), -1)
-        has_ace_box = any(_as_int(box.get("id"), -1) >= 0 for box in box_list if isinstance(box, dict))
-        has_builtin_rack = any(_as_int(box.get("id"), -1) < 0 and len(box.get("slots") or []) > 1 for box in box_list if isinstance(box, dict))
+        all_boxes = list(boxes) + [b for b in box_list if isinstance(b, dict)]
+        has_ace_box = any(_as_int(box.get("id"), -1) >= 0 for box in all_boxes if isinstance(box, dict))
+        has_builtin_rack = any(_as_int(box.get("id"), -1) < 0 and len(box.get("slots") or []) > 1 for box in all_boxes if isinstance(box, dict))
         if box_id < 0:
             # An entry with negative id is only an external spool placeholder if an ACE unit is also connected
             # AND it has at most 1 slot. Otherwise, it is the printer's built-in multi-color rack.
