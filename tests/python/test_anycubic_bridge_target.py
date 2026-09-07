@@ -61,6 +61,47 @@ class TargetBindingTests(unittest.TestCase):
         self.assertEqual(status, 409)
         self.assertEqual(payload["message"], "Device selection changed")
 
+    def test_start_print_job_pre_engages_initial_channel(self):
+        published_messages = []
+        class MockMqttClient:
+            def publish(self, topic, payload):
+                published_messages.append((topic, json.loads(payload)))
+
+        old_client = daemon.mqtt_client
+        daemon.mqtt_client = MockMqttClient()
+        daemon.telemetry["connected"] = True
+        try:
+            connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=2)
+            body = json.dumps({
+                "action": "start_print_job",
+                "filename": "test.gcode",
+                "use_ams": True,
+                "pre_engage_filament": True,
+                "initial_slot": "2",
+                "ams_box_mapping": [
+                    {"ams_index": 2, "paint_index": 0, "material_type": "PLA"}
+                ]
+            })
+            connection.request("POST", "/control", body, {
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                "X-OrcaCubic-Token": "test-token",
+                "X-OrcaCubic-Printer": "192.0.2.20"
+            })
+            resp = connection.getresponse()
+            self.assertEqual(resp.status, 200)
+            connection.close()
+
+            # Should have published switchChannel followed by print:start
+            ext_msgs = [p for t, p in published_messages if p.get("type") == "extrudeControl" and p.get("action") == "switchChannel"]
+            self.assertEqual(len(ext_msgs), 1)
+            self.assertEqual(ext_msgs[0]["data"]["index"], 2)
+
+            print_msgs = [p for t, p in published_messages if p.get("type") == "print" and p.get("action") == "start"]
+            self.assertEqual(len(print_msgs), 1)
+        finally:
+            daemon.mqtt_client = old_client
+
 
 class MaterialSystemTests(unittest.TestCase):
     def setUp(self):

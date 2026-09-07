@@ -878,6 +878,22 @@ class BridgeServer(BaseHTTPRequestHandler):
                             }
                         }
                     }
+                    pre_engage = bool(data.get("pre_engage_filament", True))
+                    if pre_engage and ams_mapping:
+                        initial_slot = _as_int(data.get("initial_slot"), ams_mapping[0].get("ams_index", 0) if ams_mapping else 0)
+                        if 0 <= initial_slot <= 3:
+                            msg_switch = {
+                                "type": "extrudeControl",
+                                "action": "switchChannel",
+                                "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                                "timestamp": int(time.time() * 1000),
+                                "data": {"index": initial_slot}
+                            }
+                            topic_ext = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/extrudeControl"
+                            mqtt_client.publish(topic_ext, json.dumps(msg_switch))
+                            print(f"[Bridge] Pre-engaging extruder channel {initial_slot} (Slot {initial_slot + 1}) before print start")
+                            time.sleep(0.4)
+
                     mqtt_client.publish(topic_print, json.dumps(msg))
                     print(f"[Bridge] Published print:start for {filename} with use_ams={use_ams} ams_mapping={json.dumps(ams_mapping)}")
                 else:

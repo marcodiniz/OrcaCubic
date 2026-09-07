@@ -1099,6 +1099,8 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
             {"filename", filename},
             {"use_ams", use_ams},
             {"ams_box_mapping", ams_box_mapping},
+            {"pre_engage_filament", read_toggle("pre_engage_filament", true)},
+            {"initial_slot", upload_data.extended("initial_slot")},
             {"task_settings", {
                 {"auto_leveling", task_settings.auto_leveling},
                 {"vibration_compensation", task_settings.vibration_compensation},

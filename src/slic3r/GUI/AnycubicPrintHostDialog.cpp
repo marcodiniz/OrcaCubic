@@ -68,6 +68,7 @@ void AnycubicPrintHostSendDialog::init()
     m_resonance_compensation = load_bool(CONFIG_KEY_RESONANCE, false);
     m_flow_calibration = load_bool(CONFIG_KEY_FLOW, false);
     m_timelapse = load_bool(CONFIG_KEY_TIMELAPSE, false);
+    m_pre_engage_filament = load_bool(CONFIG_KEY_PRE_ENGAGE, true);
 
     SetTitle(_L("Remote Print"));
     SetMinSize(wxSize(FromDIP(620), FromDIP(520)));
@@ -144,6 +145,7 @@ void AnycubicPrintHostSendDialog::init()
     add_toggle(_L("Resonance Compensation"), _L("Run vibration compensation before this print."), m_resonance_compensation);
     add_toggle(_L("Flow Calibration"), _L("Calibrate extrusion flow before this print."), m_flow_calibration);
     add_toggle(_L("Time-lapse"), _L("Capture a time-lapse while printing. The camera must be available."), m_timelapse);
+    add_toggle(_L("Pre-engage Filament"), _L("Pre-engage the toolhead active channel to the starting tool slot before printing to prevent double purging."), m_pre_engage_filament);
 
     auto* start = add_button(wxID_YES, true, _L("Start Print"));
     start->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
@@ -294,13 +296,20 @@ std::map<std::string, std::string> AnycubicPrintHostSendDialog::extendedInfo() c
         }
     }
 
+    int initial_slot = 0;
+    if (!mapping.empty() && mapping[0].contains("ams_index") && mapping[0]["ams_index"].is_number_integer()) {
+        initial_slot = mapping[0]["ams_index"].get<int>();
+    }
+
     return {
         {"ams_mapping", mapping.dump()},
         {"use_ams", use_ams ? "1" : "0"},
         {"auto_leveling", m_auto_leveling ? "1" : "0"},
         {"vibration_compensation", m_resonance_compensation ? "1" : "0"},
         {"flow_calibration", m_flow_calibration ? "1" : "0"},
-        {"timelapse", m_timelapse ? "1" : "0"}
+        {"timelapse", m_timelapse ? "1" : "0"},
+        {"pre_engage_filament", m_pre_engage_filament ? "1" : "0"},
+        {"initial_slot", std::to_string(initial_slot)}
     };
 }
 
@@ -312,6 +321,7 @@ void AnycubicPrintHostSendDialog::EndModal(int ret)
         config->set("recent", CONFIG_KEY_RESONANCE, m_resonance_compensation ? "1" : "0");
         config->set("recent", CONFIG_KEY_FLOW, m_flow_calibration ? "1" : "0");
         config->set("recent", CONFIG_KEY_TIMELAPSE, m_timelapse ? "1" : "0");
+        config->set("recent", CONFIG_KEY_PRE_ENGAGE, m_pre_engage_filament ? "1" : "0");
     }
     PrintHostSendDialog::EndModal(ret);
 }

@@ -310,11 +310,13 @@ private:
     bool m_resonance_compensation {false};
     bool m_flow_calibration {false};
     bool m_timelapse {false};
+    bool m_pre_engage_filament {true};
 
     const char* CONFIG_KEY_LEVELING  = "anycubic_auto_leveling";
     const char* CONFIG_KEY_RESONANCE = "anycubic_resonance_compensation";
     const char* CONFIG_KEY_FLOW      = "anycubic_flow_calibration";
     const char* CONFIG_KEY_TIMELAPSE = "anycubic_timelapse";
+    const char* CONFIG_KEY_PRE_ENGAGE = "anycubic_pre_engage_filament";
 };
 
 wxDECLARE_EVENT(EVT_PRINTHOST_PROGRESS, PrintHostQueueDialog::Event);

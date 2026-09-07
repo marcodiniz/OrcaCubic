@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kobra X Channel & Command Tester</title>
+<style>
+  :root {
+    --bg: #121417;
+    --card: #1a1d24;
+    --card-border: #282d37;
+    --primary: #00d2ff;
+    --primary-hover: #00b4db;
+    --text: #f0f3f6;
+    --muted: #8b949e;
+    --success: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif; }
+  body { background: var(--bg); color: var(--text); padding: 18px; font-size: 14px; }
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; border-bottom: 1px solid var(--card-border); padding-bottom: 12px; }
+  .title { font-size: 18px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+  .badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .badge.connected { background: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid var(--success); }
+  .badge.offline { background: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+  
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  
+  .card { background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; padding: 16px; }
+  .card-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; color: #fff; border-bottom: 1px solid #252a35; padding-bottom: 8px; }
+  
+  /* Channel Buttons */
+  .channel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .slot-btn {
+    background: #20242f; border: 2px solid #2f3545; border-radius: 8px; padding: 12px 8px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative;
+  }
+  .slot-btn:hover { border-color: var(--primary); transform: translateY(-2px); }
+  .slot-btn.active { border-color: var(--primary); background: rgba(0, 210, 255, 0.12); box-shadow: 0 0 10px rgba(0,210,255,0.3); }
+  .slot-dot { width: 14px; height: 14px; border-radius: 50%; margin: 0 auto 6px; border: 1px solid rgba(255,255,255,0.4); }
+  .slot-name { font-weight: 700; font-size: 13px; }
+  .slot-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .slot-active-badge { font-size: 10px; font-weight: 700; color: var(--primary); margin-top: 4px; display: none; }
+  .slot-btn.active .slot-active-badge { display: block; }
+  
+  /* Buttons */
+  .btn {
+    background: #252b38; color: var(--text); border: 1px solid #3b4252; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: 0.15s;
+  }
+  .btn:hover { background: #323a4b; border-color: #4c566a; }
+  .btn-primary { background: var(--primary); color: #000; border: none; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); border-color: var(--danger); }
+  .btn-danger:hover { background: rgba(239, 68, 68, 0.35); }
+  .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+  
+  /* Forms & Code */
+  .form-group { margin-bottom: 12px; }
+  .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+  select, input, textarea {
+    width: 100%; background: #13161c; border: 1px solid #2d3342; color: #fff; padding: 8px 10px; border-radius: 6px; font-size: 13px; outline: none; font-family: inherit;
+  }
+  select:focus, input:focus, textarea:focus { border-color: var(--primary); }
+  textarea { min-height: 90px; font-family: monospace; font-size: 12px; line-height: 1.4; }
+  
+  /* Telemetry Status list */
+  .status-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #20242e; font-size: 12px; }
+  .status-row:last-child { border-bottom: none; }
+  .status-label { color: var(--muted); }
+  .status-val { font-weight: 600; font-family: monospace; }
+  
+  /* Logs */
+  .log-box {
+    background: #0d1015; border: 1px solid #202530; border-radius: 6px; padding: 10px; height: 260px; overflow-y: auto; font-family: monospace; font-size: 11px; line-height: 1.5;
+  }
+  .log-line { margin-bottom: 4px; border-bottom: 1px solid #161a22; padding-bottom: 3px; word-break: break-all; }
+  .log-time { color: var(--muted); margin-right: 6px; }
+  .log-send { color: #38bdf8; font-weight: 700; }
+  .log-recv { color: #4ade80; font-weight: 700; }
+  .log-topic { color: #f59e0b; font-weight: 600; margin: 0 4px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="title">
+    <span>🖨️ Kobra X Channel & Command Console</span>
+  </div>
+  <div style="display: flex; gap: 10px; align-items: center;">
+    <button class="btn" onclick="fetchStatus()">🔄 Refresh</button>
+    <span id="conn-badge" class="badge offline">Connecting...</span>
+  </div>
+</div>
+
+<div class="grid">
+  <!-- ACTIVE CHANNEL SELECTOR -->
+  <div class="card">
+    <div class="card-title">
+      <span>🔀 Active Printhead Selector (extrudeControl)</span>
+      <span style="font-size: 11px; font-weight: normal; color: var(--muted);">Direct stepper shift</span>
+    </div>
+    
+    <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+      Click any slot below to rotate the toolhead channel to that slot right now (dispatches <code>switchChannel</code>).
+    </p>
+
+    <div class="channel-grid">
+      <div id="slot-0" class="slot-btn" onclick="switchChannel(0)">
+        <div class="slot-dot" style="background: #23a3c7;"></div>
+        <div class="slot-name">Slot 1</div>
+        <div class="slot-sub" id="slot-sub-0">PLA</div>
+        <div class="slot-active-badge">● ACTIVE</div>
+      </div>
+      <div id="slot-1" class="slot-btn" onclick="switchChannel(1)">
+        <div class="slot-dot" style="background: #75787b;"></div>
+        <div class="slot-name">Slot 2</div>
+        <div class="slot-sub" id="slot-sub-1">PLA</div>
+        <div class="slot-active-badge">● ACTIVE</div>
+      </div>
+      <div id="slot-2" class="slot-btn" onclick="switchChannel(2)">
+        <div class="slot-dot" style="background: #fddb27;"></div>
+        <div class="slot-name">Slot 3</div>
+        <div class="slot-sub" id="slot-sub-2">PLA</div>
+        <div class="slot-active-badge">● ACTIVE</div>
+      </div>
+      <div id="slot-3" class="slot-btn" onclick="switchChannel(3)">
+        <div class="slot-dot" style="background: #d7d9d2;"></div>
+        <div class="slot-name">Slot 4</div>
+        <div class="slot-sub" id="slot-sub-3">PLA</div>
+        <div class="slot-active-badge">● ACTIVE</div>
+      </div>
+    </div>
+
+    <div style="background: #151821; border-radius: 6px; padding: 10px; margin-bottom: 12px;">
+      <div class="status-row">
+        <span class="status-label">Current Toolhead Channel (extrudeControl.index):</span>
+        <span class="status-val" id="val-channel" style="color: var(--primary); font-size: 14px;">-1</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Has Filament (has_filaments):</span>
+        <span class="status-val" id="val-has-fil">-</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Loaded Feeder Slot (multiColorBox.loaded_slot):</span>
+        <span class="status-val" id="val-loaded-slot">-</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Hotend / Bed Temperature:</span>
+        <span class="status-val" id="val-temp">0°C / 0°C</span>
+      </div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="queryExtruder()">🔍 Query Extrude Status</button>
+      <button class="btn" onclick="feedCurrent(1)">⤓ Feed Active</button>
+      <button class="btn btn-danger" onclick="feedCurrent(2)">⤒ Unfeed Active</button>
+    </div>
+  </div>
+
+  <!-- DIRECT MQTT DISPATCHER -->
+  <div class="card">
+    <div class="card-title">
+      <span>📡 Direct Anycubic MQTT Dispatcher</span>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Quick Template</label>
+      <select id="template-select" onchange="applyTemplate()">
+        <option value="switch_channel_3">extrudeControl -> switchChannel (Index 2 / Slot 3)</option>
+        <option value="switch_channel_1">extrudeControl -> switchChannel (Index 0 / Slot 1)</option>
+        <option value="extrude_query">extrudeControl -> getInfo (Query Channel State)</option>
+        <option value="multicolor_query">multiColorBox -> getInfo (Query Spools)</option>
+        <option value="temp_query">tempature -> query (Query Temperatures)</option>
+        <option value="custom">Custom Payload</option>
+      </select>
+    </div>
+
+    <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+      <div>
+        <label class="form-label">Sub-Topic</label>
+        <input type="text" id="mqtt-topic" value="extrudeControl">
+      </div>
+      <div>
+        <label class="form-label">Action</label>
+        <input type="text" id="mqtt-action" value="switchChannel">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Data JSON</label>
+      <textarea id="mqtt-data">{"index": 2}</textarea>
+    </div>
+
+    <button class="btn btn-primary" style="width: 100%;" onclick="sendCustomMqtt()">🚀 Dispatch MQTT Command</button>
+  </div>
+</div>
+
+<!-- LIVE MQTT PACKET LOG -->
+<div class="card">
+  <div class="card-title">
+    <span>📜 Real-Time MQTT Wire Logs</span>
+    <button class="btn" style="padding: 3px 8px; font-size: 11px;" onclick="clearLogs()">Clear</button>
+  </div>
+  <div class="log-box" id="log-container">
+    <div style="color: var(--muted);">Waiting for telemetry...</div>
+  </div>
+</div>
+
+<script>
+const API_BASE = "http://127.0.0.1:18990";
+let lastActiveChannel = -1;
+
+const TEMPLATES = {
+  switch_channel_3: { topic: "extrudeControl", action: "switchChannel", data: '{"index": 2}' },
+  switch_channel_1: { topic: "extrudeControl", action: "switchChannel", data: '{"index": 0}' },
+  extrude_query: { topic: "extrudeControl", action: "getInfo", data: 'null' },
+  multicolor_query: { topic: "multiColorBox", action: "getInfo", data: 'null' },
+  temp_query: { topic: "tempature", action: "query", data: 'null' },
+  custom: { topic: "extrudeControl", action: "switchChannel", data: '{}' }
+};
+
+function applyTemplate() {
+  const key = document.getElementById("template-select").value;
+  const t = TEMPLATES[key];
+  if (t) {
+    document.getElementById("mqtt-topic").value = t.topic;
+    document.getElementById("mqtt-action").value = t.action;
+    document.getElementById("mqtt-data").value = t.data;
+  }
+}
+
+async function fetchStatus() {
+  try {
+    const res = await fetch(`${API_BASE}/status`);
+    const data = await res.json();
+    
+    // Badge
+    const badge = document.getElementById("conn-badge");
+    if (data.connected) {
+      badge.className = "badge connected";
+      badge.textContent = "CONNECTED (192.168.1.133)";
+    } else {
+      badge.className = "badge offline";
+      badge.textContent = "DISCONNECTED";
+    }
+
+    // Values
+    const ch = data.extrude_control?.index ?? -1;
+    document.getElementById("val-channel").textContent = ch >= 0 ? `Channel ${ch} (Slot ${ch + 1})` : "None (-1)";
+    document.getElementById("val-has-fil").textContent = data.extrude_control?.has_filaments ? "YES" : "NO";
+    document.getElementById("val-loaded-slot").textContent = data.loaded_slot !== undefined ? (data.loaded_slot >= 0 ? `Slot ${data.loaded_slot + 1}` : "None (-1)") : "-";
+    document.getElementById("val-temp").textContent = `${data.temp?.curr_nozzle_temp || 0}°C / ${data.temp?.curr_hotbed_temp || 0}°C`;
+
+    // Highlight active slot card
+    for (let i = 0; i < 4; i++) {
+      const el = document.getElementById(`slot-${i}`);
+      if (el) {
+        if (i === ch) {
+          el.classList.add("active");
+        } else {
+          el.classList.remove("active");
+        }
+      }
+    }
+    lastActiveChannel = ch;
+
+    // Slots details
+    if (data.slots && data.slots.length > 0) {
+      data.slots.forEach(s => {
+        const sub = document.getElementById(`slot-sub-${s.index}`);
+        if (sub) sub.textContent = s.type || "PLA";
+      });
+    }
+
+    // Logs
+    if (data.logs) {
+      renderLogs(data.logs);
+    }
+  } catch (e) {
+    document.getElementById("conn-badge").className = "badge offline";
+    document.getElementById("conn-badge").textContent = "API OFFLINE";
+  }
+}
+
+function renderLogs(logs) {
+  const container = document.getElementById("log-container");
+  container.innerHTML = "";
+  logs.slice().reverse().forEach(l => {
+    const row = document.createElement("div");
+    row.className = "log-line";
+    const dirSpan = document.createElement("span");
+    dirSpan.className = l.type === "SEND" ? "log-send" : "log-recv";
+    dirSpan.textContent = `[${l.type}]`;
+
+    row.innerHTML = `<span class="log-time">${l.time}</span>`;
+    row.appendChild(dirSpan);
+    row.innerHTML += `<span class="log-topic">${l.topic}</span>: <span>${JSON.stringify(l.data)}</span>`;
+    container.appendChild(row);
+  });
+}
+
+async function switchChannel(idx) {
+  try {
+    const res = await fetch(`${API_BASE}/switch_channel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ index: idx })
+    });
+    setTimeout(fetchStatus, 400);
+  } catch (e) {
+    alert("Switch channel failed: " + e);
+  }
+}
+
+async function queryExtruder() {
+  try {
+    await fetch(`${API_BASE}/send_raw_mqtt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sub_topic: "extrudeControl", action: "getInfo", data: null })
+    });
+    setTimeout(fetchStatus, 300);
+  } catch (e) {
+    alert("Query failed: " + e);
+  }
+}
+
+async function feedCurrent(type) {
+  if (lastActiveChannel < 0) {
+    alert("No active channel selected. Switch to a channel first!");
+    return;
+  }
+  try {
+    await fetch(`${API_BASE}/feed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slot: lastActiveChannel, type: type })
+    });
+    setTimeout(fetchStatus, 400);
+  } catch (e) {
+    alert("Feed command failed: " + e);
+  }
+}
+
+async function sendCustomMqtt() {
+  const topic = document.getElementById("mqtt-topic").value.trim();
+  const action = document.getElementById("mqtt-action").value.trim();
+  let dataVal = null;
+  try {
+    dataVal = JSON.parse(document.getElementById("mqtt-data").value);
+  } catch (e) {
+    alert("Invalid JSON in Data field: " + e);
+    return;
+  }
+  try {
+    await fetch(`${API_BASE}/send_raw_mqtt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sub_topic: topic, action: action, data: dataVal })
+    });
+    setTimeout(fetchStatus, 400);
+  } catch (e) {
+    alert("Dispatch failed: " + e);
+  }
+}
+
+function clearLogs() {
+  document.getElementById("log-container").innerHTML = '<div style="color: var(--muted);">Logs cleared.</div>';
+}
+
+setInterval(fetchStatus, 1500);
+fetchStatus();
+</script>
+</body>
+</html>
