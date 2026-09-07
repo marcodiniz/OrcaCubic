@@ -184,6 +184,8 @@ bool ensure_anycubic_bridge(const std::string& host)
     }
 }
 
+} // namespace
+
 std::string normalize_anycubic_material(std::string material)
 {
     boost::to_upper(material);
@@ -199,8 +201,6 @@ std::string normalize_anycubic_material(std::string material)
     material.erase(std::remove_if(material.begin(), material.end(), [](unsigned char ch) { return !std::isalnum(ch); }), material.end());
     return material;
 }
-
-} // namespace
 
 std::vector<AnycubicAmsMappingEntry> build_anycubic_ams_mapping(
     const std::vector<AnycubicToolFilament>& tools,
