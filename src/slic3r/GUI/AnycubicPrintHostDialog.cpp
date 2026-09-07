@@ -1,4 +1,5 @@
 #include "PrintHostDialogs.hpp"
+#include "../Utils/AnycubicLink.hpp"
 
 #include <algorithm>
 #include <cctype>

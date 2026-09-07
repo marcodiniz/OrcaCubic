@@ -75,6 +75,7 @@ struct AnycubicPrinterSelection {
     bool make_active{false};
 };
 
+std::string normalize_anycubic_material(std::string material);
 std::vector<AnycubicAmsMappingEntry> build_anycubic_ams_mapping(
     const std::vector<AnycubicToolFilament>& tools,
     const std::vector<AnycubicMaterialSlot>& slots,
