@@ -177,12 +177,7 @@ void AnycubicPrintHostSendDialog::auto_assign_mappings()
 
 bool AnycubicPrintHostSendDialog::slot_matches_tool(const AnycubicMaterialSlot& slot, const AnycubicToolFilament& tool) const
 {
-    auto normalize = [](std::string value) {
-        boost::to_upper(value);
-        value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) { return !std::isalnum(ch); }), value.end());
-        return value;
-    };
-    return slot.loaded && normalize(slot.type) == normalize(tool.type);
+    return slot.loaded && Slic3r::normalize_anycubic_material(slot.type) == Slic3r::normalize_anycubic_material(tool.type);
 }
 
 bool AnycubicPrintHostSendDialog::validate_before_close()
@@ -246,12 +241,18 @@ std::map<std::string, std::string> AnycubicPrintHostSendDialog::extendedInfo() c
             use_ams = false;
     }
 
+    auto color_array = [](const std::string& raw) {
+        wxColour color(from_u8(raw));
+        return json::array({color.Red(), color.Green(), color.Blue(), 255});
+    };
+
     json mapping = json::array();
+    std::set<int> mapped_ams_indices;
+    std::set<int> used_paint_indices;
+
     for (const auto& entry : build_anycubic_ams_mapping(m_project_filaments, m_slots, selections)) {
-        auto color_array = [](const std::string& raw) {
-            wxColour color(from_u8(raw));
-            return json::array({color.Red(), color.Green(), color.Blue()});
-        };
+        mapped_ams_indices.insert(entry.ams_index);
+        used_paint_indices.insert(entry.paint_index);
         mapping.push_back({
             {"ams_index", entry.ams_index},
             {"paint_index", entry.paint_index},
@@ -259,6 +260,37 @@ std::map<std::string, std::string> AnycubicPrintHostSendDialog::extendedInfo() c
             {"ams_color", color_array(entry.ams_color)},
             {"paint_color", color_array(entry.paint_color)}
         });
+    }
+
+    // Anycubic firmware (gklib) expects a complete 4-slot mapping table.
+    // For single-tool or partial multi-tool prints, fill out remaining slots
+    // so the array always has 4 entries and the primary tool at paint_index 0
+    // points explicitly to the user's chosen physical slot.
+    if (use_ams && !mapping.empty() && mapping.size() < 4) {
+        int next_paint_idx = 0;
+        while (used_paint_indices.count(next_paint_idx))
+            ++next_paint_idx;
+
+        for (const auto& slot : m_slots) {
+            if (mapping.size() >= 4)
+                break;
+            if (slot.slot_id < 0 || slot.source == "external" || slot.source == "external_mcb")
+                continue;
+            if (mapped_ams_indices.count(slot.slot_id))
+                continue;
+
+            mapping.push_back({
+                {"ams_index", slot.slot_id},
+                {"paint_index", next_paint_idx},
+                {"material_type", slot.type},
+                {"ams_color", color_array(slot.color)},
+                {"paint_color", color_array(slot.color)}
+            });
+            mapped_ams_indices.insert(slot.slot_id);
+            used_paint_indices.insert(next_paint_idx);
+            while (used_paint_indices.count(next_paint_idx))
+                ++next_paint_idx;
+        }
     }
 
     return {

@@ -187,6 +187,15 @@ bool ensure_anycubic_bridge(const std::string& host)
 std::string normalize_anycubic_material(std::string material)
 {
     boost::to_upper(material);
+    boost::trim(material);
+    const std::vector<std::string> prefixes = {"GENERIC", "ANYCUBIC", "ESUN", "SUNLU", "BAMBU", "POLYMAKER", "OVERTURE", "ELEGOO"};
+    for (const auto& prefix : prefixes) {
+        if (boost::starts_with(material, prefix)) {
+            material.erase(0, prefix.size());
+            boost::trim(material);
+            break;
+        }
+    }
     material.erase(std::remove_if(material.begin(), material.end(), [](unsigned char ch) { return !std::isalnum(ch); }), material.end());
     return material;
 }
@@ -984,6 +993,9 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
                 use_ams = true;
         } catch (...) {}
     }
+
+    BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Starting print for " << filename << " with use_ams=" << use_ams
+                            << ", mapping=" << ams_box_mapping.dump();
 
     if (use_ams && ams_box_mapping.empty()) {
         auto parse_rgb = [](const std::string& hex, int& r, int& g, int& b) {

@@ -879,7 +879,7 @@ class BridgeServer(BaseHTTPRequestHandler):
                         }
                     }
                     mqtt_client.publish(topic_print, json.dumps(msg))
-                    print(f"[Bridge] Published print:start for {filename} with {len(ams_mapping)} mapped slots to {topic_print}")
+                    print(f"[Bridge] Published print:start for {filename} with use_ams={use_ams} ams_mapping={json.dumps(ams_mapping)}")
                 else:
                     result = {"status": "error", "message": "Print filename or printer connection is unavailable", "ip": PRINTER_IP}
 
