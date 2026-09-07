@@ -109,7 +109,7 @@ def _slot_has_material(slot):
     return material not in ("", "?")
 
 
-def _normalize_slot(slot, box_id, source, loaded_slot=-1):
+def _normalize_slot(slot, box_id, source, loaded_slot=-1, slot_offset=0):
     local_index = max(0, _as_int(slot.get("index", slot.get("box_slot")), 0))
     raw_color = slot.get("color", [175, 175, 175])
     if isinstance(raw_color, str) and raw_color.startswith("#") and len(raw_color) >= 7:
@@ -121,7 +121,7 @@ def _normalize_slot(slot, box_id, source, loaded_slot=-1):
         if isinstance(group_color, (list, tuple)) and len(group_color) >= 3:
             color_group.append(rgb_to_hex(*_normalize_rgb(group_color)))
     icon_type = _as_int(slot.get("icon_type"), 0)
-    global_slot = box_id * 4 + local_index if box_id >= 0 else (local_index if source == "rack" else -1)
+    global_slot = (slot_offset + local_index) if source not in ("external", "external_mcb") else -1
     return {
         "slot": global_slot,
         "box_id": box_id,
@@ -168,14 +168,22 @@ def apply_multi_color_box_report(data, code=200, replace=True):
             slots = []
         loaded_slot = _as_int(reported.get("loaded_slot"), -1)
         has_ace_box = any(_as_int(box.get("id"), -1) >= 0 for box in box_list if isinstance(box, dict))
-        source = "external_mcb" if box_id < 0 and (_as_int(data.get("head_tools_model"), 0) == 1 or has_ace_box) else ("rack" if box_id < 0 else "ace")
+        has_builtin_rack = any(_as_int(box.get("id"), -1) < 0 and len(box.get("slots") or []) > 1 for box in box_list if isinstance(box, dict))
+        if box_id < 0:
+            # An entry with negative id is only an external spool placeholder if an ACE unit is also connected
+            # AND it has at most 1 slot. Otherwise, it is the printer's built-in multi-color rack.
+            source = "external_mcb" if (has_ace_box and len(slots) <= 1) else "rack"
+            slot_offset = 0
+        else:
+            source = "ace"
+            slot_offset = (4 if has_builtin_rack else 0) + box_id * 4
         previous = next((box for box in boxes if _as_int(box.get("id"), -99) == box_id), None)
         if previous is not None and not replace:
             if previous.get("source") in ("rack", "external_mcb"):
                 source = previous["source"]
             slots = _merge_reported_slots(previous.get("slots", []), slots)
             boxes.remove(previous)
-        normalized_slots = [_normalize_slot(slot, box_id, source, loaded_slot) for slot in sorted(slots, key=lambda slot: _as_int(slot.get("index", slot.get("box_slot", 0))))]
+        normalized_slots = [_normalize_slot(slot, box_id, source, loaded_slot, slot_offset) for slot in sorted(slots, key=lambda slot: _as_int(slot.get("index", slot.get("box_slot", 0))))]
         boxes.append({
             "id": box_id,
             "source": source,

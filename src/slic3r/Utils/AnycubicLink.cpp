@@ -1364,7 +1364,6 @@ bool AnycubicLink::fetch_material_slots(std::vector<AnycubicMaterialSlot>& slots
 
     if (slots.empty()) {
         msg = _(L("No usable ACE Pro material slots or external spool were reported."));
-        return false;
     }
     return true;
 }

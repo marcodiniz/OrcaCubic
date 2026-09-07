@@ -19296,10 +19296,7 @@ void Plater::send_gcode_legacy(int plate_idx, Export3mfProgressFn proFn)
             {
                 wxBusyCursor wait;
                 wxString msg;
-                if (!anycubic_host->fetch_material_slots(slots, msg)) {
-                    show_error(this, msg.empty() ? _L("Unable to read ACE Pro material slots.") : msg, false);
-                    return;
-                }
+                anycubic_host->fetch_material_slots(slots, msg);
             }
 
             std::vector<int> used_extruders;
@@ -19307,6 +19304,13 @@ void Plater::send_gcode_legacy(int plate_idx, Export3mfProgressFn proFn)
                 used_extruders = plate->get_extruders();
                 std::sort(used_extruders.begin(), used_extruders.end());
                 used_extruders.erase(std::unique(used_extruders.begin(), used_extruders.end()), used_extruders.end());
+            }
+
+            // Only block if this is a multi-material print that requires an ACE/multi-material unit
+            // but no material slots were found.
+            if (slots.empty() && used_extruders.size() > 1) {
+                show_error(this, _L("This multi-color print requires an ACE unit or material changer. Please connect an ACE unit or slice as a single-material print."), false);
+                return;
             }
 
             DynamicPrintConfig cfg = preset_bundle->full_config();

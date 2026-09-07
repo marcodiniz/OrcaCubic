@@ -190,6 +190,30 @@ class MaterialSystemTests(unittest.TestCase):
         finally:
             daemon.mqtt_client = previous
 
+    def test_kobra_x_builtin_slots_classified_as_rack_with_zero_based_indices(self):
+        # Kobra X reports head_tools_model: 1 and a box with id: -1 and 4 slots.
+        # This must be treated as the built-in rack with slots 0, 1, 2, 3 (not external with -1).
+        daemon.apply_multi_color_box_report({
+            "head_tools_model": 1,
+            "multi_color_box": [{
+                "id": -1,
+                "model_id": 40002,
+                "loaded_slot": -1,
+                "slots": [
+                    {"index": 0, "type": "PLA", "color": [35, 163, 199]},
+                    {"index": 1, "type": "PLA", "color": [117, 120, 123]},
+                    {"index": 2, "type": "PLA", "color": [253, 219, 39]},
+                    {"index": 3, "type": "PLA", "color": [215, 217, 210]},
+                ]
+            }]
+        })
+        self.assertEqual(len(daemon.telemetry["material_boxes"]), 1)
+        box = daemon.telemetry["material_boxes"][0]
+        self.assertEqual(box["source"], "rack")
+        self.assertEqual([s["slot"] for s in box["slots"]], [0, 1, 2, 3])
+        self.assertEqual([s["box_slot"] for s in box["slots"]], [0, 1, 2, 3])
+        self.assertTrue(all(s["available"] for s in box["slots"]))
+
     def test_partial_setinfo_ack_does_not_replace_complete_ace_snapshot(self):
         daemon.apply_multi_color_box_report({
             "multi_color_box": [

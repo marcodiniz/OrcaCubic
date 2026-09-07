@@ -2108,7 +2108,7 @@
 
         function materialBoxLabel(box, index) {
             if (box.source === "external") return "External";
-            if (box.source === "rack" || box.source === "external_mcb") return "Rack";
+            if (box.source === "rack" || box.source === "external_mcb") return "Filaments";
             return `ACE ${Number(box.id) + 1 || index + 1}`;
         }
 
@@ -2155,14 +2155,19 @@
             const tabs = document.getElementById("material-box-tabs");
             if (tabs) {
                 tabs.innerHTML = "";
-                materialBoxes.forEach((box, index) => {
-                    const key = String(box.id) + ":" + box.source;
-                    const button = document.createElement("button");
-                    button.className = "material-box-tab" + (key === activeMaterialBoxKey ? " active" : "");
-                    button.innerText = materialBoxLabel(box, index);
-                    button.onclick = () => selectMaterialBox(key);
-                    tabs.appendChild(button);
-                });
+                if (materialBoxes.length > 1) {
+                    tabs.style.display = "flex";
+                    materialBoxes.forEach((box, index) => {
+                        const key = String(box.id) + ":" + box.source;
+                        const button = document.createElement("button");
+                        button.className = "material-box-tab" + (key === activeMaterialBoxKey ? " active" : "");
+                        button.innerText = materialBoxLabel(box, index);
+                        button.onclick = () => selectMaterialBox(key);
+                        tabs.appendChild(button);
+                    });
+                } else {
+                    tabs.style.display = "none";
+                }
             }
             const box = activeMaterialBox();
             updateFilamentUI(box ? box.slots || [] : []);

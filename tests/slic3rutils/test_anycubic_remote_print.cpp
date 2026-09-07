@@ -43,6 +43,27 @@ TEST_CASE("Anycubic remote print mapping rejects invalid or material-incompatibl
     CHECK(Slic3r::build_anycubic_ams_mapping(tools, slots, {0, 1}).empty());
 }
 
+TEST_CASE("Anycubic remote print mapping supports Kobra X native built-in rack slots", "[anycubic][remote-print]")
+{
+    const std::vector<AnycubicToolFilament> tools {
+        {0, "PLA", "#23a3c7"},
+        {1, "PLA", "#75787b"},
+    };
+    const std::vector<AnycubicMaterialSlot> slots {
+        {0, -1, 0, "rack", "PLA", "#23a3c7", true, 0.f},
+        {1, -1, 1, "rack", "PLA", "#75787b", true, 0.f},
+        {2, -1, 2, "rack", "PLA", "#fddb27", true, 0.f},
+        {3, -1, 3, "rack", "PLA", "#d7d9d2", true, 0.f},
+    };
+
+    const auto mapping = Slic3r::build_anycubic_ams_mapping(tools, slots, {0, 1});
+    REQUIRE(mapping.size() == 2);
+    CHECK(mapping[0].ams_index == 0);
+    CHECK(mapping[0].paint_index == 0);
+    CHECK(mapping[1].ams_index == 1);
+    CHECK(mapping[1].paint_index == 1);
+}
+
 TEST_CASE("Anycubic remote print mapping supports a second ACE unit", "[anycubic][remote-print][ace]")
 {
     const std::vector<AnycubicToolFilament> tools {{0, "PLA", "#ffffff"}, {1, "PETG", "#000000"}};

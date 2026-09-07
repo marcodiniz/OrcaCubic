@@ -85,6 +85,8 @@ void AnycubicPrintHostSendDialog::init()
 
     if (m_project_filaments.empty()) {
         content_sizer->Add(new wxStaticText(this, wxID_ANY, _L("Slice the plate first to map project colors.")));
+    } else if (m_slots.empty()) {
+        content_sizer->Add(new wxStaticText(this, wxID_ANY, _L("Printing directly with loaded filament (No ACE unit detected).")));
     } else {
         for (const auto& tool : m_project_filaments) {
             auto* row = new wxBoxSizer(wxHORIZONTAL);
@@ -106,7 +108,7 @@ void AnycubicPrintHostSendDialog::init()
                 wxBitmap* icon = get_extruder_color_icon(slot.color, "", FromDIP(16), FromDIP(16));
                 const bool external = slot.source == "external" || slot.source == "external_mcb";
                 const wxString source_name = external ? _L("External spool") :
-                    (slot.source == "rack" ? wxString::Format(_L("Rack Slot %d"), slot.box_slot + 1) :
+                    (slot.source == "rack" ? wxString::Format(_L("Slot %d"), slot.box_slot + 1) :
                      wxString::Format(_L("ACE %d Slot %d"), slot.box_id + 1, slot.box_slot + 1));
                 combo->Append(wxString::Format("%s - %s", source_name, from_u8(slot.type)), icon ? *icon : wxNullBitmap);
             }
@@ -189,6 +191,13 @@ bool AnycubicPrintHostSendDialog::validate_before_close()
         show_error(this, _L("Slice the plate before starting a remote print."));
         return false;
     }
+    if (m_slots.empty()) {
+        if (m_project_filaments.size() > 1) {
+            show_error(this, _L("Multi-color prints require an ACE unit or material changer. Please connect an ACE unit or slice as a single-material print."));
+            return false;
+        }
+        return true;
+    }
     if (m_slot_combos.size() != m_project_filaments.size()) {
         show_error(this, _L("The color mapping could not be created."));
         return false;
@@ -196,7 +205,7 @@ bool AnycubicPrintHostSendDialog::validate_before_close()
     for (size_t idx = 0; idx < m_slot_combos.size(); ++idx) {
         const int selection = m_slot_combos[idx]->GetSelection();
         if (selection == wxNOT_FOUND || selection >= static_cast<int>(m_slots.size()) || !slot_matches_tool(m_slots[selection], m_project_filaments[idx])) {
-            show_error(this, _L("Each project color must be mapped to an ACE slot containing the same material type."));
+            show_error(this, _L("Each project color must be mapped to a material slot containing the same material type."));
             return false;
         }
     }
@@ -215,6 +224,17 @@ bool AnycubicPrintHostSendDialog::validate_before_close()
 
 std::map<std::string, std::string> AnycubicPrintHostSendDialog::extendedInfo() const
 {
+    if (m_slots.empty()) {
+        return {
+            {"ams_mapping", "[]"},
+            {"use_ams", "0"},
+            {"auto_leveling", m_auto_leveling ? "1" : "0"},
+            {"vibration_compensation", m_resonance_compensation ? "1" : "0"},
+            {"flow_calibration", m_flow_calibration ? "1" : "0"},
+            {"timelapse", m_timelapse ? "1" : "0"}
+        };
+    }
+
     std::vector<int> selections;
     bool use_ams = true;
     for (const auto* combo : m_slot_combos) {
