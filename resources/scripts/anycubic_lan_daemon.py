@@ -64,7 +64,11 @@ telemetry = {
     "material_boxes": [],
     "external_spool": None,
     "filaments": [],
-    "feed_status": {"box_id": None, "slot_index": -1, "type": 0, "current_status": 0, "code": 0}
+    "feed_status": {"box_id": None, "slot_index": -1, "type": 0, "current_status": 0, "code": 0},
+    "channel_index": -1,
+    "channel_status": 0,
+    "has_filaments": 0,
+    "channel_report_seq": 0
 }
 
 mqtt_client = None
@@ -388,6 +392,13 @@ def on_mqtt_message(c, userdata, msg):
             if isinstance(data, dict):
                 apply_external_spool_report(data, code)
 
+        elif t == "extrudeControl":
+            if isinstance(data, dict):
+                telemetry["channel_index"] = data.get("index", telemetry.get("channel_index", -1))
+                telemetry["channel_status"] = data.get("current_status", 0)
+                telemetry["has_filaments"] = data.get("has_filaments", telemetry.get("has_filaments", 0))
+                telemetry["channel_report_seq"] = telemetry.get("channel_report_seq", 0) + 1
+
         elif t == "peripherie":
             # The original page treats peripherie=0 as a hint and asks for a
             # fresh multiColorBox snapshot. Only an empty getInfo report is
@@ -398,15 +409,32 @@ def on_mqtt_message(c, userdata, msg):
     except Exception as e:
         pass
 
+def query_extrude_control():
+    if not mqtt_client:
+        return
+    topic = f"anycubic/anycubicCloud/v1/slicer/printer/{model_id}/{device_id}/extrudeControl"
+    msg = {
+        "type": "extrudeControl",
+        "action": "getInfo",
+        "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+        "timestamp": int(time.time() * 1000),
+        "data": None
+    }
+    try:
+        mqtt_client.publish(topic, json.dumps(msg))
+    except Exception:
+        pass
+
+
 def query_all():
     global mqtt_client
     if not mqtt_client:
         return
-    for q_type in ["tempature", "fan", "status", "peripherie", "multiColorBox", "extfilbox", "info", "light"]:
+    for q_type in ["tempature", "fan", "status", "peripherie", "multiColorBox", "extfilbox", "info", "light", "extrudeControl"]:
         topic = f"anycubic/anycubicCloud/v1/slicer/printer/{model_id}/{device_id}/{q_type}"
         msg = {
             "type": q_type,
-            "action": "getInfo" if q_type in ["multiColorBox", "extfilbox"] else "query",
+            "action": "getInfo" if q_type in ["multiColorBox", "extfilbox", "extrudeControl"] else "query",
             "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
             "timestamp": int(time.time() * 1000),
             "data": None
@@ -627,6 +655,8 @@ class BridgeServer(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"upload_token": token, "ip": PRINTER_IP} if token else {"error": "upload token unavailable", "ip": PRINTER_IP}).encode("utf-8"))
         elif self.path.startswith("/status") or self.path == "/" or self.path.startswith("/api/v1"):
+            if self.path.startswith("/status"):
+                query_extrude_control()
             # Auto-expire historical alerts after 20 seconds or when printing
             if telemetry.get("last_error"):
                 err_age = time.time() - telemetry.get("last_error_time", 0)
@@ -813,6 +843,20 @@ class BridgeServer(BaseHTTPRequestHandler):
                     mqtt_client.publish(topic, json.dumps(msg))
                     print("[Bridge] Published Motor Turn Off")
 
+            elif action == "switch_channel":
+                channel_idx = max(0, min(3, _as_int(data.get("index", data.get("slot", 0)), 0)))
+                topic_ext = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/extrudeControl"
+                msg = {
+                    "type": "extrudeControl",
+                    "action": "switchChannel",
+                    "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                    "timestamp": int(time.time() * 1000),
+                    "data": {"index": channel_idx}
+                }
+                if mqtt_client:
+                    mqtt_client.publish(topic_ext, json.dumps(msg))
+                    print(f"[Bridge] Published switchChannel to slot {channel_idx + 1} (index {channel_idx})")
+
             elif action == "start_print_job":
                 filename = data.get("filename", "")
                 if filename and mqtt_client:
@@ -848,6 +892,14 @@ class BridgeServer(BaseHTTPRequestHandler):
                     flow_calibration = 1 if requested_tasks.get("flow_calibration", 0) else 0
                     timelapse_status = 1 if requested_tasks.get("timelapse", 0) else 0
 
+                    is_3mf = filename.lower().endswith(".3mf")
+                    target_filename = filename
+                    if is_3mf:
+                        if target_filename.lower().endswith(".3mf"):
+                            target_filename = target_filename[:-4]
+                        if not target_filename.lower().endswith(".gcode"):
+                            target_filename += ".gcode"
+
                     msg = {
                         "type": "print",
                         "action": "start",
@@ -855,7 +907,7 @@ class BridgeServer(BaseHTTPRequestHandler):
                         "timestamp": int(time.time() * 1000),
                         "data": {
                             "taskid": "-1",
-                            "filename": filename,
+                            "filename": target_filename,
                             "url": "",
                             "md5": "",
                             "filepath": None,
@@ -878,22 +930,6 @@ class BridgeServer(BaseHTTPRequestHandler):
                             }
                         }
                     }
-                    pre_engage = bool(data.get("pre_engage_filament", True))
-                    if pre_engage and ams_mapping:
-                        initial_slot = _as_int(data.get("initial_slot"), ams_mapping[0].get("ams_index", 0) if ams_mapping else 0)
-                        if 0 <= initial_slot <= 3:
-                            msg_switch = {
-                                "type": "extrudeControl",
-                                "action": "switchChannel",
-                                "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
-                                "timestamp": int(time.time() * 1000),
-                                "data": {"index": initial_slot}
-                            }
-                            topic_ext = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/extrudeControl"
-                            mqtt_client.publish(topic_ext, json.dumps(msg_switch))
-                            print(f"[Bridge] Pre-engaging extruder channel {initial_slot} (Slot {initial_slot + 1}) before print start")
-                            time.sleep(0.4)
-
                     mqtt_client.publish(topic_print, json.dumps(msg))
                     print(f"[Bridge] Published print:start for {filename} with use_ams={use_ams} ams_mapping={json.dumps(ams_mapping)}")
                 else:

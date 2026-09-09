@@ -69,6 +69,12 @@ void AnycubicPrintHostSendDialog::init()
     m_flow_calibration = load_bool(CONFIG_KEY_FLOW, false);
     m_timelapse = load_bool(CONFIG_KEY_TIMELAPSE, false);
     m_pre_engage_filament = load_bool(CONFIG_KEY_PRE_ENGAGE, true);
+    m_reduce_initial_purge = load_bool(CONFIG_KEY_REDUCE_INITIAL_PURGE, true) && m_pre_engage_filament;
+#ifdef ORCACUBIC_DEV_BUILD
+    m_save_dev_copy = load_bool(CONFIG_KEY_SAVE_DEV_COPY, false);
+#else
+    m_save_dev_copy = false;
+#endif
 
     SetTitle(_L("Remote Print"));
     SetMinSize(wxSize(FromDIP(620), FromDIP(520)));
@@ -94,7 +100,10 @@ void AnycubicPrintHostSendDialog::init()
             auto* row = new wxBoxSizer(wxHORIZONTAL);
             auto* source = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(78), FromDIP(42)));
             source->SetMinSize(wxSize(FromDIP(78), FromDIP(42)));
-            source->SetBackgroundColour(wxColour(from_u8(tool.color)));
+            wxColour source_colour(from_u8(tool.color));
+            if (!source_colour.IsOk())
+                source_colour = wxColour(35, 163, 199);
+            source->SetBackgroundColour(source_colour);
             auto* source_label = new wxStaticText(source, wxID_ANY, wxString::Format("%s  T%d", from_u8(tool.type), tool.tool_id));
             source_label->SetForegroundColour(anycubic_contrasting_text(source->GetBackgroundColour()));
             auto* source_sizer = new wxBoxSizer(wxVERTICAL);
@@ -126,13 +135,15 @@ void AnycubicPrintHostSendDialog::init()
     calibration_title->SetFont(::Label::Head_13);
     content_sizer->Add(calibration_title, 0, wxBOTTOM, FromDIP(6));
 
-    auto add_toggle = [this](const wxString& label, const wxString& tooltip, bool& value) {
+    auto add_toggle = [this](const wxString& label, const wxString& tooltip, bool& value, std::function<void(bool)> on_change = {}) {
         auto* row = new wxBoxSizer(wxHORIZONTAL);
         auto* checkbox = new ::CheckBox(this);
         checkbox->SetValue(value);
         checkbox->SetToolTip(tooltip);
-        checkbox->Bind(wxEVT_TOGGLEBUTTON, [&value](wxCommandEvent& event) {
+        checkbox->Bind(wxEVT_TOGGLEBUTTON, [&value, on_change](wxCommandEvent& event) {
             value = event.IsChecked();
+            if (on_change)
+                on_change(value);
             event.Skip(); // Allow CheckBox's own handler to redraw the checked/unchecked bitmap.
         });
         auto* text = new wxStaticText(this, wxID_ANY, label);
@@ -145,7 +156,15 @@ void AnycubicPrintHostSendDialog::init()
     add_toggle(_L("Resonance Compensation"), _L("Run vibration compensation before this print."), m_resonance_compensation);
     add_toggle(_L("Flow Calibration"), _L("Calibrate extrusion flow before this print."), m_flow_calibration);
     add_toggle(_L("Time-lapse"), _L("Capture a time-lapse while printing. The camera must be available."), m_timelapse);
-    add_toggle(_L("Pre-engage Filament"), _L("Pre-engage the toolhead active channel to the starting tool slot before printing to prevent double purging."), m_pre_engage_filament);
+    add_toggle(_L("Pre-engage Filament"), _L("Pre-engage the toolhead active channel to the starting tool slot before printing to prevent double purging."), m_pre_engage_filament,
+               [this](bool enabled) {
+                   if (!enabled)
+                       m_reduce_initial_purge = false;
+               });
+    add_toggle(_L("Reduce initial purge (25%)"), _L("Bypass mechanical cutting/retraction and reduce the starting tool prime to 25% (~5.25mm) when filament is pre-engaged."), m_reduce_initial_purge);
+#ifdef ORCACUBIC_DEV_BUILD
+    add_toggle(_L("Save dev G-code copy"), _L("Save a copy of the final post-processed G-code/3MF to the OrcaCubic repository directory (last_remote_print_processed.gcode) for inspection."), m_save_dev_copy);
+#endif
 
     auto* start = add_button(wxID_YES, true, _L("Start Print"));
     start->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
@@ -185,6 +204,10 @@ bool AnycubicPrintHostSendDialog::slot_matches_tool(const AnycubicMaterialSlot& 
 
 bool AnycubicPrintHostSendDialog::validate_before_close()
 {
+    if (m_reduce_initial_purge && !m_pre_engage_filament) {
+        show_error(this, _L("Reduced initial purge requires Pre-engage Filament."));
+        return false;
+    }
     if (m_project_filaments.empty()) {
         show_error(this, _L("Slice the plate before starting a remote print."));
         return false;
@@ -309,6 +332,8 @@ std::map<std::string, std::string> AnycubicPrintHostSendDialog::extendedInfo() c
         {"flow_calibration", m_flow_calibration ? "1" : "0"},
         {"timelapse", m_timelapse ? "1" : "0"},
         {"pre_engage_filament", m_pre_engage_filament ? "1" : "0"},
+        {"reduce_initial_purge", m_reduce_initial_purge ? "1" : "0"},
+        {"save_dev_copy", m_save_dev_copy ? "1" : "0"},
         {"initial_slot", std::to_string(initial_slot)}
     };
 }
@@ -322,6 +347,8 @@ void AnycubicPrintHostSendDialog::EndModal(int ret)
         config->set("recent", CONFIG_KEY_FLOW, m_flow_calibration ? "1" : "0");
         config->set("recent", CONFIG_KEY_TIMELAPSE, m_timelapse ? "1" : "0");
         config->set("recent", CONFIG_KEY_PRE_ENGAGE, m_pre_engage_filament ? "1" : "0");
+        config->set("recent", CONFIG_KEY_REDUCE_INITIAL_PURGE, m_reduce_initial_purge ? "1" : "0");
+        config->set("recent", CONFIG_KEY_SAVE_DEV_COPY, m_save_dev_copy ? "1" : "0");
     }
     PrintHostSendDialog::EndModal(ret);
 }

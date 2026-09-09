@@ -53,3 +53,7 @@ __pycache__/
 *.pyc
 *.opc
 /.test/
+
+# Local developer diagnostics (never release or commit)
+/last_remote_print_processed.gcode
+/last_remote_print_processed.3mf

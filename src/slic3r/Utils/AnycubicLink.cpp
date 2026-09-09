@@ -37,6 +37,7 @@
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/Utils.hpp"
+#include <miniz.h>
 
 namespace fs = boost::filesystem;
 namespace net = boost::asio;
@@ -200,6 +201,220 @@ std::string normalize_anycubic_material(std::string material)
     }
     material.erase(std::remove_if(material.begin(), material.end(), [](unsigned char ch) { return !std::isalnum(ch); }), material.end());
     return material;
+}
+
+bool reduce_initial_toolchange_purge_from_gcode(const std::string& input, std::string& output)
+{
+    std::istringstream stream(input);
+    std::ostringstream out;
+    std::string line;
+    std::vector<std::string> flush_block;
+    bool replaced = false;
+    bool in_flush_block = false;
+    std::string first_tool;
+    bool saw_tool = false;
+
+    while (std::getline(stream, line)) {
+        if (!replaced) {
+            // If we encounter Anycubic's machine flush block (which wraps toolhead cutting,
+            // carriage travel, pauses, and firmware purge moves prefixed with ;;;)
+            if (!in_flush_block) {
+                if (line.find("; FLUSH_START") != std::string::npos || line.find(";FLUSH_START") != std::string::npos) {
+                    in_flush_block = true;
+                    flush_block.clear();
+                    flush_block.push_back(line);
+                    continue;
+                }
+            } else {
+                // Inside the first toolchange flush block: record it until we know it is safe to replace.
+                flush_block.push_back(line);
+                size_t start = line.find_first_not_of(" \t\r");
+                if (start != std::string::npos && line[start] == 'T') {
+                    size_t num_start = start + 1;
+                    size_t num_end = num_start;
+                    while (num_end < line.size() && isdigit(static_cast<unsigned char>(line[num_end])))
+                        ++num_end;
+                    if (num_end > num_start) {
+                        first_tool = line.substr(start, num_end - start);
+                        saw_tool = true;
+                    }
+                }
+
+                if (line.find("; FLUSH_END") != std::string::npos || line.find(";FLUSH_END") != std::string::npos) {
+                    in_flush_block = false;
+                    if (!saw_tool) {
+                        for (const std::string& buffered_line : flush_block)
+                            out << buffered_line << "\n";
+                        flush_block.clear();
+                        continue;
+                    }
+                    replaced = true;
+                    out << "; [OrcaCubic] Initial toolchange: 25% prime with pre-engaged filament (~5.25mm)\n";
+                    out << ";;; G1 Z3 F1200\n";
+                    out << ";;; G1 X0 F21000\n";
+                    out << ";;; G1 X-17.5 F5250\n";
+                    out << ";;; M400 P1000\n";
+                    out << first_tool << "\n";
+                    out << ";;; G1 E2 F300\n";
+                    out << ";;; M400 P910\n";
+                    out << ";;; G1 E3.25 F1200\n";
+                    out << ";;; M400 P250\n";
+                    out << ";;; M106 S255\n";
+                    out << ";;; M400 P1500\n";
+                    out << ";;; G1 E-2 F1200\n";
+                    out << ";;; M400 P414\n";
+                    out << ";;; G1 E2 F1800\n";
+                    out << "; FLUSH_END\n";
+                    flush_block.clear();
+                }
+                continue;
+            }
+        }
+        out << line << "\n";
+    }
+
+    if (in_flush_block && !replaced) {
+        for (const std::string& buffered_line : flush_block)
+            out << buffered_line << "\n";
+    }
+
+    output = out.str();
+    return replaced;
+}
+
+bool process_gcode_to_reduce_initial_toolchange_purge(const boost::filesystem::path& src_path, boost::filesystem::path& dst_path, std::string& err)
+{
+    boost::system::error_code ec;
+    if (!fs::exists(src_path, ec)) {
+        err = "Source file does not exist";
+        return false;
+    }
+
+    std::string ext = src_path.extension().string();
+    boost::to_lower(ext);
+
+    bool is_zip = (ext == ".3mf");
+    if (!is_zip) {
+        std::ifstream test_in(src_path.string(), std::ios::binary);
+        if (test_in) {
+            char magic[4] = {0};
+            test_in.read(magic, 4);
+            if (test_in.gcount() == 4 && magic[0] == 'P' && magic[1] == 'K' && magic[2] == 0x03 && magic[3] == 0x04) {
+                is_zip = true;
+            }
+        }
+    }
+
+    fs::path temp_dir = boost::filesystem::temp_directory_path(ec);
+    if (ec)
+        temp_dir = fs::path(getenv("TEMP") ? getenv("TEMP") : ".");
+    std::string temp_name = (boost::format("orcacubic_pre_engage_%1%%2%")
+        % std::chrono::steady_clock::now().time_since_epoch().count() % (is_zip ? ".3mf" : ".gcode")).str();
+    dst_path = temp_dir / temp_name;
+
+    if (is_zip) {
+        mz_zip_archive reader;
+        mz_zip_zero_struct(&reader);
+        if (!mz_zip_reader_init_file(&reader, src_path.string().c_str(), 0)) {
+            err = "Failed to open 3MF zip archive for reading";
+            return false;
+        }
+
+        mz_zip_archive writer;
+        mz_zip_zero_struct(&writer);
+        if (!mz_zip_writer_init_file(&writer, dst_path.string().c_str(), 0)) {
+            mz_zip_reader_end(&reader);
+            err = "Failed to create temporary 3MF zip archive";
+            return false;
+        }
+
+        const mz_uint num_files = mz_zip_reader_get_num_files(&reader);
+        constexpr mz_uint64 max_gcode_entry_size = 512ull * 1024ull * 1024ull;
+        bool any_reduced = false;
+        bool writer_ok = true;
+        for (mz_uint i = 0; i < num_files; ++i) {
+            mz_zip_archive_file_stat stat;
+            if (!mz_zip_reader_file_stat(&reader, i, &stat))
+                continue;
+
+            std::string entry_name = stat.m_filename;
+            if (boost::ends_with(entry_name, ".gcode")) {
+                if (stat.m_uncomp_size > max_gcode_entry_size) {
+                    mz_zip_writer_end(&writer);
+                    mz_zip_reader_end(&reader);
+                    fs::remove(dst_path, ec);
+                    err = "3MF G-code entry is too large to post-process safely";
+                    return false;
+                }
+                size_t uncomp_size = 0;
+                void* data = mz_zip_reader_extract_file_to_heap(&reader, entry_name.c_str(), &uncomp_size, 0);
+                if (data) {
+                    std::string gcode_text(static_cast<const char*>(data), uncomp_size);
+                    free(data);
+
+                    std::string modified_text;
+                    if (reduce_initial_toolchange_purge_from_gcode(gcode_text, modified_text)) {
+                        any_reduced = true;
+                        writer_ok = mz_zip_writer_add_mem(&writer, entry_name.c_str(), modified_text.data(), modified_text.size(), MZ_DEFAULT_COMPRESSION) != 0;
+                    } else {
+                        writer_ok = mz_zip_writer_add_mem(&writer, entry_name.c_str(), gcode_text.data(), gcode_text.size(), MZ_DEFAULT_COMPRESSION) != 0;
+                    }
+                } else {
+                    writer_ok = mz_zip_writer_add_from_zip_reader(&writer, &reader, i) != 0;
+                }
+            } else {
+                writer_ok = mz_zip_writer_add_from_zip_reader(&writer, &reader, i) != 0;
+            }
+            if (!writer_ok)
+                break;
+        }
+
+        const bool finalized = writer_ok && mz_zip_writer_finalize_archive(&writer) != 0;
+        mz_zip_writer_end(&writer);
+        mz_zip_reader_end(&reader);
+
+        if (!finalized) {
+            fs::remove(dst_path, ec);
+            err = "Failed to create a complete post-processed 3MF archive";
+            return false;
+        }
+        if (!any_reduced) {
+            fs::remove(dst_path, ec);
+            err = "No toolchange found in 3MF archive";
+            return false;
+        }
+        return true;
+    } else {
+        std::ifstream in(src_path.string(), std::ios::binary | std::ios::ate);
+        if (!in) {
+            err = "Failed to open G-code file for reading";
+            return false;
+        }
+        constexpr std::streamoff max_gcode_file_size = 512ll * 1024ll * 1024ll;
+        const std::streamoff file_size = in.tellg();
+        if (file_size < 0 || file_size > max_gcode_file_size) {
+            err = "G-code file is too large to post-process safely";
+            return false;
+        }
+        in.seekg(0, std::ios::beg);
+        std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        in.close();
+
+        std::string modified;
+        if (!reduce_initial_toolchange_purge_from_gcode(content, modified)) {
+            err = "No initial toolchange found in G-code";
+            return false;
+        }
+
+        std::ofstream out(dst_path.string(), std::ios::binary);
+        if (!out) {
+            err = "Failed to write temporary G-code file";
+            return false;
+        }
+        out.write(modified.data(), modified.size());
+        out.close();
+        return true;
+    }
 }
 
 std::vector<AnycubicAmsMappingEntry> build_anycubic_ams_mapping(
@@ -980,7 +1195,8 @@ bool AnycubicLink::fetch_upload_url_via_mqtt(std::string& upload_token, wxString
     return false;
 }
 
-bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename, const PrintHostUpload& upload_data) const
+bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename, const PrintHostUpload& upload_data,
+                               const fs::path& uploaded_source_path) const
 {
     bool use_ams = upload_data.extended("use_ams") != "0";
     json ams_box_mapping = json::array();
@@ -1158,15 +1374,24 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
 
     size_t file_size = 0;
     try {
-        file_size = fs::file_size(upload_data.source_path);
+        file_size = fs::file_size(uploaded_source_path);
     } catch (...) {}
 
     std::string file_md5;
     try {
-        std::string src_path = upload_data.source_path.string();
+        std::string src_path = uploaded_source_path.string();
         bbl_calc_md5(src_path, file_md5);
         boost::algorithm::to_lower(file_md5);
     } catch (...) {}
+
+    bool is_3mf = boost::ends_with(boost::to_lower_copy(filename), ".3mf");
+    std::string internal_filename = filename;
+    if (is_3mf) {
+        if (boost::ends_with(boost::to_lower_copy(internal_filename), ".3mf"))
+            internal_filename.erase(internal_filename.size() - 4);
+        if (!boost::ends_with(boost::to_lower_copy(internal_filename), ".gcode"))
+            internal_filename += ".gcode";
+    }
 
     json payload = {
         {"type", "print"},
@@ -1175,7 +1400,7 @@ bool AnycubicLink::start_print(wxString& error_msg, const std::string& filename,
         {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()},
         {"data", {
             {"taskid", "-1"},
-            {"filename", filename},
+            {"filename", internal_filename},
             {"url", ""},
             {"md5", file_md5},
             {"filepath", nullptr},
@@ -1244,6 +1469,70 @@ wxString AnycubicLink::get_test_failed_msg(wxString &msg) const
     return GUI::from_u8((boost::format(_utf8(L("Could not connect to Anycubic printer at %1%:%2%: %3%"))) % m_host % m_port % msg.ToUTF8().data()).str());
 }
 
+static void save_dev_copy_of_uploaded_file(const fs::path& upload_file_path)
+{
+#ifdef ORCACUBIC_DEV_BUILD
+    try {
+        boost::system::error_code ec;
+        fs::path dev_dir = "X:/code/marcodiniz/OrcaCubic";
+        if (!fs::exists(dev_dir, ec)) {
+            return; // Developer environment only
+        }
+
+        std::string ext = upload_file_path.extension().string();
+        boost::to_lower(ext);
+
+        bool is_zip = (ext == ".3mf");
+        if (!is_zip) {
+            std::ifstream test_in(upload_file_path.string(), std::ios::binary);
+            if (test_in) {
+                char magic[4] = {0};
+                test_in.read(magic, 4);
+                if (test_in.gcount() == 4 && magic[0] == 'P' && magic[1] == 'K' && magic[2] == 0x03 && magic[3] == 0x04) {
+                    is_zip = true;
+                }
+            }
+        }
+
+        fs::path target_archive = dev_dir / (is_zip ? "last_remote_print_processed.3mf" : "last_remote_print_processed.gcode");
+        fs::copy_file(upload_file_path, target_archive, fs::copy_options::overwrite_existing, ec);
+
+        if (is_zip) {
+            mz_zip_archive reader;
+            mz_zip_zero_struct(&reader);
+            if (mz_zip_reader_init_file(&reader, upload_file_path.string().c_str(), 0)) {
+                const mz_uint num_files = mz_zip_reader_get_num_files(&reader);
+                for (mz_uint i = 0; i < num_files; ++i) {
+                    mz_zip_archive_file_stat stat;
+                    if (mz_zip_reader_file_stat(&reader, i, &stat) && boost::ends_with(std::string(stat.m_filename), ".gcode")) {
+                        size_t uncomp_size = 0;
+                        void* data = mz_zip_reader_extract_file_to_heap(&reader, stat.m_filename, &uncomp_size, 0);
+                        if (data) {
+                            fs::path target_gcode = dev_dir / "last_remote_print_processed.gcode";
+                            std::ofstream out(target_gcode.string(), std::ios::binary);
+                            if (out) {
+                                out.write(static_cast<const char*>(data), uncomp_size);
+                                out.close();
+                                BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Saved extracted dev G-code to: " << target_gcode.string();
+                            }
+                            free(data);
+                            break;
+                        }
+                    }
+                }
+                mz_zip_reader_end(&reader);
+            }
+        } else {
+            BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Saved dev G-code to: " << target_archive.string();
+        }
+    } catch (const std::exception& e) {
+        BOOST_LOG_TRIVIAL(warning) << "[AnycubicLink] Could not save dev copy: " << e.what();
+    }
+#else
+    (void) upload_file_path;
+#endif
+}
+
 bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, ErrorFn error_fn, InfoFn info_fn) const
 {
     wxString query_err;
@@ -1267,9 +1556,115 @@ bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, E
     }
 
     std::string upload_filename = sanitize_anycubic_filename(upload_data.upload_path.string());
+    fs::path upload_file_path = upload_data.source_path;
+    fs::path temp_modified_file;
+
+    bool pre_engage = upload_data.extended("pre_engage_filament") != "0";
+    bool reduce_initial_purge = upload_data.extended("reduce_initial_purge") != "0";
+    bool purge_reduced = false;
+    if (reduce_initial_purge && pre_engage) {
+        std::string strip_err;
+        if (process_gcode_to_reduce_initial_toolchange_purge(upload_data.source_path, temp_modified_file, strip_err)) {
+            upload_file_path = temp_modified_file;
+            purge_reduced = true;
+            BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Replaced initial toolchange flush with 25% prime: " << temp_modified_file.string();
+        } else {
+            BOOST_LOG_TRIVIAL(warning) << "[AnycubicLink] Initial purge reduction skipped: " << strip_err;
+        }
+    }
+
+    bool save_dev_copy = false;
+#ifdef ORCACUBIC_DEV_BUILD
+    save_dev_copy = upload_data.extended("save_dev_copy") == "1";
+#endif
+    if (save_dev_copy) {
+        save_dev_copy_of_uploaded_file(upload_file_path);
+    }
+
+    std::string initial_slot_str = upload_data.extended("initial_slot");
+    bool channel_confirmed = false;
+    unsigned long long initial_channel_report_seq = 0;
+    if (pre_engage && !initial_slot_str.empty()) {
+        try {
+            try {
+                auto initial_req = Http::get("http://127.0.0.1:18988/status");
+                initial_req.header("X-OrcaCubic-Token", anycubic_lan_bridge_token())
+                           .timeout_connect(1)
+                           .timeout_max(1)
+                           .on_complete([&](std::string body, unsigned status) {
+                               if (status == 200) {
+                                   const json current = json::parse(body, nullptr, false, true);
+                                   if (!current.is_discarded())
+                                       initial_channel_report_seq = current.value("channel_report_seq", 0ull);
+                               }
+                           })
+                           .perform_sync();
+            } catch (...) {}
+
+            int slot_idx = std::stoi(initial_slot_str);
+            if (slot_idx >= 0 && slot_idx <= 3) {
+                info_fn("AnycubicLink", GUI::from_u8((boost::format(_utf8(L("Pre-engaging filament slot %1%..."))) % (slot_idx + 1)).str()));
+                auto http_ext = Http::post("http://127.0.0.1:18988/control");
+                json ext_data = {
+                    {"action", "switch_channel"},
+                    {"index", slot_idx}
+                };
+                http_ext.header("Content-Type", "application/json")
+                        .header("X-OrcaCubic-Token", anycubic_lan_bridge_token())
+                        .set_post_body(ext_data.dump())
+                        .timeout_connect(1)
+                        .timeout_max(3)
+                        .perform_sync();
+
+                // Wait until the printer reports the tool has switched to the target channel (or safety timeout)
+                BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Pre-engaging extruder channel " << slot_idx << ", waiting for hardware confirmation...";
+                const auto start_time = std::chrono::steady_clock::now();
+                const auto timeout = std::chrono::seconds(6);
+                while (std::chrono::steady_clock::now() - start_time < timeout) {
+                    try {
+                        auto req = Http::get("http://127.0.0.1:18988/status");
+                        req.header("X-OrcaCubic-Token", anycubic_lan_bridge_token())
+                           .timeout_connect(1)
+                           .timeout_max(1)
+                           .on_complete([&](std::string body, unsigned status) {
+                               if (status == 200) {
+                                   try {
+                                       json j = json::parse(body);
+                                       int curr_ch = j.value("channel_index", -1);
+                                       const auto report_seq = j.value("channel_report_seq", 0ull);
+                                       if (curr_ch == slot_idx && report_seq > initial_channel_report_seq) {
+                                           channel_confirmed = true;
+                                       }
+                                   } catch (...) {}
+                               }
+                           })
+                           .perform_sync();
+                    } catch (...) {}
+                    if (channel_confirmed) {
+                        BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Hardware confirmed extruder channel engaged to " << slot_idx << " in "
+                            << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count() << "ms";
+                        break;
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+                }
+                if (!channel_confirmed) {
+                    BOOST_LOG_TRIVIAL(warning) << "[AnycubicLink] Channel confirmation timed out; proceeding with upload.";
+                }
+            }
+        } catch (...) {}
+    }
+
+    if (purge_reduced && !channel_confirmed) {
+        BOOST_LOG_TRIVIAL(warning) << "[AnycubicLink] Initial purge reduction disabled because pre-engagement was not confirmed.";
+        boost::system::error_code ec;
+        fs::remove(temp_modified_file, ec);
+        temp_modified_file.clear();
+        upload_file_path = upload_data.source_path;
+    }
+
     std::string file_size_str;
     try {
-        file_size_str = std::to_string(fs::file_size(upload_data.source_path));
+        file_size_str = std::to_string(fs::file_size(upload_file_path));
     } catch (...) {
         file_size_str = "0";
     }
@@ -1291,7 +1686,7 @@ bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, E
         .header("X-BBL-Client-Version", "01.03.09.04")
         .header("X-File-Length", file_size_str)
         .form_add("filename", upload_filename)
-        .form_add_file("gcode", upload_data.source_path.string(), upload_filename)
+        .form_add_file("gcode", upload_file_path.string(), upload_filename)
         .on_complete([&](std::string body, unsigned status) {
             BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Upload complete with status " << status << ", body: " << body;
             if (status == 200) {
@@ -1312,17 +1707,31 @@ bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, E
         })
         .perform_sync();
 
-    if (!upload_ok)
+    if (!upload_ok) {
+        if (!temp_modified_file.empty()) {
+            boost::system::error_code ec;
+            fs::remove(temp_modified_file, ec);
+        }
         return false;
+    }
 
     if (upload_data.post_action == PrintHostPostUploadAction::StartPrint) {
         info_fn("AnycubicLink", GUI::from_u8((boost::format(_utf8(L("File uploaded. Triggering print on %1%..."))) % m_device_name).str()));
         wxString start_err;
-        if (!start_print(start_err, upload_filename, upload_data)) {
+        if (!start_print(start_err, upload_filename, upload_data, upload_file_path)) {
+            if (!temp_modified_file.empty()) {
+                boost::system::error_code ec;
+                fs::remove(temp_modified_file, ec);
+            }
             error_fn(GUI::from_u8((boost::format(_utf8(L("File uploaded, but failed to start print: %1%"))) % start_err.ToUTF8().data()).str()));
             return false;
         }
         info_fn("AnycubicLink", GUI::from_u8((boost::format(_utf8(L("Print started successfully on %1%."))) % m_device_name).str()));
+    }
+
+    if (!temp_modified_file.empty()) {
+        boost::system::error_code ec;
+        fs::remove(temp_modified_file, ec);
     }
 
     return true;

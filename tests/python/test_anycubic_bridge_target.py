@@ -61,7 +61,7 @@ class TargetBindingTests(unittest.TestCase):
         self.assertEqual(status, 409)
         self.assertEqual(payload["message"], "Device selection changed")
 
-    def test_start_print_job_pre_engages_initial_channel(self):
+    def test_start_print_job_does_not_repeat_pre_engage(self):
         published_messages = []
         class MockMqttClient:
             def publish(self, topic, payload):
@@ -92,15 +92,111 @@ class TargetBindingTests(unittest.TestCase):
             self.assertEqual(resp.status, 200)
             connection.close()
 
-            # Should have published switchChannel followed by print:start
+            # The upload path pre-engages the channel before this request, then waits
+            # for the printer's extrudeControl report. start_print_job must only start.
             ext_msgs = [p for t, p in published_messages if p.get("type") == "extrudeControl" and p.get("action") == "switchChannel"]
-            self.assertEqual(len(ext_msgs), 1)
-            self.assertEqual(ext_msgs[0]["data"]["index"], 2)
+            self.assertEqual(len(ext_msgs), 0)
 
             print_msgs = [p for t, p in published_messages if p.get("type") == "print" and p.get("action") == "start"]
             self.assertEqual(len(print_msgs), 1)
+            self.assertEqual(print_msgs[0]["data"]["filetype"], 1)
+            self.assertEqual(print_msgs[0]["data"]["filename"], "test.gcode")
         finally:
             daemon.mqtt_client = old_client
+
+    def test_start_print_job_for_3mf_uses_local_task_and_internal_gcode_name(self):
+        published_messages = []
+        class MockMqttClient:
+            def publish(self, topic, payload):
+                published_messages.append((topic, json.loads(payload)))
+
+        old_client = daemon.mqtt_client
+        daemon.mqtt_client = MockMqttClient()
+        daemon.telemetry["connected"] = True
+        try:
+            connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=2)
+            body = json.dumps({
+                "action": "start_print_job",
+                "filename": "Plate_model.gcode.3mf",
+                "use_ams": True,
+                "pre_engage_filament": False,
+                "ams_box_mapping": [
+                    {"ams_index": 0, "paint_index": 0, "material_type": "PLA"}
+                ]
+            })
+            connection.request("POST", "/control", body, {
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                "X-OrcaCubic-Token": "test-token",
+                "X-OrcaCubic-Printer": "192.0.2.20"
+            })
+            resp = connection.getresponse()
+            self.assertEqual(resp.status, 200)
+            connection.close()
+
+            print_msgs = [p for t, p in published_messages if p.get("type") == "print" and p.get("action") == "start"]
+            self.assertEqual(len(print_msgs), 1)
+            # Local print task uses filetype 1
+            self.assertEqual(print_msgs[0]["data"]["filetype"], 1)
+            # Internal filename must be the extracted .gcode, not ending in .3mf
+            self.assertEqual(print_msgs[0]["data"]["filename"], "Plate_model.gcode")
+        finally:
+            daemon.mqtt_client = old_client
+
+    def test_switch_channel_control_action(self):
+        published_messages = []
+        class MockMqttClient:
+            def publish(self, topic, payload):
+                published_messages.append((topic, json.loads(payload)))
+
+        old_client = daemon.mqtt_client
+        daemon.mqtt_client = MockMqttClient()
+        daemon.telemetry["connected"] = True
+        try:
+            connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=2)
+            body = json.dumps({
+                "action": "switch_channel",
+                "index": 3
+            })
+            connection.request("POST", "/control", body, {
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                "X-OrcaCubic-Token": "test-token",
+                "X-OrcaCubic-Printer": "192.0.2.20"
+            })
+            resp = connection.getresponse()
+            self.assertEqual(resp.status, 200)
+            connection.close()
+
+            ext_msgs = [p for t, p in published_messages if p.get("type") == "extrudeControl" and p.get("action") == "switchChannel"]
+            self.assertEqual(len(ext_msgs), 1)
+            self.assertEqual(ext_msgs[0]["data"]["index"], 3)
+        finally:
+            daemon.mqtt_client = old_client
+
+    def test_extrude_control_mqtt_report_updates_channel_index(self):
+        class MockMessage:
+            def __init__(self, topic, payload):
+                self.topic = topic
+                self.payload = payload.encode("utf-8")
+
+        mock_payload = json.dumps({
+            "type": "extrudeControl",
+            "action": "getInfo",
+            "code": 200,
+            "data": {
+                "index": 2,
+                "current_status": 0,
+                "has_filaments": 1,
+                "move_type": 0
+            }
+        })
+        msg = MockMessage(f"anycubic/anycubicCloud/v1/printer/public/20030/test-device/extrudeControl/report", mock_payload)
+        previous_seq = daemon.telemetry.get("channel_report_seq", 0)
+        daemon.on_mqtt_message(None, None, msg)
+        self.assertEqual(daemon.telemetry["channel_index"], 2)
+        self.assertEqual(daemon.telemetry["channel_status"], 0)
+        self.assertEqual(daemon.telemetry["channel_report_seq"], previous_seq + 1)
 
 
 class MaterialSystemTests(unittest.TestCase):

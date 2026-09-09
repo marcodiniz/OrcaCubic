@@ -76,6 +76,8 @@ struct AnycubicPrinterSelection {
 };
 
 std::string normalize_anycubic_material(std::string material);
+bool reduce_initial_toolchange_purge_from_gcode(const std::string& input, std::string& output);
+bool process_gcode_to_reduce_initial_toolchange_purge(const boost::filesystem::path& src_path, boost::filesystem::path& dst_path, std::string& err);
 std::vector<AnycubicAmsMappingEntry> build_anycubic_ams_mapping(
     const std::vector<AnycubicToolFilament>& tools,
     const std::vector<AnycubicMaterialSlot>& slots,
@@ -126,7 +128,8 @@ public:
 
     bool fetch_credentials(wxString& error_msg) const;
     bool fetch_upload_url_via_mqtt(std::string& upload_token, wxString& error_msg) const;
-    bool start_print(wxString& error_msg, const std::string& filename, const PrintHostUpload& upload_data) const;
+    bool start_print(wxString& error_msg, const std::string& filename, const PrintHostUpload& upload_data,
+                     const boost::filesystem::path& uploaded_source_path) const;
 
 private:
     std::string m_host;

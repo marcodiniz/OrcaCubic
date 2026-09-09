@@ -311,12 +311,16 @@ private:
     bool m_flow_calibration {false};
     bool m_timelapse {false};
     bool m_pre_engage_filament {true};
+    bool m_reduce_initial_purge {true};
+    bool m_save_dev_copy {false};
 
     const char* CONFIG_KEY_LEVELING  = "anycubic_auto_leveling";
     const char* CONFIG_KEY_RESONANCE = "anycubic_resonance_compensation";
     const char* CONFIG_KEY_FLOW      = "anycubic_flow_calibration";
     const char* CONFIG_KEY_TIMELAPSE = "anycubic_timelapse";
     const char* CONFIG_KEY_PRE_ENGAGE = "anycubic_pre_engage_filament";
+    const char* CONFIG_KEY_REDUCE_INITIAL_PURGE = "anycubic_reduce_initial_purge";
+    const char* CONFIG_KEY_SAVE_DEV_COPY = "anycubic_save_dev_copy";
 };
 
 wxDECLARE_EVENT(EVT_PRINTHOST_PROGRESS, PrintHostQueueDialog::Event);

@@ -1,6 +1,12 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "slic3r/Utils/AnycubicLink.hpp"
+#include "libslic3r/PlaceholderParser.hpp"
+#include "test_utils.hpp"
+
+#include <miniz.h>
+
+#include <fstream>
 
 using Slic3r::AnycubicMaterialSlot;
 using Slic3r::AnycubicPrintSettings;
@@ -206,4 +212,122 @@ TEST_CASE("Anycubic printer selection requires an explicit Make Active action", 
     CHECK(selection->host == "192.0.2.12");
     CHECK(selection->make_active);
     CHECK_FALSE(Slic3r::choose_anycubic_printer(candidates, "Missing printer", true).has_value());
+}
+
+TEST_CASE("Anycubic reduces initial flush block and preserves subsequent changes", "[anycubic][toolchange]")
+{
+    std::string sample_gcode =
+        "G90\n"
+        "G9111 bedTemp=60 extruderTemp=215\n"
+        "M83\n"
+        "; FLUSH_START\n"
+        ";;; G1 X277.5 F600\n"
+        ";;; G1 E-33 F600\n"
+        "T0\n"
+        ";;; G1 E8 F300\n"
+        ";;; M400 P3643\n"
+        "; FLUSH_END\n"
+        "G1 X10 Y10 E1\n"
+        "; FLUSH_START\n"
+        "T2 ; color change layer 50\n"
+        "; FLUSH_END\n"
+        "G1 X20 Y20 E1\n";
+
+    std::string modified;
+    bool stripped = Slic3r::reduce_initial_toolchange_purge_from_gcode(sample_gcode, modified);
+
+    REQUIRE(stripped);
+    CHECK(modified.find("25% prime with pre-engaged filament") != std::string::npos);
+    CHECK(modified.find("T0") != std::string::npos);
+    CHECK(modified.find("G1 X277.5") == std::string::npos); // No cutter move
+    CHECK(modified.find("G1 E-33") == std::string::npos);   // No 33mm retract
+    CHECK(modified.find("G1 E2 F300") != std::string::npos); // 25% prime
+    CHECK(modified.find("G1 E3.25 F1200") != std::string::npos);
+    // Subsequent flush block for T2 on later layer must NOT be stripped
+    CHECK(modified.find("T2 ; color change layer 50") != std::string::npos);
+}
+
+TEST_CASE("Anycubic leaves standalone tool commands unchanged without flush markers", "[anycubic][toolchange]")
+{
+    const std::string sample_gcode =
+        "G28\n"
+        "  T3\n"
+        "G1 Z0.2\n";
+
+    std::string modified;
+    const bool reduced = Slic3r::reduce_initial_toolchange_purge_from_gcode(sample_gcode, modified);
+
+    CHECK_FALSE(reduced);
+    CHECK(modified == sample_gcode);
+}
+
+TEST_CASE("Anycubic 3MF purge reduction preserves a readable archive", "[anycubic][toolchange]")
+{
+    ScopedTemporaryDir temp_dir("orcacubic-3mf");
+    const boost::filesystem::path source = temp_dir.path() / "source.gcode.3mf";
+    boost::filesystem::path output;
+    const std::string gcode =
+        "G28\n"
+        "; FLUSH_START\n"
+        ";;; G1 E-33 F600\n"
+        "T3\n"
+        ";;; G1 E8 F300\n"
+        ";;; G1 E13 F1200\n"
+        "; FLUSH_END\n"
+        "G1 X10 Y10 E1\n";
+    const std::string metadata = "<metadata>preserved</metadata>";
+
+    mz_zip_archive writer;
+    mz_zip_zero_struct(&writer);
+    REQUIRE(mz_zip_writer_init_file(&writer, source.string().c_str(), 0));
+    REQUIRE(mz_zip_writer_add_mem(&writer, "Metadata/plate_1.gcode", gcode.data(), gcode.size(), MZ_DEFAULT_COMPRESSION));
+    REQUIRE(mz_zip_writer_add_mem(&writer, "Metadata/slice_info.config", metadata.data(), metadata.size(), MZ_DEFAULT_COMPRESSION));
+    REQUIRE(mz_zip_writer_finalize_archive(&writer));
+    REQUIRE(mz_zip_writer_end(&writer));
+
+    std::string error;
+    REQUIRE(Slic3r::process_gcode_to_reduce_initial_toolchange_purge(source, output, error));
+
+    mz_zip_archive reader;
+    mz_zip_zero_struct(&reader);
+    REQUIRE(mz_zip_reader_init_file(&reader, output.string().c_str(), 0));
+    size_t gcode_size = 0;
+    void* gcode_data = mz_zip_reader_extract_file_to_heap(&reader, "Metadata/plate_1.gcode", &gcode_size, 0);
+    REQUIRE(gcode_data != nullptr);
+    const std::string processed(static_cast<const char*>(gcode_data), gcode_size);
+    free(gcode_data);
+    size_t metadata_size = 0;
+    void* metadata_data = mz_zip_reader_extract_file_to_heap(&reader, "Metadata/slice_info.config", &metadata_size, 0);
+    REQUIRE(metadata_data != nullptr);
+    const std::string preserved_metadata(static_cast<const char*>(metadata_data), metadata_size);
+    free(metadata_data);
+    REQUIRE(mz_zip_reader_end(&reader));
+
+    CHECK(processed.find("T3") != std::string::npos);
+    CHECK(processed.find("G1 E2 F300") != std::string::npos);
+    CHECK(processed.find("G1 E3.25 F1200") != std::string::npos);
+    CHECK(processed.find("G1 E-33") == std::string::npos);
+    CHECK(preserved_metadata == metadata);
+}
+
+TEST_CASE("Anycubic purge reduction leaves malformed flush blocks unchanged", "[anycubic][toolchange]")
+{
+    const std::string missing_tool =
+        "G28\n"
+        "; FLUSH_START\n"
+        ";;; G1 E8 F300\n"
+        "; FLUSH_END\n"
+        "G1 X10\n";
+    std::string missing_tool_output;
+    CHECK_FALSE(Slic3r::reduce_initial_toolchange_purge_from_gcode(missing_tool, missing_tool_output));
+    CHECK(missing_tool_output == missing_tool);
+
+    const std::string missing_end =
+        "G28\n"
+        "; FLUSH_START\n"
+        "T2\n"
+        ";;; G1 E8 F300\n";
+    std::string missing_end_output;
+    CHECK_FALSE(Slic3r::reduce_initial_toolchange_purge_from_gcode(missing_end, missing_end_output));
+    CHECK(missing_end_output == missing_end);
 }
