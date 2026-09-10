@@ -241,7 +241,10 @@ TEST_CASE("Anycubic replaces initial flush block and preserves subsequent change
     REQUIRE(replaced);
     CHECK(modified.find("Replace first tool change (T0) with initial purge at purge box") != std::string::npos);
     CHECK(modified.find("G28 X\n") != std::string::npos);
-    CHECK(modified.find("G1 E12 F300") != std::string::npos);
+    CHECK(modified.find("G1 E40 F300") != std::string::npos);
+    CHECK(modified.find("M106 S229") != std::string::npos);
+    CHECK(modified.find("M400 P2000") != std::string::npos);
+    CHECK(modified.find("G1 X20 F15000") != std::string::npos);
     CHECK(modified.find("G1 E-33") == std::string::npos);   // No 33mm retract in first block
     // The cutter move G1 X277.5 was removed from the first block, and only appears in the preserved second block
     CHECK(modified.find("G1 X277.5") > modified.find("T2"));
@@ -269,8 +272,8 @@ TEST_CASE("Anycubic replaces standalone initial tool command without flush marke
 
     REQUIRE(replaced);
     CHECK(modified.find("Replace first tool change (T3) with initial purge at purge box") != std::string::npos);
-    CHECK(modified.find("G28 X\n") != std::string::npos);
-    CHECK(modified.find("G1 E12 F300") != std::string::npos);
+    CHECK(modified.find("G1 E40 F300") != std::string::npos);
+    CHECK(modified.find("G1 X20 F15000") != std::string::npos);
     // Subsequent tool change must remain untouched
     CHECK(modified.find("T1 ; second tool later") != std::string::npos);
 }
@@ -313,7 +316,7 @@ TEST_CASE("Anycubic 3MF first toolchange replacement preserves a readable archiv
     REQUIRE(mz_zip_writer_end(&writer));
 
     std::string error;
-    REQUIRE(Slic3r::process_gcode_to_skip_first_toolchange(source, output, error, "M83\nG28 X\nG1 E12 F300"));
+    REQUIRE(Slic3r::process_gcode_to_skip_first_toolchange(source, output, error, "M83\nG28 X\nG1 E40 F300\nM106 S229\nM400 P2000\nG1 X20 F15000\nG28 X"));
 
     mz_zip_archive reader;
     mz_zip_zero_struct(&reader);
@@ -336,8 +339,8 @@ TEST_CASE("Anycubic 3MF first toolchange replacement preserves a readable archiv
     REQUIRE(mz_zip_reader_end(&reader));
 
     CHECK(processed.find("Replace first tool change (T3) with initial purge at purge box") != std::string::npos);
-    CHECK(processed.find("G28 X\n") != std::string::npos);
-    CHECK(processed.find("G1 E12 F300") != std::string::npos);
+    CHECK(processed.find("G1 E40 F300") != std::string::npos);
+    CHECK(processed.find("G1 X20 F15000") != std::string::npos);
     CHECK(processed.find("G1 E-33") == std::string::npos);
     CHECK(preserved_metadata == metadata);
     CHECK(updated_md5 != old_md5);

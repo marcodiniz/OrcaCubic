@@ -1728,7 +1728,7 @@ bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, E
                               || upload_data.extended("replace_first_toolchange") != "0";
     std::string custom_script = upload_data.extended("skip_first_toolchange_script");
     if (custom_script.empty()) {
-        custom_script = "M83\nG28 X\nG1 E12 F300\n";
+        custom_script = "M83\nG28 X\nG1 E40 F300\nM106 S229\nM400 P2000\nG1 X20 F15000\nG28 X\n";
     }
     bool toolchange_skipped = false;
     if (skip_first_toolchange && pre_engage) {
