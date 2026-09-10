@@ -61,15 +61,28 @@ void AnycubicPrintHostSendDialog::init()
 {
     AppConfig* app_config = wxGetApp().app_config;
     auto load_bool = [app_config](const char* key, bool fallback) {
+        if (!app_config || !app_config->has("recent", key))
+            return fallback;
         const std::string value = app_config->get("recent", key);
-        return value.empty() ? fallback : value == "1";
+        return value == "1" || value == "true";
     };
     m_auto_leveling = load_bool(CONFIG_KEY_LEVELING, true);
     m_resonance_compensation = load_bool(CONFIG_KEY_RESONANCE, false);
     m_flow_calibration = load_bool(CONFIG_KEY_FLOW, false);
     m_timelapse = load_bool(CONFIG_KEY_TIMELAPSE, false);
     m_pre_engage_filament = load_bool(CONFIG_KEY_PRE_ENGAGE, true);
-    m_reduce_initial_purge = load_bool(CONFIG_KEY_REDUCE_INITIAL_PURGE, true) && m_pre_engage_filament;
+    m_skip_first_toolchange = load_bool(CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE, true) && m_pre_engage_filament;
+    // Current built-in default script for Skip First Tool Change.
+    m_skip_first_toolchange_script = "M83\nG28 X\nG1 E40 F300\nM106 S229\nM400 P2000\nG1 X20 F15000\nG28 X";
+    // Earlier built-in defaults; a saved value equal to one of these means the user
+    // never customized the script, so upgrade it to the current default.
+    const std::string legacy_default_v1 = "M83\nG28 X\nG1 E12 F300";
+    const std::string legacy_default_v2 = "M83\nG28 X\nG1 E40 F300\nM106 S229\nM400 P2000\nG1 X20 F7000\nG28 X";
+    if (app_config && app_config->has("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE_SCRIPT)) {
+        std::string saved_script = app_config->get("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE_SCRIPT);
+        if (!saved_script.empty() && saved_script != legacy_default_v1 && saved_script != legacy_default_v2)
+            m_skip_first_toolchange_script = saved_script;
+    }
 #ifdef ORCACUBIC_DEV_BUILD
     m_save_dev_copy = load_bool(CONFIG_KEY_SAVE_DEV_COPY, false);
 #else
@@ -130,18 +143,18 @@ void AnycubicPrintHostSendDialog::init()
         auto_assign_mappings();
     }
 
-    content_sizer->AddSpacer(FromDIP(10));
-    auto* calibration_title = new wxStaticText(this, wxID_ANY, _L("Calibration"));
-    calibration_title->SetFont(::Label::Head_13);
-    content_sizer->Add(calibration_title, 0, wxBOTTOM, FromDIP(6));
-
-    auto add_toggle = [this](const wxString& label, const wxString& tooltip, bool& value, std::function<void(bool)> on_change = {}) {
+    auto add_toggle = [this](const char* config_key, const wxString& label, const wxString& tooltip, bool& value, std::function<void(bool)> on_change = {}) -> ::CheckBox* {
         auto* row = new wxBoxSizer(wxHORIZONTAL);
         auto* checkbox = new ::CheckBox(this);
         checkbox->SetValue(value);
         checkbox->SetToolTip(tooltip);
-        checkbox->Bind(wxEVT_TOGGLEBUTTON, [&value, on_change](wxCommandEvent& event) {
+        checkbox->Bind(wxEVT_TOGGLEBUTTON, [this, config_key, &value, on_change](wxCommandEvent& event) {
             value = event.IsChecked();
+            AppConfig* config = wxGetApp().app_config;
+            if (config && config_key) {
+                config->set("recent", config_key, value ? "1" : "0");
+                config->save();
+            }
             if (on_change)
                 on_change(value);
             event.Skip(); // Allow CheckBox's own handler to redraw the checked/unchecked bitmap.
@@ -151,19 +164,122 @@ void AnycubicPrintHostSendDialog::init()
         row->Add(checkbox, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(8));
         row->Add(text, 0, wxALIGN_CENTER_VERTICAL);
         content_sizer->Add(row, 0, wxBOTTOM, FromDIP(6));
+        return checkbox;
     };
-    add_toggle(_L("Auto Leveling"), _L("Probe and compensate the build plate before this print."), m_auto_leveling);
-    add_toggle(_L("Resonance Compensation"), _L("Run vibration compensation before this print."), m_resonance_compensation);
-    add_toggle(_L("Flow Calibration"), _L("Calibrate extrusion flow before this print."), m_flow_calibration);
-    add_toggle(_L("Time-lapse"), _L("Capture a time-lapse while printing. The camera must be available."), m_timelapse);
-    add_toggle(_L("Pre-engage Filament"), _L("Pre-engage the toolhead active channel to the starting tool slot before printing to prevent double purging."), m_pre_engage_filament,
-               [this](bool enabled) {
-                   if (!enabled)
-                       m_reduce_initial_purge = false;
+
+    content_sizer->AddSpacer(FromDIP(10));
+    auto* purge_title = new wxStaticText(this, wxID_ANY, _L("Purge Reducer"));
+    purge_title->SetFont(::Label::Head_13);
+    content_sizer->Add(purge_title, 0, wxBOTTOM, FromDIP(6));
+
+    ::CheckBox* skip_cb = nullptr;
+    add_toggle(CONFIG_KEY_PRE_ENGAGE, _L("Pre-engage Filament"), _L("Pre-engage the toolhead active channel to the starting tool slot before printing to prevent double purging."), m_pre_engage_filament,
+               [this, &skip_cb](bool enabled) {
+                   if (!enabled) {
+                       m_skip_first_toolchange = false;
+                       AppConfig* config = wxGetApp().app_config;
+                       if (config) {
+                           config->set("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE, "0");
+                           config->save();
+                       }
+                       if (skip_cb) {
+                           skip_cb->SetValue(false);
+                           skip_cb->Refresh();
+                       }
+                       if (m_btn_edit_script)
+                           m_btn_edit_script->Enable(false);
+                       m_show_custom_gcode = false;
+                       if (m_custom_gcode_box) {
+                           m_custom_gcode_box->Show(false);
+                           Layout();
+                       }
+                   } else {
+                       if (m_btn_edit_script)
+                           m_btn_edit_script->Enable(m_skip_first_toolchange);
+                   }
                });
-    add_toggle(_L("Reduce initial purge (25%)"), _L("Bypass mechanical cutting/retraction and reduce the starting tool prime to 25% (~5.25mm) when filament is pre-engaged."), m_reduce_initial_purge);
+
+    {
+        auto* row = new wxBoxSizer(wxHORIZONTAL);
+        skip_cb = new ::CheckBox(this);
+        skip_cb->SetValue(m_skip_first_toolchange);
+        skip_cb->SetToolTip(_L("Skip the initial tool change (e.g. T0) and run a custom G-code script."));
+
+        auto* text = new wxStaticText(this, wxID_ANY, _L("Skip First Tool Change"));
+        text->SetToolTip(_L("Skip the initial tool change (e.g. T0) and run a custom G-code script."));
+
+        m_btn_edit_script = new ScalableButton(this, wxID_ANY, "edit", wxEmptyString, wxDefaultSize, wxDefaultPosition, wxBU_EXACTFIT | wxNO_BORDER, true, 16);
+        m_btn_edit_script->SetToolTip(_L("Show/hide custom G-code script editor"));
+        m_btn_edit_script->SetBackgroundColour(GetBackgroundColour());
+        m_btn_edit_script->Enable(m_skip_first_toolchange);
+
+        skip_cb->Bind(wxEVT_TOGGLEBUTTON, [this](wxCommandEvent& event) {
+            m_skip_first_toolchange = event.IsChecked();
+            AppConfig* config = wxGetApp().app_config;
+            if (config) {
+                config->set("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE, m_skip_first_toolchange ? "1" : "0");
+                config->save();
+            }
+            if (m_btn_edit_script)
+                m_btn_edit_script->Enable(m_skip_first_toolchange);
+            if (!m_skip_first_toolchange && m_show_custom_gcode) {
+                m_show_custom_gcode = false;
+                if (m_custom_gcode_box) {
+                    m_custom_gcode_box->Show(false);
+                    Layout();
+                }
+            }
+            event.Skip();
+        });
+
+        m_btn_edit_script->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+            if (!m_skip_first_toolchange)
+                return;
+            m_show_custom_gcode = !m_show_custom_gcode;
+            if (m_custom_gcode_box) {
+                m_custom_gcode_box->Show(m_show_custom_gcode);
+                Layout();
+            }
+        });
+
+        row->Add(skip_cb, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(8));
+        row->Add(text, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(6));
+        row->Add(m_btn_edit_script, 0, wxALIGN_CENTER_VERTICAL);
+        content_sizer->Add(row, 0, wxBOTTOM, FromDIP(6));
+    }
+
+    m_custom_gcode_box = new wxBoxSizer(wxVERTICAL);
+    m_txt_custom_gcode = new wxTextCtrl(this, wxID_ANY, wxString::FromUTF8(m_skip_first_toolchange_script),
+        wxDefaultPosition, wxSize(FromDIP(450), FromDIP(130)), wxTE_MULTILINE
+    #ifdef _WIN32
+        | wxBORDER_SIMPLE
+    #endif
+    );
+    m_txt_custom_gcode->SetToolTip(_L("Custom G-code script to execute in place of the first tool change."));
+    m_txt_custom_gcode->Bind(wxEVT_TEXT, [this](wxCommandEvent& event) {
+        m_skip_first_toolchange_script = event.GetString().ToStdString();
+        AppConfig* config = wxGetApp().app_config;
+        if (config) {
+            config->set("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE_SCRIPT, m_skip_first_toolchange_script);
+            config->save();
+        }
+        event.Skip();
+    });
+    m_custom_gcode_box->Add(m_txt_custom_gcode, 0, wxLEFT | wxBOTTOM | wxEXPAND, FromDIP(24));
+    content_sizer->Add(m_custom_gcode_box, 0, wxEXPAND);
+    m_custom_gcode_box->Show(false);
+
+    content_sizer->AddSpacer(FromDIP(10));
+    auto* calibration_title = new wxStaticText(this, wxID_ANY, _L("Calibration"));
+    calibration_title->SetFont(::Label::Head_13);
+    content_sizer->Add(calibration_title, 0, wxBOTTOM, FromDIP(6));
+
+    add_toggle(CONFIG_KEY_LEVELING, _L("Auto Leveling"), _L("Probe and compensate the build plate before this print."), m_auto_leveling);
+    add_toggle(CONFIG_KEY_RESONANCE, _L("Resonance Compensation"), _L("Run vibration compensation before this print."), m_resonance_compensation);
+    add_toggle(CONFIG_KEY_FLOW, _L("Flow Calibration"), _L("Calibrate extrusion flow before this print."), m_flow_calibration);
+    add_toggle(CONFIG_KEY_TIMELAPSE, _L("Time-lapse"), _L("Capture a time-lapse while printing. The camera must be available."), m_timelapse);
 #ifdef ORCACUBIC_DEV_BUILD
-    add_toggle(_L("Save dev G-code copy"), _L("Save a copy of the final post-processed G-code/3MF to the OrcaCubic repository directory (last_remote_print_processed.gcode) for inspection."), m_save_dev_copy);
+    add_toggle(CONFIG_KEY_SAVE_DEV_COPY, _L("Save dev G-code copy"), _L("Save a copy of the final post-processed G-code/3MF to the OrcaCubic repository directory (last_remote_print_processed.gcode) for inspection."), m_save_dev_copy);
 #endif
 
     auto* start = add_button(wxID_YES, true, _L("Start Print"));
@@ -204,9 +320,12 @@ bool AnycubicPrintHostSendDialog::slot_matches_tool(const AnycubicMaterialSlot& 
 
 bool AnycubicPrintHostSendDialog::validate_before_close()
 {
-    if (m_reduce_initial_purge && !m_pre_engage_filament) {
-        show_error(this, _L("Reduced initial purge requires Pre-engage Filament."));
+    if (m_skip_first_toolchange && !m_pre_engage_filament) {
+        show_error(this, _L("Skip First Tool Change requires Pre-engage Filament."));
         return false;
+    }
+    if (m_skip_first_toolchange && m_txt_custom_gcode) {
+        m_skip_first_toolchange_script = m_txt_custom_gcode->GetValue().ToStdString();
     }
     if (m_project_filaments.empty()) {
         show_error(this, _L("Slice the plate before starting a remote print."));
@@ -332,7 +451,8 @@ std::map<std::string, std::string> AnycubicPrintHostSendDialog::extendedInfo() c
         {"flow_calibration", m_flow_calibration ? "1" : "0"},
         {"timelapse", m_timelapse ? "1" : "0"},
         {"pre_engage_filament", m_pre_engage_filament ? "1" : "0"},
-        {"reduce_initial_purge", m_reduce_initial_purge ? "1" : "0"},
+        {"skip_first_toolchange", m_skip_first_toolchange ? "1" : "0"},
+        {"skip_first_toolchange_script", m_skip_first_toolchange_script},
         {"save_dev_copy", m_save_dev_copy ? "1" : "0"},
         {"initial_slot", std::to_string(initial_slot)}
     };
@@ -340,15 +460,20 @@ std::map<std::string, std::string> AnycubicPrintHostSendDialog::extendedInfo() c
 
 void AnycubicPrintHostSendDialog::EndModal(int ret)
 {
-    if (ret == wxID_OK) {
-        AppConfig* config = wxGetApp().app_config;
+    AppConfig* config = wxGetApp().app_config;
+    if (config) {
+        if (m_txt_custom_gcode) {
+            m_skip_first_toolchange_script = m_txt_custom_gcode->GetValue().ToStdString();
+        }
         config->set("recent", CONFIG_KEY_LEVELING, m_auto_leveling ? "1" : "0");
         config->set("recent", CONFIG_KEY_RESONANCE, m_resonance_compensation ? "1" : "0");
         config->set("recent", CONFIG_KEY_FLOW, m_flow_calibration ? "1" : "0");
         config->set("recent", CONFIG_KEY_TIMELAPSE, m_timelapse ? "1" : "0");
         config->set("recent", CONFIG_KEY_PRE_ENGAGE, m_pre_engage_filament ? "1" : "0");
-        config->set("recent", CONFIG_KEY_REDUCE_INITIAL_PURGE, m_reduce_initial_purge ? "1" : "0");
+        config->set("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE, m_skip_first_toolchange ? "1" : "0");
+        config->set("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE_SCRIPT, m_skip_first_toolchange_script);
         config->set("recent", CONFIG_KEY_SAVE_DEV_COPY, m_save_dev_copy ? "1" : "0");
+        config->save();
     }
     PrintHostSendDialog::EndModal(ret);
 }

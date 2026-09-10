@@ -76,8 +76,9 @@ struct AnycubicPrinterSelection {
 };
 
 std::string normalize_anycubic_material(std::string material);
-bool reduce_initial_toolchange_purge_from_gcode(const std::string& input, std::string& output);
-bool process_gcode_to_reduce_initial_toolchange_purge(const boost::filesystem::path& src_path, boost::filesystem::path& dst_path, std::string& err);
+bool skip_first_toolchange_in_gcode(const std::string& input, std::string& output, const std::string& custom_script = {});
+bool process_gcode_to_skip_first_toolchange(const boost::filesystem::path& src_path, boost::filesystem::path& dst_path, std::string& err, const std::string& custom_script = {});
+bool rename_plate_to_first_in_3mf(const boost::filesystem::path& src_path, boost::filesystem::path& dst_path, std::string& err);
 std::vector<AnycubicAmsMappingEntry> build_anycubic_ams_mapping(
     const std::vector<AnycubicToolFilament>& tools,
     const std::vector<AnycubicMaterialSlot>& slots,

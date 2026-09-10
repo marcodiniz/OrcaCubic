@@ -468,7 +468,7 @@
             justify-content: center;
         }
 
-        .job-compact-row { display:flex; align-items:center; gap:10px; min-width:0; background:#1d2027; border:1px solid #30333b; border-radius:7px; padding:6px 8px; }
+        .job-compact-row { display:flex; align-items:center; gap:8px; min-width:0; background:#1d2027; border:1px solid #30333b; border-radius:7px; padding:6px 8px; flex-wrap:wrap; }
         .job-inline-stat { display:flex; align-items:baseline; gap:4px; white-space:nowrap; min-width:0; }
         .job-inline-stat span { color:#898d97; font-size:9px; }
         .job-inline-stat b { color:#f4f5f7; font-size:11px; font-weight:650; }
@@ -628,18 +628,105 @@
             border-color: var(--primary);
         }
 
-        .gcode-bottom {
+        .gcode-footer {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            margin-top: 6px;
+        }
+
+        .gcode-meta-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
             font-size: 11px;
             color: var(--text-muted);
+            min-height: 18px;
+        }
+
+        .gcode-checkbox-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            color: #9ca3af;
+            font-size: 11px;
+        }
+
+        .gcode-checkbox-label input[type="checkbox"] {
+            margin: 0;
+            cursor: pointer;
+            accent-color: #1677ff;
+        }
+
+        .btn-text-subtle {
+            background: transparent;
+            border: 0;
+            color: #858994;
+            font-size: 11px;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: color .15s ease, background .15s ease;
+        }
+
+        .btn-text-subtle:hover {
+            color: #f4f5f7;
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .gcode-btn-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .gcode-btn-upload {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #202229;
+            border: 1px solid #383b44;
+            color: #e5e7eb;
+            font-weight: 500;
+            padding: 7px 10px;
+            border-radius: 7px;
+            font-size: 11px;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all .15s ease;
+        }
+
+        .gcode-btn-upload:hover {
+            border-color: #1677ff;
+            color: #fff;
+            background: #282c36;
+        }
+
+        .gcode-btn-run {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            padding: 7px 12px;
+            border-radius: 7px;
+            font-size: 11px;
+            white-space: nowrap;
+            cursor: pointer;
         }
 
         .gcode-status {
             font-size: 11px;
             color: #34d399;
             font-family: monospace;
+            min-height: 0;
+            word-break: break-all;
+        }
+        .gcode-status:empty {
+            display: none;
         }
 
         .preset-chips {
@@ -932,9 +1019,10 @@
         .embedded-consumables .card-actions button { padding:3px 7px; font-size:9px; }
         .module-note { color:#747883; font-size:10px; text-align:center; margin-top:10px; }
         .axis-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:13px; }
-        .axis-steps { background:#1a1c22; border-radius:20px; padding:2px; display:flex; }
-        .axis-steps button { border:0; background:transparent; color:#90949e; padding:4px 10px; border-radius:16px; font-size:10px; cursor:pointer; }
-        .axis-steps button.active { background:#1677ff; color:white; }
+        .axis-steps { background:#1a1c22; border-radius:20px; padding:2px; display:flex; gap:2px; }
+        .axis-steps button { border:0; background:transparent; color:#90949e; padding:4px 10px; border-radius:16px; font-size:10px; cursor:pointer; font-weight:600; transition:background .15s, color .15s; }
+        .axis-steps button:hover:not(.active) { color:#fff; }
+        .axis-steps button.active { background:#1677ff!important; color:white!important; font-weight:700; }
         #card-axis-move.axis-locked button { opacity:.34; cursor:not-allowed; pointer-events:none; }
         #card-axis-move.axis-locked .axis-body { filter:saturate(.25); }
         .axis-body { display:grid; grid-template-columns:40px 130px 42px 1px 68px; align-items:center; justify-content:center; gap:9px; min-height:207px; }
@@ -1200,6 +1288,7 @@
                 <div class="job-inline-stat"><span>Layer</span><b id="stat-layer">0 / 0</b></div>
                 <div class="job-inline-stat"><span>Elapsed</span><b id="stat-elapsed">0m</b></div>
                 <div class="job-inline-stat"><span>Remaining</span><b id="stat-remaining">--</b></div>
+                <div class="job-inline-stat"><span>Action</span><b id="stat-action" style="color:#1677ff;">Ready</b></div>
                 <div class="job-inline-spacer"></div>
                 <div class="job-icon-actions">
                     <button class="job-icon-button" id="btn-pause" onclick="sendControl('pause')" title="Pause print" aria-label="Pause print" disabled><img src="img/pause.a9342684.svg" alt=""></button>
@@ -1287,12 +1376,12 @@
         <!-- Row 2 / Column 2: Run G-code File -->
         <section class="card wb3-gcode">
             <div class="card-header"><h2>Run G-code File</h2><span class="tag">LAN Exec</span></div>
-            <div class="gcode-container"><textarea class="gcode-textarea" id="gcode-input" title="Enter a block of G-code. It will be uploaded and executed as a temporary print file." placeholder="; Home all axes&#10;G28&#10;M400&#10;; Move X 10mm&#10;G91&#10;G1 X10 F3000&#10;G90&#10;; Move Y 10mm&#10;G91&#10;G1 Y10 F3000&#10;G90&#10;; Raise Z 5mm&#10;G91&#10;G1 Z5 F600&#10;G90&#10;; Wait 2 seconds&#10;G4 P2000"></textarea><div class="gcode-bottom"><label title="Remove the generated temporary G-code file from printer storage after execution."><input type="checkbox" id="chk-delete-after" checked> Auto-delete after execution</label><div><button class="btn btn-sm" onclick="clearGcode()" title="Clear the G-code editor.">Clear</button><button class="btn btn-primary btn-sm" onclick="runGcodeFile()" title="Package this G-code as a temporary file, upload it, and run it on the printer.">Run on Printer</button></div></div><div class="gcode-status" id="gcode-status"></div></div>
+            <div class="gcode-container"><textarea class="gcode-textarea" id="gcode-input" title="Enter a block of G-code. It will be uploaded and executed as a temporary print file." placeholder="; Home all axes&#10;G28&#10;M400&#10;; Move X 10mm&#10;G91&#10;G1 X10 F3000&#10;G90&#10;; Move Y 10mm&#10;G91&#10;G1 Y10 F3000&#10;G90&#10;; Raise Z 5mm&#10;G91&#10;G1 Z5 F600&#10;G90&#10;; Wait 2 seconds&#10;G4 P2000"></textarea><div class="gcode-footer"><div class="gcode-meta-row"><label class="gcode-checkbox-label" title="Remove the generated temporary G-code file from printer storage after execution."><input type="checkbox" id="chk-delete-after" checked><span>Auto-delete after run</span></label><button class="btn-text-subtle" onclick="clearGcode()" title="Clear the G-code editor.">Clear editor</button></div><div class="gcode-btn-row"><button class="gcode-btn-upload" onclick="document.getElementById('print-file-input').click()" title="Pick a .gcode or .3mf file from this computer, upload it to the printer over LAN, and start printing it.">📁 Upload File…</button><button class="btn btn-primary btn-sm gcode-btn-run" onclick="runGcodeFile()" title="Package this G-code as a temporary file, upload it, and run it on the printer.">▶ Run on Printer</button></div><div class="gcode-status" id="gcode-status"></div><div class="gcode-status" id="print-file-status"></div><input type="file" id="print-file-input" accept=".gcode,.3mf" style="display:none" onchange="uploadPickedPrintFile(this)"></div></div>
         </section>
 
         <!-- Row 2 / Column 3: Axis -->
         <section class="card wb3-axis" id="card-axis-move">
-            <div class="axis-header"><h2>Axis Move</h2><div class="axis-steps"><button id="step-1" onclick="setAxisStep(1,this)" title="Move axes by 1 millimeter per click.">1mm</button><button id="step-15" class="active" onclick="setAxisStep(15,this)" title="Move axes by 15 millimeters per click.">15mm</button><button id="step-50" onclick="setAxisStep(50,this)" title="Move axes by 50 millimeters per click.">50mm</button></div></div>
+            <div class="axis-header"><h2>Axis Move</h2><div class="axis-steps"><button id="step-1" class="axis-step-btn" onclick="setAxisStep(1,this)" title="Move axes by 1 millimeter per click.">1mm</button><button id="step-15" class="axis-step-btn active" onclick="setAxisStep(15,this)" title="Move axes by 15 millimeters per click.">15mm</button><button id="step-50" class="axis-step-btn" onclick="setAxisStep(50,this)" title="Move axes by 50 millimeters per click.">50mm</button></div></div>
             <div class="axis-body">
                 <div class="axis-actions"><button onclick="homeAll()" title="Home all">⌂</button><button onclick="motorOff()" title="Release motors">✋</button></div>
                 <div class="xy-pad">
@@ -1635,15 +1724,14 @@
 
         function setAxisStep(step, el) {
             jogStep = step;
-            document.querySelectorAll(".axis-step-btn").forEach(b => {
-                b.style.background = "transparent";
-                b.style.color = "#9ca3af";
-                b.style.fontWeight = "600";
+            document.querySelectorAll(".axis-steps button, .axis-step-btn").forEach(b => {
+                b.classList.remove("active");
+                b.style.background = "";
+                b.style.color = "";
+                b.style.fontWeight = "";
             });
             if (el) {
-                el.style.background = "#2563eb";
-                el.style.color = "#fff";
-                el.style.fontWeight = "700";
+                el.classList.add("active");
             }
         }
 
@@ -2078,6 +2166,52 @@
             document.getElementById("gcode-status").innerText = "";
         }
 
+        // 512 MiB cap, matching the bridge daemon's MAX_UPLOAD_FILE_BYTES.
+        const MAX_PRINT_FILE_BYTES = 512 * 1024 * 1024;
+
+        function bytesToBase64(bytes) {
+            let binary = "";
+            const chunk = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunk) {
+                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+            }
+            return btoa(binary);
+        }
+
+        async function uploadPickedPrintFile(input) {
+            const statusEl = document.getElementById("print-file-status");
+            const file = input.files && input.files[0];
+            input.value = ""; // allow re-picking the same file later
+            if (!file) return;
+            const name = file.name || "";
+            if (!/\.(gcode|3mf)$/i.test(name)) {
+                if (statusEl) statusEl.innerText = "Error: pick a .gcode or .3mf file.";
+                return;
+            }
+            if (file.size > MAX_PRINT_FILE_BYTES) {
+                if (statusEl) statusEl.innerText = "Error: file is larger than 512 MB.";
+                return;
+            }
+            if (statusEl) statusEl.innerText = `Reading ${name} (${(file.size / 1048576).toFixed(1)} MB)...`;
+            try {
+                const contentBase64 = bytesToBase64(new Uint8Array(await file.arrayBuffer()));
+                if (statusEl) statusEl.innerText = `Uploading ${name} to printer...`;
+                const res = await fetch("http://127.0.0.1:18988/upload_print_file", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ filename: name, content_base64: contentBase64, use_ams: true })
+                });
+                const data = await res.json();
+                if (data.status === "ok") {
+                    if (statusEl) statusEl.innerText = `✓ ${data.filename} uploaded — print started (${(data.filesize / 1048576).toFixed(1)} MB).`;
+                } else {
+                    if (statusEl) statusEl.innerText = `Error: ${data.message || "upload failed"}`;
+                }
+            } catch(e) {
+                if (statusEl) statusEl.innerText = `Network error: ${e.message}`;
+            }
+        }
+
         function sendToSlicer(command, data, requestId = "") {
             const body = { command: command, data: data };
             if (requestId) {
@@ -2502,6 +2636,46 @@
             }
             if (data.remain_time !== undefined) {
                 document.getElementById("stat-remaining").innerText = data.remain_time + "m";
+            }
+            const actionEl = document.getElementById("stat-action");
+            if (actionEl) {
+                const rawState = String(data.state || data.print_state || "free").toLowerCase();
+                const ACTION_NAMES = {
+                    "free": "Idle",
+                    "ready": "Ready",
+                    "printing": "Printing",
+                    "paused": "Paused",
+                    "busy": "Busy",
+                    "heating": "Heating",
+                    "nozzle_heating": "Heating Nozzle",
+                    "bed_heating": "Heating Bed",
+                    "homing": "Homing",
+                    "auto_leveling": "Auto Leveling",
+                    "z_offset_calibrating": "Z-Offset Calibrating",
+                    "nozzle_purging": "Purging",
+                    "nozzle_wiping": "Wiping",
+                    "nozzle_cooling": "Cooling Nozzle",
+                    "completed": "Completed",
+                    "finish": "Finished",
+                    "stopping": "Stopping",
+                    "abnormal": "Error"
+                };
+                let label = ACTION_NAMES[rawState];
+                if (!label) {
+                    label = rawState.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+                }
+                actionEl.innerText = label;
+                if (rawState === "nozzle_purging" || rawState === "nozzle_wiping" || rawState.includes("heating") || rawState === "auto_leveling" || rawState.includes("calibrat")) {
+                    actionEl.style.color = "#f59e0b"; // warm amber during calibration/purging/heating
+                } else if (rawState === "printing") {
+                    actionEl.style.color = "#1677ff";
+                } else if (rawState === "paused") {
+                    actionEl.style.color = "#eab308";
+                } else if (rawState === "free" || rawState === "ready") {
+                    actionEl.style.color = "#45d483";
+                } else {
+                    actionEl.style.color = "#f4f5f7";
+                }
             }
             if (data.speed_mode !== undefined) {
                 currentSpeedMode = Number(data.speed_mode) || 2;

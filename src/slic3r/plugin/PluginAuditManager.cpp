@@ -287,6 +287,8 @@ std::vector<std::string> PluginAuditManager::default_denied_filenames()
         GCODEVIEWER_APP_KEY ".conf",
         SLIC3R_APP_KEY ".ini",
         GCODEVIEWER_APP_KEY ".ini",
+        "OrcaSlicer.conf",
+        "OrcaSlicer.ini",
         secret_constants::USER_SECRET_FILENAME,
     };
 }

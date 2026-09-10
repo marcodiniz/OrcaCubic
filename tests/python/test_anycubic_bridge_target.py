@@ -198,6 +198,198 @@ class TargetBindingTests(unittest.TestCase):
         self.assertEqual(daemon.telemetry["channel_status"], 0)
         self.assertEqual(daemon.telemetry["channel_report_seq"], previous_seq + 1)
 
+    def test_extrude_control_report_without_status_preserves_switching_state(self):
+        # A report carrying only `index` must not reset an in-progress switch
+        # (current_status 3) to idle, or the C++ confirmation check would see
+        # "idle + matching index" and start the print mid-feed.
+        class MockMessage:
+            def __init__(self, topic, payload):
+                self.topic = topic
+                self.payload = payload.encode("utf-8")
+
+        daemon.telemetry["channel_index"] = 0
+        daemon.telemetry["channel_status"] = 3  # switching in progress
+
+        msg = MockMessage(
+            "anycubic/anycubicCloud/v1/printer/public/20030/test-device/extrudeControl/report",
+            json.dumps({
+                "type": "extrudeControl",
+                "action": "switchChannel",
+                "code": 200,
+                "data": {"index": 2}
+            })
+        )
+        daemon.on_mqtt_message(None, None, msg)
+        self.assertEqual(daemon.telemetry["channel_index"], 2)
+        self.assertEqual(daemon.telemetry["channel_status"], 3)
+
+    def test_extrude_control_switch_failure_is_recorded(self):
+        class MockMessage:
+            def __init__(self, topic, payload):
+                self.topic = topic
+                self.payload = payload.encode("utf-8")
+
+        daemon.telemetry.pop("channel_switch_failed", None)
+        msg = MockMessage(
+            "anycubic/anycubicCloud/v1/printer/public/20030/test-device/extrudeControl/report",
+            json.dumps({
+                "type": "extrudeControl",
+                "action": "switchChannel",
+                "code": 10502,
+                "msg": "switch failed",
+                "data": None
+            })
+        )
+        daemon.on_mqtt_message(None, None, msg)
+        self.assertIn("channel_switch_failed", daemon.telemetry)
+
+    def test_upload_print_file_uploads_over_http_and_starts_local_task(self):
+        published_messages = []
+        upload_requests = []
+
+        class MockMqttClient:
+            def publish(self, topic, payload):
+                published_messages.append((topic, json.loads(payload)))
+
+        class MockResponse:
+            def read(self):
+                return b'{"code":200,"data":{"gcode":"cube.gcode"},"message":"success"}'
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+
+        content = b"; HEADER_BLOCK_START\nG28\nM400\n"
+        expected_md5 = __import__("hashlib").md5(content).hexdigest().lower()
+
+        def fake_urlopen(req, timeout=None):
+            upload_requests.append(req)
+            return MockResponse()
+
+        old_client = daemon.mqtt_client
+        old_urlopen = daemon.urllib.request.urlopen
+        daemon.mqtt_client = MockMqttClient()
+        daemon.telemetry["connected"] = True
+        daemon.urllib.request.urlopen = fake_urlopen
+        try:
+            connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+            body = json.dumps({
+                "filename": "cube.gcode",
+                "content_base64": __import__("base64").b64encode(content).decode("ascii"),
+                "use_ams": True
+            })
+            connection.request("POST", "/upload_print_file", body, {
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                "X-OrcaCubic-Token": "test-token",
+                "X-OrcaCubic-Printer": "192.0.2.20"
+            })
+            resp = connection.getresponse()
+            payload = json.loads(resp.read())
+            connection.close()
+
+            self.assertEqual(resp.status, 200)
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["filename"], "cube.gcode")
+
+            # File bytes travelled over HTTP multipart to the printer upload endpoint.
+            self.assertEqual(len(upload_requests), 1)
+            req = upload_requests[0]
+            self.assertIn("gcode_upload", req.full_url)
+            # Multipart body must open with the declared boundary delimiter.
+            ctype = req.get_header("Content-type")
+            boundary = ctype.split("boundary=", 1)[1].strip()
+            self.assertTrue(req.data.startswith(("--" + boundary).encode("utf-8")))
+            self.assertTrue(req.data.endswith(("--" + boundary + "--\r\n").encode("utf-8")))
+            self.assertIn(b'name="gcode"; filename="cube.gcode"', req.data)
+            self.assertIn(content, req.data)
+            self.assertEqual(req.get_header("X-file-length"), str(len(content)))
+
+            # The start trigger is MQTT-only, local filetype 1, no cloud URL.
+            print_msgs = [p for t, p in published_messages if p.get("type") == "print" and p.get("action") == "start"]
+            self.assertEqual(len(print_msgs), 1)
+            self.assertEqual(print_msgs[0]["data"]["filetype"], 1)
+            self.assertEqual(print_msgs[0]["data"]["filename"], "cube.gcode")
+            self.assertEqual(print_msgs[0]["data"]["md5"], expected_md5)
+            self.assertEqual(print_msgs[0]["data"]["filesize"], len(content))
+            self.assertEqual(print_msgs[0]["data"]["url"], "")
+        finally:
+            daemon.mqtt_client = old_client
+            daemon.urllib.request.urlopen = old_urlopen
+
+    def test_upload_print_file_3mf_starts_under_inner_gcode_name(self):
+        published_messages = []
+
+        class MockMqttClient:
+            def publish(self, topic, payload):
+                published_messages.append((topic, json.loads(payload)))
+
+        class MockResponse:
+            def read(self):
+                return b'{"code":200,"message":"success"}'
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+
+        def fake_urlopen(req, timeout=None):
+            return MockResponse()
+
+        old_client = daemon.mqtt_client
+        old_urlopen = daemon.urllib.request.urlopen
+        daemon.mqtt_client = MockMqttClient()
+        daemon.telemetry["connected"] = True
+        daemon.urllib.request.urlopen = fake_urlopen
+        try:
+            connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+            body = json.dumps({
+                "filename": "Plate_model.gcode.3mf",
+                "content_base64": __import__("base64").b64encode(b"PK\x03\x04dummy").decode("ascii")
+            })
+            connection.request("POST", "/upload_print_file", body, {
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                "X-OrcaCubic-Token": "test-token",
+                "X-OrcaCubic-Printer": "192.0.2.20"
+            })
+            resp = connection.getresponse()
+            payload = json.loads(resp.read())
+            connection.close()
+
+            self.assertEqual(payload["status"], "ok")
+            self.assertEqual(payload["start_filename"], "Plate_model.gcode")
+            print_msgs = [p for t, p in published_messages if p.get("type") == "print" and p.get("action") == "start"]
+            self.assertEqual(len(print_msgs), 1)
+            self.assertEqual(print_msgs[0]["data"]["filename"], "Plate_model.gcode")
+            self.assertEqual(print_msgs[0]["data"]["filetype"], 1)
+        finally:
+            daemon.mqtt_client = old_client
+            daemon.urllib.request.urlopen = old_urlopen
+
+    def test_upload_print_file_rejects_bad_payload(self):
+        old_client = daemon.mqtt_client
+        daemon.mqtt_client = None  # must be rejected before any upload is attempted
+        try:
+            for bad_body in (
+                json.dumps({"filename": "", "content_base64": "AAAA"}),
+                json.dumps({"filename": "x.gcode", "content_base64": ""}),
+                json.dumps({"filename": "x.gcode", "content_base64": "!!!not-base64!!!"}),
+            ):
+                connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+                connection.request("POST", "/upload_print_file", bad_body, {
+                    "Content-Type": "application/json",
+                    "Content-Length": str(len(bad_body)),
+                    "X-OrcaCubic-Token": "test-token",
+                    "X-OrcaCubic-Printer": "192.0.2.20"
+                })
+                resp = connection.getresponse()
+                payload = json.loads(resp.read())
+                connection.close()
+                self.assertEqual(resp.status, 200)
+                self.assertEqual(payload["status"], "error")
+        finally:
+            daemon.mqtt_client = old_client
+
 
 class MaterialSystemTests(unittest.TestCase):
     def setUp(self):

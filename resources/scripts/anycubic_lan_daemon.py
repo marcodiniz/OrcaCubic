@@ -35,6 +35,11 @@ PRINTER_HTTP_PORT = 18910
 PRINTER_MQTT_PORT = 9883
 HTTP_PORT = 18988
 
+# A user-picked print file is streamed to the bridge as base64 JSON. Cap it so a
+# large file cannot exhaust memory; the request cap leaves room for base64 growth.
+MAX_UPLOAD_FILE_BYTES = 512 * 1024 * 1024
+MAX_REQUEST_BODY_BYTES = MAX_UPLOAD_FILE_BYTES * 2
+
 telemetry = {
     "connected": False,
     "ip": PRINTER_IP,
@@ -394,10 +399,15 @@ def on_mqtt_message(c, userdata, msg):
 
         elif t == "extrudeControl":
             if isinstance(data, dict):
+                # Preserve previous values when a report omits fields: defaulting
+                # current_status to 0 would make an in-progress switch look idle.
                 telemetry["channel_index"] = data.get("index", telemetry.get("channel_index", -1))
-                telemetry["channel_status"] = data.get("current_status", 0)
+                telemetry["channel_status"] = data.get("current_status", telemetry.get("channel_status", 0))
                 telemetry["has_filaments"] = data.get("has_filaments", telemetry.get("has_filaments", 0))
                 telemetry["channel_report_seq"] = telemetry.get("channel_report_seq", 0) + 1
+            elif payload.get("action") == "switchChannel" and code != 200:
+                # Switch explicitly rejected by firmware; surface via last_error.
+                telemetry["channel_switch_failed"] = int(time.time())
 
         elif t == "peripherie":
             # The original page treats peripherie=0 as a hint and asks for a
@@ -619,6 +629,134 @@ def upload_and_run_gcode(gcode_text, delete_after=True):
         
     return {"status": "ok", "filename": fname}
 
+
+def sanitize_print_filename(raw_name):
+    """Reduce a user-supplied name to a bare, printer-safe filename."""
+    base = (raw_name or "").replace("\\", "/").split("/")[-1].strip()
+    return base or "print.gcode"
+
+
+def start_filename_for_print(filename):
+    """A local `.gcode.3mf` task starts under its inner `.gcode` name."""
+    target = filename
+    if target.lower().endswith(".3mf"):
+        target = target[:-4]
+    if not target.lower().endswith(".gcode"):
+        target += ".gcode"
+    return target
+
+
+def _default_ams_mapping(use_ams=True):
+    """1-to-1 ACE/rack slot mapping built from current telemetry (mirrors start_print_job)."""
+    ams_mapping = []
+    fils = [f for f in telemetry.get("filaments", [])
+            if f.get("source") not in ("external", "external_mcb") and f.get("available", True)]
+    for i in range(len(fils) if fils else (4 if use_ams else 0)):
+        f = fils[i] if fils and i < len(fils) else {}
+        col = f.get("color", "#23a3c7")
+        if isinstance(col, str) and col.startswith("#"):
+            c_hex = col.lstrip("#")
+            r = int(c_hex[0:2], 16) if len(c_hex) >= 2 else 0
+            g = int(c_hex[2:4], 16) if len(c_hex) >= 4 else 210
+            b = int(c_hex[4:6], 16) if len(c_hex) >= 6 else 255
+            rgb = [r, g, b]
+        else:
+            rgb = [35, 163, 199]
+        ams_mapping.append({
+            "ams_index": int(f.get("slot", i)),
+            "paint_index": i,
+            "material_type": f.get("type", "PLA"),
+            "ams_color": rgb,
+            "paint_color": rgb
+        })
+    return ams_mapping
+
+
+def upload_and_start_print_file(content_bytes, raw_filename, use_ams=True, task_settings=None):
+    """Upload a user-picked .gcode/.3mf over HTTP, then start it via MQTT as a local task.
+
+    Transport mirrors the proven Remote Print path: the file bytes travel over HTTP
+    to the printer's gcode_upload endpoint; only the start trigger uses MQTT, with
+    filetype 1 (local) and no cloud URL.
+    """
+    if len(content_bytes) > MAX_UPLOAD_FILE_BYTES:
+        return {"status": "error", "message": "File is too large to upload"}
+    if not mqtt_client or not telemetry.get("connected"):
+        return {"status": "error", "message": "Printer bridge is not connected"}
+
+    fname = sanitize_print_filename(raw_filename)
+    fmd5 = hashlib.md5(content_bytes).hexdigest().lower()
+    fsize = len(content_bytes)
+
+    upload_url = telemetry.get("upload_url", f"http://{PRINTER_IP}:{PRINTER_HTTP_PORT}/gcode_upload")
+    boundary = "----WebKitFormBoundary" + "".join(random.choices(string.ascii_letters + string.digits, k=16))
+    part1 = f'--{boundary}\r\nContent-Disposition: form-data; name="filename"\r\n\r\n{fname}\r\n'
+    part2 = f'--{boundary}\r\nContent-Disposition: form-data; name="gcode"; filename="{fname}"\r\nContent-Type: application/octet-stream\r\n\r\n'
+    part3 = f'\r\n--{boundary}--\r\n'
+    body = part1.encode("utf-8") + part2.encode("utf-8") + content_bytes + part3.encode("utf-8")
+    headers = {
+        "Content-Type": f"multipart/form-data; boundary={boundary}",
+        "Content-Length": str(len(body)),
+        "X-File-Length": str(fsize),
+        "X-BBL-Client-Name": "AnycubicSlicerNext",
+        "X-BBL-Client-Type": "slicer",
+        "X-BBL-Client-Version": "01.03.09.04",
+        "User-Agent": "AnycubicSlicerNext/2.0.0.2"
+    }
+    req = urllib.request.Request(upload_url, data=body, headers=headers)
+    with urllib.request.urlopen(req, timeout=120) as r:
+        resp_text = r.read().decode("utf-8", errors="ignore")
+    print(f"[Bridge] Uploaded print file {fname} ({fsize} bytes): {resp_text}")
+    try:
+        resp_json = json.loads(resp_text)
+        if int(resp_json.get("code", 0)) != 200:
+            return {"status": "error", "message": resp_json.get("message", "printer rejected upload")}
+    except Exception:
+        pass
+
+    time.sleep(0.5)
+
+    ams_mapping = _default_ams_mapping(use_ams)
+    ts = task_settings or {}
+    auto_leveling = 1 if ts.get("auto_leveling", 1) else 0
+    vibration_compensation = 1 if ts.get("vibration_compensation", 0) else 0
+    flow_calibration = 1 if ts.get("flow_calibration", 0) else 0
+    timelapse_status = 1 if ts.get("timelapse", 0) else 0
+    start_name = start_filename_for_print(fname)
+
+    topic = f"anycubic/anycubicCloud/v1/slicer/printer/{model_id}/{device_id}/print"
+    msg = {
+        "type": "print",
+        "action": "start",
+        "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+        "timestamp": int(time.time() * 1000),
+        "data": {
+            "taskid": "-1",
+            "filename": start_name,
+            "url": "",
+            "md5": fmd5,
+            "filepath": None,
+            "filetype": 1,
+            "project_type": 1,
+            "filesize": fsize,
+            "ams_settings": {"use_ams": use_ams, "ams_box_mapping": ams_mapping},
+            "task_settings": {
+                "auto_leveling": auto_leveling,
+                "vibration_compensation": vibration_compensation,
+                "flow_calibration": flow_calibration,
+                "dry_mode": 0,
+                "ai_settings": {"status": 0, "count": 0, "type": 0},
+                "timelapse": {"status": timelapse_status, "count": 0, "type": 0},
+                "drying_settings": {"status": 0, "target_temp": 0, "duration": 0, "remain_time": 0},
+                "model_objects_skip_parts": []
+            }
+        }
+    }
+    mqtt_client.publish(topic, json.dumps(msg))
+    print(f"[Bridge] Triggered print:start for {fname} (start name {start_name}, use_ams={use_ams})")
+    return {"status": "ok", "filename": fname, "start_filename": start_name, "filesize": fsize}
+
+
 class BridgeServer(BaseHTTPRequestHandler):
     def authorized(self):
         return self.headers.get("X-OrcaCubic-Token", "") == BRIDGE_TOKEN
@@ -686,6 +824,13 @@ class BridgeServer(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "error", "message": "Device selection changed"}).encode("utf-8"))
             return
         content_length = int(self.headers.get("Content-Length", 0))
+        if content_length > MAX_REQUEST_BODY_BYTES:
+            self.send_response(413)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "error", "message": "Request body too large", "ip": PRINTER_IP}).encode("utf-8"))
+            return
         body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
         try:
             data = json.loads(body)
@@ -1055,6 +1200,32 @@ class BridgeServer(BaseHTTPRequestHandler):
                     result = upload_and_run_gcode(gcode, delete_after=delete_after)
                 except Exception as e:
                     result = {"status": "error", "message": str(e)}
+
+        elif self.path.startswith("/upload_print_file"):
+            # A print file picked in the workbench UI. The bytes arrive base64-encoded
+            # in JSON so the existing fetch hook keeps authorizing the request.
+            encoded = data.get("content_base64", "")
+            fname = data.get("filename", "")
+            if not encoded or not fname:
+                result = {"status": "error", "message": "Missing filename or file content", "ip": PRINTER_IP}
+            else:
+                try:
+                    content_bytes = base64.b64decode(encoded, validate=True)
+                except Exception:
+                    content_bytes = b""
+                if not content_bytes:
+                    result = {"status": "error", "message": "File content could not be decoded", "ip": PRINTER_IP}
+                else:
+                    try:
+                        result = upload_and_start_print_file(
+                            content_bytes,
+                            fname,
+                            use_ams=bool(data.get("use_ams", True)),
+                            task_settings=data.get("task_settings") or {}
+                        )
+                        result["ip"] = PRINTER_IP
+                    except Exception as e:
+                        result = {"status": "error", "message": f"Upload failed: {e}", "ip": PRINTER_IP}
 
         elif self.path.startswith("/sync_to_printer"):
             slots_data = data.get("slots", [])

@@ -25,6 +25,7 @@ class wxFlexGridSizer;
 class wxStaticText;
 class wxWrapSizer;
 class CheckBox;
+class ScalableButton;
 
 namespace Slic3r { namespace GUI { class BitmapComboBox; } }
 
@@ -311,15 +312,22 @@ private:
     bool m_flow_calibration {false};
     bool m_timelapse {false};
     bool m_pre_engage_filament {true};
-    bool m_reduce_initial_purge {true};
+    bool m_skip_first_toolchange {true};
+    bool m_show_custom_gcode {false};
+    std::string m_skip_first_toolchange_script {"M83\nG28 X\nG1 E40 F300\nM106 S229\nM400 P2000\nG1 X20 F15000\nG28 X"};
     bool m_save_dev_copy {false};
+
+    wxTextCtrl* m_txt_custom_gcode {nullptr};
+    wxBoxSizer* m_custom_gcode_box {nullptr};
+    ScalableButton* m_btn_edit_script {nullptr};
 
     const char* CONFIG_KEY_LEVELING  = "anycubic_auto_leveling";
     const char* CONFIG_KEY_RESONANCE = "anycubic_resonance_compensation";
     const char* CONFIG_KEY_FLOW      = "anycubic_flow_calibration";
     const char* CONFIG_KEY_TIMELAPSE = "anycubic_timelapse";
     const char* CONFIG_KEY_PRE_ENGAGE = "anycubic_pre_engage_filament";
-    const char* CONFIG_KEY_REDUCE_INITIAL_PURGE = "anycubic_reduce_initial_purge";
+    const char* CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE = "anycubic_skip_first_toolchange";
+    const char* CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE_SCRIPT = "anycubic_skip_first_toolchange_script";
     const char* CONFIG_KEY_SAVE_DEV_COPY = "anycubic_save_dev_copy";
 };
 

@@ -203,7 +203,41 @@ std::string normalize_anycubic_material(std::string material)
     return material;
 }
 
-bool reduce_initial_toolchange_purge_from_gcode(const std::string& input, std::string& output)
+namespace {
+std::string md5_hex(const std::string& input)
+{
+    unsigned char digest[MD5_DIGEST_LENGTH];
+    MD5(reinterpret_cast<const unsigned char*>(input.data()), input.size(), digest);
+    char hex[33];
+    for (int i = 0; i < 16; ++i) {
+        snprintf(&hex[i * 2], 3, "%02x", digest[i]);
+    }
+    hex[32] = '\0';
+    return std::string(hex);
+}
+} // namespace
+
+static bool is_tool_command(const std::string& line, std::string& tool_out)
+{
+    size_t start = line.find_first_not_of(" \t\r");
+    if (start == std::string::npos || line[start] != 'T')
+        return false;
+    size_t num_start = start + 1;
+    size_t num_end = num_start;
+    while (num_end < line.size() && isdigit(static_cast<unsigned char>(line[num_end])))
+        ++num_end;
+    if (num_end == num_start)
+        return false;
+    if (num_end < line.size()) {
+        char next = line[num_end];
+        if (next != ' ' && next != '\t' && next != '\r' && next != '\n' && next != ';')
+            return false;
+    }
+    tool_out = line.substr(start, num_end - start);
+    return true;
+}
+
+bool skip_first_toolchange_in_gcode(const std::string& input, std::string& output, const std::string& custom_script)
 {
     std::istringstream stream(input);
     std::ostringstream out;
@@ -211,61 +245,60 @@ bool reduce_initial_toolchange_purge_from_gcode(const std::string& input, std::s
     std::vector<std::string> flush_block;
     bool replaced = false;
     bool in_flush_block = false;
-    std::string first_tool;
-    bool saw_tool = false;
+    std::string found_tool;
+
+    auto emit_replacement = [&out, &custom_script](const std::string& tool_name) {
+        out << "; [OrcaCubic] Replace first tool change (" << tool_name << ") with initial purge at purge box\n";
+        if (custom_script.empty()) {
+            out << "M83\n";
+            out << "G28 X\n";
+            out << "G1 E40 F300\n";
+            out << "M106 S229\n";
+            out << "M400 P2000\n";
+            out << "G1 X20 F15000\n";
+            out << "G28 X\n";
+        } else {
+            out << custom_script;
+            if (!custom_script.empty() && custom_script.back() != '\n')
+                out << "\n";
+        }
+    };
 
     while (std::getline(stream, line)) {
         if (!replaced) {
-            // If we encounter Anycubic's machine flush block (which wraps toolhead cutting,
-            // carriage travel, pauses, and firmware purge moves prefixed with ;;;)
             if (!in_flush_block) {
                 if (line.find("; FLUSH_START") != std::string::npos || line.find(";FLUSH_START") != std::string::npos) {
                     in_flush_block = true;
                     flush_block.clear();
                     flush_block.push_back(line);
+                    found_tool.clear();
+                    continue;
+                }
+                std::string tool;
+                if (is_tool_command(line, tool)) {
+                    replaced = true;
+                    emit_replacement(tool);
                     continue;
                 }
             } else {
-                // Inside the first toolchange flush block: record it until we know it is safe to replace.
                 flush_block.push_back(line);
-                size_t start = line.find_first_not_of(" \t\r");
-                if (start != std::string::npos && line[start] == 'T') {
-                    size_t num_start = start + 1;
-                    size_t num_end = num_start;
-                    while (num_end < line.size() && isdigit(static_cast<unsigned char>(line[num_end])))
-                        ++num_end;
-                    if (num_end > num_start) {
-                        first_tool = line.substr(start, num_end - start);
-                        saw_tool = true;
-                    }
+                std::string tool;
+                if (is_tool_command(line, tool)) {
+                    found_tool = tool;
                 }
-
                 if (line.find("; FLUSH_END") != std::string::npos || line.find(";FLUSH_END") != std::string::npos) {
                     in_flush_block = false;
-                    if (!saw_tool) {
+                    if (!found_tool.empty()) {
+                        replaced = true;
+                        emit_replacement(found_tool);
+                        flush_block.clear();
+                        continue;
+                    } else {
                         for (const std::string& buffered_line : flush_block)
                             out << buffered_line << "\n";
                         flush_block.clear();
                         continue;
                     }
-                    replaced = true;
-                    out << "; [OrcaCubic] Initial toolchange: 25% prime with pre-engaged filament (~5.25mm)\n";
-                    out << ";;; G1 Z3 F1200\n";
-                    out << ";;; G1 X0 F21000\n";
-                    out << ";;; G1 X-17.5 F5250\n";
-                    out << ";;; M400 P1000\n";
-                    out << first_tool << "\n";
-                    out << ";;; G1 E2 F300\n";
-                    out << ";;; M400 P910\n";
-                    out << ";;; G1 E3.25 F1200\n";
-                    out << ";;; M400 P250\n";
-                    out << ";;; M106 S255\n";
-                    out << ";;; M400 P1500\n";
-                    out << ";;; G1 E-2 F1200\n";
-                    out << ";;; M400 P414\n";
-                    out << ";;; G1 E2 F1800\n";
-                    out << "; FLUSH_END\n";
-                    flush_block.clear();
                 }
                 continue;
             }
@@ -282,7 +315,7 @@ bool reduce_initial_toolchange_purge_from_gcode(const std::string& input, std::s
     return replaced;
 }
 
-bool process_gcode_to_reduce_initial_toolchange_purge(const boost::filesystem::path& src_path, boost::filesystem::path& dst_path, std::string& err)
+bool process_gcode_to_skip_first_toolchange(const boost::filesystem::path& src_path, boost::filesystem::path& dst_path, std::string& err, const std::string& custom_script)
 {
     boost::system::error_code ec;
     if (!fs::exists(src_path, ec)) {
@@ -330,8 +363,12 @@ bool process_gcode_to_reduce_initial_toolchange_purge(const boost::filesystem::p
 
         const mz_uint num_files = mz_zip_reader_get_num_files(&reader);
         constexpr mz_uint64 max_gcode_entry_size = 512ull * 1024ull * 1024ull;
-        bool any_reduced = false;
+        bool any_replaced = false;
         bool writer_ok = true;
+
+        std::map<std::string, std::string> modified_gcodes;
+        std::map<std::string, std::string> modified_md5s;
+
         for (mz_uint i = 0; i < num_files; ++i) {
             mz_zip_archive_file_stat stat;
             if (!mz_zip_reader_file_stat(&reader, i, &stat))
@@ -353,17 +390,32 @@ bool process_gcode_to_reduce_initial_toolchange_purge(const boost::filesystem::p
                     free(data);
 
                     std::string modified_text;
-                    if (reduce_initial_toolchange_purge_from_gcode(gcode_text, modified_text)) {
-                        any_reduced = true;
-                        writer_ok = mz_zip_writer_add_mem(&writer, entry_name.c_str(), modified_text.data(), modified_text.size(), MZ_DEFAULT_COMPRESSION) != 0;
-                    } else {
-                        writer_ok = mz_zip_writer_add_mem(&writer, entry_name.c_str(), gcode_text.data(), gcode_text.size(), MZ_DEFAULT_COMPRESSION) != 0;
+                    if (skip_first_toolchange_in_gcode(gcode_text, modified_text, custom_script)) {
+                        any_replaced = true;
+                        std::string new_md5 = boost::to_upper_copy(md5_hex(modified_text));
+                        modified_md5s[entry_name + ".md5"] = std::move(new_md5);
+                        modified_gcodes[entry_name] = std::move(modified_text);
                     }
+                }
+            }
+        }
+
+        for (mz_uint i = 0; i < num_files; ++i) {
+            mz_zip_archive_file_stat stat;
+            if (!mz_zip_reader_file_stat(&reader, i, &stat))
+                continue;
+
+            std::string entry_name = stat.m_filename;
+            auto it_gcode = modified_gcodes.find(entry_name);
+            if (it_gcode != modified_gcodes.end()) {
+                writer_ok = mz_zip_writer_add_mem(&writer, entry_name.c_str(), it_gcode->second.data(), it_gcode->second.size(), MZ_DEFAULT_COMPRESSION) != 0;
+            } else {
+                auto it_md5 = modified_md5s.find(entry_name);
+                if (it_md5 != modified_md5s.end()) {
+                    writer_ok = mz_zip_writer_add_mem(&writer, entry_name.c_str(), it_md5->second.data(), it_md5->second.size(), MZ_DEFAULT_COMPRESSION) != 0;
                 } else {
                     writer_ok = mz_zip_writer_add_from_zip_reader(&writer, &reader, i) != 0;
                 }
-            } else {
-                writer_ok = mz_zip_writer_add_from_zip_reader(&writer, &reader, i) != 0;
             }
             if (!writer_ok)
                 break;
@@ -378,7 +430,7 @@ bool process_gcode_to_reduce_initial_toolchange_purge(const boost::filesystem::p
             err = "Failed to create a complete post-processed 3MF archive";
             return false;
         }
-        if (!any_reduced) {
+        if (!any_replaced) {
             fs::remove(dst_path, ec);
             err = "No toolchange found in 3MF archive";
             return false;
@@ -401,7 +453,7 @@ bool process_gcode_to_reduce_initial_toolchange_purge(const boost::filesystem::p
         in.close();
 
         std::string modified;
-        if (!reduce_initial_toolchange_purge_from_gcode(content, modified)) {
+        if (!skip_first_toolchange_in_gcode(content, modified, custom_script)) {
             err = "No initial toolchange found in G-code";
             return false;
         }
@@ -415,6 +467,115 @@ bool process_gcode_to_reduce_initial_toolchange_purge(const boost::filesystem::p
         out.close();
         return true;
     }
+}
+
+// Anycubic firmware expects the first plate's G-code at Metadata/plate_1.gcode.
+// When the user prints a different plate (e.g. plate 4), the 3MF contains
+// plate_4.gcode instead. Rename it to plate_1.gcode so the printer can find it.
+bool rename_plate_to_first_in_3mf(const boost::filesystem::path& src_path, boost::filesystem::path& dst_path, std::string& err)
+{
+    boost::system::error_code ec;
+    if (!fs::exists(src_path, ec)) {
+        err = "Source file does not exist";
+        return false;
+    }
+
+    std::string ext = src_path.extension().string();
+    boost::to_lower(ext);
+    if (ext != ".3mf") {
+        err = "Not a 3MF file";
+        return false;
+    }
+
+    fs::path temp_dir = boost::filesystem::temp_directory_path(ec);
+    if (ec)
+        temp_dir = fs::path(getenv("TEMP") ? getenv("TEMP") : ".");
+    std::string temp_name = (boost::format("orcacubic_plate_rename_%1%.3mf")
+        % std::chrono::steady_clock::now().time_since_epoch().count()).str();
+    dst_path = temp_dir / temp_name;
+
+    mz_zip_archive reader;
+    mz_zip_zero_struct(&reader);
+    if (!mz_zip_reader_init_file(&reader, src_path.string().c_str(), 0)) {
+        err = "Failed to open 3MF zip archive for reading";
+        return false;
+    }
+
+    mz_zip_archive writer;
+    mz_zip_zero_struct(&writer);
+    if (!mz_zip_writer_init_file(&writer, dst_path.string().c_str(), 0)) {
+        mz_zip_reader_end(&reader);
+        err = "Failed to create temporary 3MF zip archive";
+        return false;
+    }
+
+    const mz_uint num_files = mz_zip_reader_get_num_files(&reader);
+    bool writer_ok = true;
+    bool any_renamed = false;
+
+    // First pass: find the plate gcode and its md5
+    std::string plate_gcode_name;
+    std::string plate_gcode_content;
+    std::string plate_md5_content;
+
+    for (mz_uint i = 0; i < num_files; ++i) {
+        mz_zip_archive_file_stat stat;
+        if (!mz_zip_reader_file_stat(&reader, i, &stat))
+            continue;
+
+        std::string entry_name = stat.m_filename;
+        if (boost::starts_with(entry_name, "Metadata/plate_") && boost::ends_with(entry_name, ".gcode") && entry_name != "Metadata/plate_1.gcode") {
+            size_t uncomp_size = 0;
+            void* data = mz_zip_reader_extract_file_to_heap(&reader, entry_name.c_str(), &uncomp_size, 0);
+            if (data) {
+                plate_gcode_name = entry_name;
+                plate_gcode_content = std::string(static_cast<const char*>(data), uncomp_size);
+                free(data);
+            }
+        } else if (boost::starts_with(entry_name, "Metadata/plate_") && boost::ends_with(entry_name, ".gcode.md5") && entry_name != "Metadata/plate_1.gcode.md5") {
+            size_t uncomp_size = 0;
+            void* data = mz_zip_reader_extract_file_to_heap(&reader, entry_name.c_str(), &uncomp_size, 0);
+            if (data) {
+                plate_md5_content = std::string(static_cast<const char*>(data), uncomp_size);
+                free(data);
+            }
+        }
+    }
+
+    // Second pass: write all files, renaming the plate if found
+    for (mz_uint i = 0; i < num_files; ++i) {
+        mz_zip_archive_file_stat stat;
+        if (!mz_zip_reader_file_stat(&reader, i, &stat))
+            continue;
+
+        std::string entry_name = stat.m_filename;
+        if (entry_name == plate_gcode_name) {
+            writer_ok = mz_zip_writer_add_mem(&writer, "Metadata/plate_1.gcode", plate_gcode_content.data(), plate_gcode_content.size(), MZ_DEFAULT_COMPRESSION) != 0;
+            any_renamed = true;
+        } else if (entry_name == plate_gcode_name + ".md5") {
+            writer_ok = mz_zip_writer_add_mem(&writer, "Metadata/plate_1.gcode.md5", plate_md5_content.data(), plate_md5_content.size(), MZ_DEFAULT_COMPRESSION) != 0;
+        } else {
+            writer_ok = mz_zip_writer_add_from_zip_reader(&writer, &reader, i) != 0;
+        }
+        if (!writer_ok)
+            break;
+    }
+
+    const bool finalized = writer_ok && mz_zip_writer_finalize_archive(&writer) != 0;
+    mz_zip_writer_end(&writer);
+    mz_zip_reader_end(&reader);
+
+    if (!finalized) {
+        fs::remove(dst_path, ec);
+        err = "Failed to create a complete 3MF archive";
+        return false;
+    }
+    if (!any_renamed) {
+        fs::remove(dst_path, ec);
+        err = "No non-first plate found in 3MF archive";
+        return false;
+    }
+    return true;
 }
 
 std::vector<AnycubicAmsMappingEntry> build_anycubic_ams_mapping(
@@ -537,18 +698,6 @@ std::string sanitize_anycubic_filename(const std::string& filename)
     if (base.empty())
         base = "print.gcode";
     return base;
-}
-
-std::string md5_hex(const std::string& input)
-{
-    unsigned char digest[MD5_DIGEST_LENGTH];
-    MD5(reinterpret_cast<const unsigned char*>(input.data()), input.size(), digest);
-    char hex[33];
-    for (int i = 0; i < 16; ++i) {
-        snprintf(&hex[i * 2], 3, "%02x", digest[i]);
-    }
-    hex[32] = '\0';
-    return std::string(hex);
 }
 
 bool base64_decode(const std::string& input, std::vector<unsigned char>& out)
@@ -1559,17 +1708,37 @@ bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, E
     fs::path upload_file_path = upload_data.source_path;
     fs::path temp_modified_file;
 
-    bool pre_engage = upload_data.extended("pre_engage_filament") != "0";
-    bool reduce_initial_purge = upload_data.extended("reduce_initial_purge") != "0";
-    bool purge_reduced = false;
-    if (reduce_initial_purge && pre_engage) {
-        std::string strip_err;
-        if (process_gcode_to_reduce_initial_toolchange_purge(upload_data.source_path, temp_modified_file, strip_err)) {
-            upload_file_path = temp_modified_file;
-            purge_reduced = true;
-            BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Replaced initial toolchange flush with 25% prime: " << temp_modified_file.string();
+    // Anycubic firmware expects the first plate's G-code at Metadata/plate_1.gcode.
+    // When the user prints a different plate (e.g. plate 4), the 3MF contains
+    // plate_4.gcode instead. Rename it to plate_1.gcode so the printer can find it.
+    if (upload_data.use_3mf) {
+        std::string rename_err;
+        fs::path renamed_file;
+        if (rename_plate_to_first_in_3mf(upload_data.source_path, renamed_file, rename_err)) {
+            upload_file_path = renamed_file;
+            temp_modified_file = renamed_file;
+            BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Renamed plate to plate_1 in 3MF: " << renamed_file.string();
         } else {
-            BOOST_LOG_TRIVIAL(warning) << "[AnycubicLink] Initial purge reduction skipped: " << strip_err;
+            BOOST_LOG_TRIVIAL(warning) << "[AnycubicLink] Plate rename not needed or failed: " << rename_err;
+        }
+    }
+
+    bool pre_engage = upload_data.extended("pre_engage_filament") != "0";
+    bool skip_first_toolchange = upload_data.extended("skip_first_toolchange") != "0"
+                              || upload_data.extended("replace_first_toolchange") != "0";
+    std::string custom_script = upload_data.extended("skip_first_toolchange_script");
+    if (custom_script.empty()) {
+        custom_script = "M83\nG28 X\nG1 E12 F300\n";
+    }
+    bool toolchange_skipped = false;
+    if (skip_first_toolchange && pre_engage) {
+        std::string strip_err;
+        if (process_gcode_to_skip_first_toolchange(upload_file_path, temp_modified_file, strip_err, custom_script)) {
+            upload_file_path = temp_modified_file;
+            toolchange_skipped = true;
+            BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Skipped first tool change with custom script: " << temp_modified_file.string();
+        } else {
+            BOOST_LOG_TRIVIAL(warning) << "[AnycubicLink] First tool change skipping omitted: " << strip_err;
         }
     }
 
@@ -1577,30 +1746,12 @@ bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, E
 #ifdef ORCACUBIC_DEV_BUILD
     save_dev_copy = upload_data.extended("save_dev_copy") == "1";
 #endif
-    if (save_dev_copy) {
-        save_dev_copy_of_uploaded_file(upload_file_path);
-    }
 
     std::string initial_slot_str = upload_data.extended("initial_slot");
     bool channel_confirmed = false;
-    unsigned long long initial_channel_report_seq = 0;
+    bool pre_engage_attempted = false;
     if (pre_engage && !initial_slot_str.empty()) {
         try {
-            try {
-                auto initial_req = Http::get("http://127.0.0.1:18988/status");
-                initial_req.header("X-OrcaCubic-Token", anycubic_lan_bridge_token())
-                           .timeout_connect(1)
-                           .timeout_max(1)
-                           .on_complete([&](std::string body, unsigned status) {
-                               if (status == 200) {
-                                   const json current = json::parse(body, nullptr, false, true);
-                                   if (!current.is_discarded())
-                                       initial_channel_report_seq = current.value("channel_report_seq", 0ull);
-                               }
-                           })
-                           .perform_sync();
-            } catch (...) {}
-
             int slot_idx = std::stoi(initial_slot_str);
             if (slot_idx >= 0 && slot_idx <= 3) {
                 info_fn("AnycubicLink", GUI::from_u8((boost::format(_utf8(L("Pre-engaging filament slot %1%..."))) % (slot_idx + 1)).str()));
@@ -1615,11 +1766,18 @@ bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, E
                         .timeout_connect(1)
                         .timeout_max(3)
                         .perform_sync();
+                pre_engage_attempted = true;
 
-                // Wait until the printer reports the tool has switched to the target channel (or safety timeout)
+                // Brief settling grace period for the printer to receive the command and show the loading bar
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+
+                // Wait until the printer reports the target channel idle and feed complete.
+                // A full ACE-to-nozzle engagement (selector + preheat + feed) displays a loading bar
+                // on the printer screen; starting the print mid-feed causes the printer to cancel the job,
+                // so poll until both the selector and the material feed are completely finished and idle.
                 BOOST_LOG_TRIVIAL(info) << "[AnycubicLink] Pre-engaging extruder channel " << slot_idx << ", waiting for hardware confirmation...";
                 const auto start_time = std::chrono::steady_clock::now();
-                const auto timeout = std::chrono::seconds(6);
+                const auto timeout = std::chrono::seconds(120);
                 while (std::chrono::steady_clock::now() - start_time < timeout) {
                     try {
                         auto req = Http::get("http://127.0.0.1:18988/status");
@@ -1631,8 +1789,24 @@ bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, E
                                    try {
                                        json j = json::parse(body);
                                        int curr_ch = j.value("channel_index", -1);
-                                       const auto report_seq = j.value("channel_report_seq", 0ull);
-                                       if (curr_ch == slot_idx && report_seq > initial_channel_report_seq) {
+                                       int ch_status = j.value("channel_status", -1);
+
+                                       // feed_status.current_status: 1 = Preheat, 2 = Retracting, 3 = Feeding, 10 = Complete, 0 = Idle
+                                       int feed_cur_status = 0;
+                                       if (j.contains("feed_status") && j["feed_status"].is_object()) {
+                                           feed_cur_status = j["feed_status"].value("current_status", 0);
+                                       }
+
+                                       std::string printer_state = j.value("state", "free");
+                                       boost::to_lower(printer_state);
+
+                                       bool is_loading_in_progress = (feed_cur_status >= 1 && feed_cur_status <= 3)
+                                                                  || (ch_status == 3)
+                                                                  || (printer_state == "feeding" || printer_state == "loading");
+
+                                       // Confirmed only when target channel matches, selector is idle,
+                                       // material feed is complete/idle, and printer state is ready/free.
+                                       if (curr_ch == slot_idx && ch_status == 0 && !is_loading_in_progress && (printer_state == "free" || printer_state == "ready")) {
                                            channel_confirmed = true;
                                        }
                                    } catch (...) {}
@@ -1645,21 +1819,38 @@ bool AnycubicLink::upload(PrintHostUpload upload_data, ProgressFn progress_fn, E
                             << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count() << "ms";
                         break;
                     }
-                    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(300));
                 }
                 if (!channel_confirmed) {
-                    BOOST_LOG_TRIVIAL(warning) << "[AnycubicLink] Channel confirmation timed out; proceeding with upload.";
+                    BOOST_LOG_TRIVIAL(warning) << "[AnycubicLink] Channel confirmation timed out after 120s.";
                 }
             }
         } catch (...) {}
     }
 
-    if (purge_reduced && !channel_confirmed) {
-        BOOST_LOG_TRIVIAL(warning) << "[AnycubicLink] Initial purge reduction disabled because pre-engagement was not confirmed.";
+    // Starting a print while the filament feed is still in progress makes the
+    // printer cancel the job, so refuse to upload unless engagement completed.
+    if (pre_engage_attempted && !channel_confirmed) {
+        if (!temp_modified_file.empty()) {
+            boost::system::error_code ec;
+            fs::remove(temp_modified_file, ec);
+        }
+        error_fn(_(L("Filament pre-engagement was not confirmed by the printer. The upload was aborted to avoid the printer cancelling the job mid-feed. Check the ACE/filament path and try again.")));
+        return false;
+    }
+
+    if (toolchange_skipped && !channel_confirmed) {
+        BOOST_LOG_TRIVIAL(warning) << "[AnycubicLink] First tool change skipping disabled because pre-engagement was not confirmed.";
         boost::system::error_code ec;
         fs::remove(temp_modified_file, ec);
         temp_modified_file.clear();
         upload_file_path = upload_data.source_path;
+    }
+
+    // Save the developer copy only after the pre-engagement fallback decision,
+    // so it always matches the exact bytes being uploaded.
+    if (save_dev_copy) {
+        save_dev_copy_of_uploaded_file(upload_file_path);
     }
 
     std::string file_size_str;
