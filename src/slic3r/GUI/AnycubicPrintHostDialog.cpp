@@ -143,20 +143,22 @@ void AnycubicPrintHostSendDialog::init()
         auto_assign_mappings();
     }
 
-    auto add_toggle = [this](const char* config_key, const wxString& label, const wxString& tooltip, bool& value, std::function<void(bool)> on_change = {}) -> ::CheckBox* {
+    auto add_toggle = [this](const char* config_key, const wxString& label, const wxString& tooltip, bool* value_ptr, std::function<void(bool)> on_change = {}) -> ::CheckBox* {
         auto* row = new wxBoxSizer(wxHORIZONTAL);
         auto* checkbox = new ::CheckBox(this);
-        checkbox->SetValue(value);
+        checkbox->SetValue(value_ptr ? *value_ptr : false);
         checkbox->SetToolTip(tooltip);
-        checkbox->Bind(wxEVT_TOGGLEBUTTON, [this, config_key, &value, on_change](wxCommandEvent& event) {
-            value = event.IsChecked();
+        checkbox->Bind(wxEVT_TOGGLEBUTTON, [this, config_key, value_ptr, on_change](wxCommandEvent& event) {
+            bool checked = event.IsChecked();
+            if (value_ptr)
+                *value_ptr = checked;
             AppConfig* config = wxGetApp().app_config;
             if (config && config_key) {
-                config->set("recent", config_key, value ? "1" : "0");
+                config->set("recent", config_key, checked ? "1" : "0");
                 config->save();
             }
             if (on_change)
-                on_change(value);
+                on_change(checked);
             event.Skip(); // Allow CheckBox's own handler to redraw the checked/unchecked bitmap.
         });
         auto* text = new wxStaticText(this, wxID_ANY, label);
@@ -172,9 +174,9 @@ void AnycubicPrintHostSendDialog::init()
     purge_title->SetFont(::Label::Head_13);
     content_sizer->Add(purge_title, 0, wxBOTTOM, FromDIP(6));
 
-    ::CheckBox* skip_cb = nullptr;
-    add_toggle(CONFIG_KEY_PRE_ENGAGE, _L("Pre-engage Filament"), _L("Pre-engage the toolhead active channel to the starting tool slot before printing to prevent double purging."), m_pre_engage_filament,
-               [this, &skip_cb](bool enabled) {
+    m_cb_skip_toolchange = nullptr;
+    add_toggle(CONFIG_KEY_PRE_ENGAGE, _L("Pre-engage Filament"), _L("Pre-engage the toolhead active channel to the starting tool slot before printing to prevent double purging."), &m_pre_engage_filament,
+               [this](bool enabled) {
                    if (!enabled) {
                        m_skip_first_toolchange = false;
                        AppConfig* config = wxGetApp().app_config;
@@ -182,9 +184,9 @@ void AnycubicPrintHostSendDialog::init()
                            config->set("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE, "0");
                            config->save();
                        }
-                       if (skip_cb) {
-                           skip_cb->SetValue(false);
-                           skip_cb->Refresh();
+                       if (m_cb_skip_toolchange) {
+                           m_cb_skip_toolchange->SetValue(false);
+                           m_cb_skip_toolchange->Refresh();
                        }
                        if (m_btn_edit_script)
                            m_btn_edit_script->Enable(false);
@@ -201,9 +203,9 @@ void AnycubicPrintHostSendDialog::init()
 
     {
         auto* row = new wxBoxSizer(wxHORIZONTAL);
-        skip_cb = new ::CheckBox(this);
-        skip_cb->SetValue(m_skip_first_toolchange);
-        skip_cb->SetToolTip(_L("Skip the initial tool change (e.g. T0) and run a custom G-code script."));
+        m_cb_skip_toolchange = new ::CheckBox(this);
+        m_cb_skip_toolchange->SetValue(m_skip_first_toolchange);
+        m_cb_skip_toolchange->SetToolTip(_L("Skip the initial tool change (e.g. T0) and run a custom G-code script."));
 
         auto* text = new wxStaticText(this, wxID_ANY, _L("Skip First Tool Change"));
         text->SetToolTip(_L("Skip the initial tool change (e.g. T0) and run a custom G-code script."));
@@ -213,7 +215,7 @@ void AnycubicPrintHostSendDialog::init()
         m_btn_edit_script->SetBackgroundColour(GetBackgroundColour());
         m_btn_edit_script->Enable(m_skip_first_toolchange);
 
-        skip_cb->Bind(wxEVT_TOGGLEBUTTON, [this](wxCommandEvent& event) {
+        m_cb_skip_toolchange->Bind(wxEVT_TOGGLEBUTTON, [this](wxCommandEvent& event) {
             m_skip_first_toolchange = event.IsChecked();
             AppConfig* config = wxGetApp().app_config;
             if (config) {
@@ -242,7 +244,7 @@ void AnycubicPrintHostSendDialog::init()
             }
         });
 
-        row->Add(skip_cb, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(8));
+        row->Add(m_cb_skip_toolchange, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(8));
         row->Add(text, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(6));
         row->Add(m_btn_edit_script, 0, wxALIGN_CENTER_VERTICAL);
         content_sizer->Add(row, 0, wxBOTTOM, FromDIP(6));
@@ -274,12 +276,12 @@ void AnycubicPrintHostSendDialog::init()
     calibration_title->SetFont(::Label::Head_13);
     content_sizer->Add(calibration_title, 0, wxBOTTOM, FromDIP(6));
 
-    add_toggle(CONFIG_KEY_LEVELING, _L("Auto Leveling"), _L("Probe and compensate the build plate before this print."), m_auto_leveling);
-    add_toggle(CONFIG_KEY_RESONANCE, _L("Resonance Compensation"), _L("Run vibration compensation before this print."), m_resonance_compensation);
-    add_toggle(CONFIG_KEY_FLOW, _L("Flow Calibration"), _L("Calibrate extrusion flow before this print."), m_flow_calibration);
-    add_toggle(CONFIG_KEY_TIMELAPSE, _L("Time-lapse"), _L("Capture a time-lapse while printing. The camera must be available."), m_timelapse);
+    add_toggle(CONFIG_KEY_LEVELING, _L("Auto Leveling"), _L("Probe and compensate the build plate before this print."), &m_auto_leveling);
+    add_toggle(CONFIG_KEY_RESONANCE, _L("Resonance Compensation"), _L("Run vibration compensation before this print."), &m_resonance_compensation);
+    add_toggle(CONFIG_KEY_FLOW, _L("Flow Calibration"), _L("Calibrate extrusion flow before this print."), &m_flow_calibration);
+    add_toggle(CONFIG_KEY_TIMELAPSE, _L("Time-lapse"), _L("Capture a time-lapse while printing. The camera must be available."), &m_timelapse);
 #ifdef ORCACUBIC_DEV_BUILD
-    add_toggle(CONFIG_KEY_SAVE_DEV_COPY, _L("Save dev G-code copy"), _L("Save a copy of the final post-processed G-code/3MF to the OrcaCubic repository directory (last_remote_print_processed.gcode) for inspection."), m_save_dev_copy);
+    add_toggle(CONFIG_KEY_SAVE_DEV_COPY, _L("Save dev G-code copy"), _L("Save a copy of the final post-processed G-code/3MF to the OrcaCubic repository directory (last_remote_print_processed.gcode) for inspection."), &m_save_dev_copy);
 #endif
 
     auto* start = add_button(wxID_YES, true, _L("Start Print"));

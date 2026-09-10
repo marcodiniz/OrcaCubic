@@ -320,6 +320,7 @@ private:
     wxTextCtrl* m_txt_custom_gcode {nullptr};
     wxBoxSizer* m_custom_gcode_box {nullptr};
     ScalableButton* m_btn_edit_script {nullptr};
+    CheckBox* m_cb_skip_toolchange {nullptr};
 
     const char* CONFIG_KEY_LEVELING  = "anycubic_auto_leveling";
     const char* CONFIG_KEY_RESONANCE = "anycubic_resonance_compensation";
