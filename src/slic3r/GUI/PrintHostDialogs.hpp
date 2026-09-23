@@ -320,7 +320,13 @@ private:
     wxTextCtrl* m_txt_custom_gcode {nullptr};
     wxBoxSizer* m_custom_gcode_box {nullptr};
     ScalableButton* m_btn_edit_script {nullptr};
+    CheckBox* m_cb_auto_leveling {nullptr};
+    CheckBox* m_cb_resonance {nullptr};
+    CheckBox* m_cb_flow {nullptr};
+    CheckBox* m_cb_timelapse {nullptr};
+    CheckBox* m_cb_pre_engage {nullptr};
     CheckBox* m_cb_skip_toolchange {nullptr};
+    CheckBox* m_cb_save_dev_copy {nullptr};
 
     const char* CONFIG_KEY_LEVELING  = "anycubic_auto_leveling";
     const char* CONFIG_KEY_RESONANCE = "anycubic_resonance_compensation";

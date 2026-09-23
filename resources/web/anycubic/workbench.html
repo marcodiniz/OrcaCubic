@@ -1149,9 +1149,6 @@
                         <div>
                             <label style="font-size: 12px; color: #9ca3af; display: block; margin-bottom: 6px;">Brand</label>
                             <select id="modal-brand-select" class="modal-select" style="width: 100%; color: #f59e0b; font-weight: 600; border-radius: 8px;">
-                                <option value="Anycubic">Anycubic</option>
-                                <option value="Generic">Generic / Public</option>
-                                <option value="Custom">Custom</option>
                             </select>
                         </div>
                         <div>
@@ -1223,7 +1220,7 @@
     </div>
 
 
-    <div id="feed-progress-modal" class="modal-backdrop" style="display:none; z-index:2200;">
+    <div id="feed-progress-modal" class="modal-backdrop" style="display:none; z-index:10050;">
         <div class="modal-card" style="width:min(620px,92vw);">
             <div class="modal-header"><h3>Material Management</h3><button class="modal-close" onclick="closeFeedProgress()">✕</button></div>
             <div class="modal-body" style="padding:28px;">
@@ -1235,7 +1232,7 @@
         </div>
     </div>
 
-    <div id="printer-config-modal" class="modal-backdrop" style="display:none; z-index:2300;">
+    <div id="printer-config-modal" class="modal-backdrop" style="display:none; z-index:10050;">
         <div class="modal-card" style="width:min(470px,92vw);">
             <div class="modal-header"><h3>Saved Printer</h3><button class="modal-close" onclick="closePrinterConfig()">✕</button></div>
             <div class="modal-body">
@@ -1756,15 +1753,25 @@
         }
 
         let activeFeedOperation = null;
+        let feedTimeoutTimer = null;
 
         function openFeedProgress(type, slotIndex) {
+            closeSlotEditModal();
             activeFeedOperation = { type, slotIndex, status: 1, error: "" };
             document.getElementById("feed-progress-title").innerText = type === 1 ? "Feed" : "Unfeed";
             document.getElementById("feed-progress-modal").style.display = "flex";
             renderFeedProgress();
+            if (feedTimeoutTimer) clearTimeout(feedTimeoutTimer);
+            feedTimeoutTimer = setTimeout(() => {
+                if (activeFeedOperation && activeFeedOperation.status === 1 && !activeFeedOperation.error) {
+                    activeFeedOperation.error = "Printer did not initiate " + (activeFeedOperation.type === 1 ? "feed" : "unfeed") + ". Check printer touchscreen and verify filament is inserted in Slot " + (activeFeedOperation.slotIndex + 1) + ".";
+                    renderFeedProgress();
+                }
+            }, 12000);
         }
 
         function closeFeedProgress() {
+            if (feedTimeoutTimer) { clearTimeout(feedTimeoutTimer); feedTimeoutTimer = null; }
             activeFeedOperation = null;
             document.getElementById("feed-progress-modal").style.display = "none";
         }
@@ -1797,23 +1804,40 @@
             if (reportedType === 1 || reportedType === 2) activeFeedOperation.type = reportedType;
             activeFeedOperation.status = Number(feedStatus.current_status) || activeFeedOperation.status;
             const code = Number(feedStatus.code) || 0;
-            activeFeedOperation.error = code >= 10000 ? "Printer reported error " + code : "";
+            if (code >= 10000) {
+                activeFeedOperation.error = "Printer reported error " + code;
+            } else if (activeFeedOperation.status > 1 && feedTimeoutTimer) {
+                clearTimeout(feedTimeoutTimer);
+                feedTimeoutTimer = null;
+            }
             renderFeedProgress();
         }
 
         async function sendFeedCommand(action, type) {
-            openFeedProgress(type, currentEditingSlot);
             const current = filaments[currentEditingSlot] || {};
             if (current.source === "external") {
-                throw new Error("Load or unload an external spool manually at the printer");
+                alert("Load or unload an external spool manually at the printer");
+                return;
             }
+            const hasFilament = current.available !== false && (current.status === undefined || current.status !== 4);
+            if (type === 1 && !hasFilament) {
+                alert("Cannot feed: Slot " + (Number(current.box_slot ?? currentEditingSlot) + 1) + " has no filament inserted. Please insert filament into the ACE slot before feeding.");
+                return;
+            }
+            openFeedProgress(type, currentEditingSlot);
             const response = await fetch("http://127.0.0.1:18988/control", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ action, box_id:Number(current.box_id ?? -1), slot:Number(current.box_slot ?? currentEditingSlot), type: document.getElementById("modal-slot-type").value })
             });
             const result = await response.json().catch(() => ({}));
-            if (!response.ok || result.status !== "ok") throw new Error(result.message || "Printer bridge rejected the command");
+            if (!response.ok || result.status !== "ok") {
+                if (activeFeedOperation) {
+                    activeFeedOperation.error = result.message || "Printer bridge rejected the command";
+                    renderFeedProgress();
+                }
+                throw new Error(result.message || "Printer bridge rejected the command");
+            }
         }
 
         async function feedCurrentSlot() {
@@ -2445,91 +2469,12 @@
             }
         }
 
-        // --- Slot Edit Modal ---
+        // --- Slot Edit Modal State ---
         let currentEditingSlot = 0;
         let selectedModalColor = "#23a3c7";
 
-        function openSlotEditModal(slotIdx) {
-            currentEditingSlot = slotIdx;
-            const slotNum = slotIdx + 1;
-            document.getElementById("modal-slot-title").innerText = `🎨 Edit Slot ${slotNum} Filament`;
-            const currentFilament = filaments[slotIdx] || {};
-            const curType = currentFilament.type || "PLA";
-            const curColor = currentFilament.color || "#23a3c7";
-
-            document.getElementById("modal-slot-type").value = curType;
-            pickModalColor(curColor);
-
-            document.getElementById("slot-modal").style.display = "flex";
-        }
-
         function closeSlotEditModal() {
             document.getElementById("slot-modal").style.display = "none";
-        }
-
-        function pickModalColor(hex) {
-            selectedModalColor = hex;
-            document.getElementById("modal-slot-color").value = hex;
-            document.getElementById("modal-color-hex").innerText = hex.toUpperCase();
-            document.querySelectorAll(".color-swatch").forEach(s => {
-                if (s.style.backgroundColor && hexToRgbStr(s.style.backgroundColor) === hexToRgbStr(hex)) {
-                    s.classList.add("active");
-                } else {
-                    s.classList.remove("active");
-                }
-            });
-        }
-
-        function hexToRgbStr(hexOrRgb) {
-            if (hexOrRgb.startsWith("rgb")) return hexOrRgb;
-            let c = hexOrRgb.replace("#", "");
-            if (c.length === 3) c = c.split("").map(x => x + x).join("");
-            const num = parseInt(c, 16);
-            return `rgb(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255})`;
-        }
-
-        function onModalColorPickerChange(hex) {
-            pickModalColor(hex);
-        }
-
-        async function saveSlotFilament() {
-            const btn = document.getElementById("btn-save-slot");
-            btn.innerText = "⏳ Saving...";
-            btn.disabled = true;
-
-            const newType = document.getElementById("modal-slot-type").value;
-            const newColor = selectedModalColor;
-
-            try {
-                const res = await fetch("http://127.0.0.1:18988/sync_to_printer", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        slots: [{
-                            index: currentEditingSlot,
-                            type: newType,
-                            color: newColor
-                        }]
-                    })
-                });
-                const data = await res.json();
-                if (data.status === "ok") {
-                    if (filaments[currentEditingSlot]) {
-                        filaments[currentEditingSlot].type = newType;
-                        filaments[currentEditingSlot].color = newColor;
-                        updateFilamentUI(filaments);
-                    }
-                    closeSlotEditModal();
-                    pollTelemetry();
-                } else {
-                    alert("Failed to update slot: " + (data.message || "error"));
-                }
-            } catch(e) {
-                alert("Network error updating slot: " + e.message);
-            } finally {
-                btn.innerText = "💾 Save to Printer";
-                btn.disabled = false;
-            }
         }
 
         function refreshStatus() {
@@ -2557,11 +2502,18 @@
                 } else if (f.finish_type === 'luminous' && group.length >= 2) {
                     colorStyle = `linear-gradient(90deg, ${group[0]} 0 50%, ${group[1]} 50% 100%)`;
                 }
+
+                const savedBrand = localStorage.getItem("orcacubic_brand_" + idx);
+                let brandText = savedBrand || f.brand || "Anycubic";
+                if (brandText.toLowerCase() === "custom") brandText = "Custom";
+                else if (brandText.toLowerCase() === "generic") brandText = "Generic";
+                else if (brandText.toLowerCase() === "anycubic") brandText = "Anycubic";
+
                 div.innerHTML = `
                     <span class="slot-badge">${f.source === 'external' ? 'EXT' : Number(f.box_slot ?? idx) + 1}</span>
                     <div class="slot-color-circle" style="background: ${colorStyle};"></div>
-                    <div class="slot-material">${f.type || 'PLA'}</div>
-
+                    <div class="slot-brand" style="font-size: 11px; color: #f59e0b; margin-top: 3px; max-width: 68px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;">${brandText}</div>
+                    <div class="slot-material" style="font-weight: 700; font-size: 13px; line-height: 1.1;">${f.type || 'PLA'}</div>
                     <div class="slot-edit-hint">Edit</div>
                 `;
                 container.appendChild(div);
@@ -2912,24 +2864,117 @@
             const group=originalColorGroups().find(g=>g.key===TYPE_TO_GROUP[activeColorSection]);const index=group.color.length-1;selectCatalogColor(group.color[index],activeColorSection,itemCatalogKey(group.color[index],activeColorSection,index));
         }
 
+        function updateBrandSelectOptions(selectedBrand) {
+            const select = document.getElementById("modal-brand-select");
+            if (!select) return;
+
+            // Collect all unique brands currently reported by the printer across all slots
+            const brands = [];
+            (filaments || []).forEach(f => {
+                if (f && f.brand) {
+                    let b = f.brand.trim();
+                    if (b.toLowerCase() === "custom") b = "Custom";
+                    else if (b.toLowerCase() === "generic") b = "Generic";
+                    else if (b.toLowerCase() === "anycubic") b = "Anycubic";
+                    if (b && !brands.includes(b)) {
+                        brands.push(b);
+                    }
+                }
+            });
+
+            // Normalize current slot's brand
+            let cur = selectedBrand || "Anycubic";
+            if (cur.toLowerCase() === "custom") cur = "Custom";
+            else if (cur.toLowerCase() === "generic") cur = "Generic";
+            else if (cur.toLowerCase() === "anycubic") cur = "Anycubic";
+            if (cur && !brands.includes(cur)) brands.unshift(cur);
+
+            // Additional standard printer brands
+            const standard = ["Anycubic", "Generic", "Custom", "eSUN", "Sunlu", "Polymaker", "Bambu Lab", "Overture", "Elegoo"];
+            standard.forEach(b => {
+                if (!brands.includes(b)) brands.push(b);
+            });
+
+            select.innerHTML = "";
+            brands.forEach(b => {
+                const opt = document.createElement("option");
+                opt.value = b;
+                opt.textContent = b;
+                select.appendChild(opt);
+            });
+
+            select.value = cur;
+            if (select.selectedIndex < 0 && select.options.length > 0) {
+                select.selectedIndex = 0;
+            }
+        }
+
         function openSlotEditModal(slotIdx) {
             currentEditingSlot=slotIdx;const f=filaments[slotIdx]||{};
             document.getElementById("modal-slot-title").innerText="Material Settings";
             document.getElementById("modal-slot-type").value=f.type||"PLA";
-            document.getElementById("modal-brand-select").value=f.brand||"Anycubic";
+            const savedBrand = localStorage.getItem("orcacubic_brand_" + slotIdx);
+            let brandVal = savedBrand || f.brand || "Anycubic";
+            updateBrandSelectOptions(brandVal);
             selectedFinishType=f.finish_type||"solid";
             selectedColorGroup=Array.isArray(f.color_group_hex)&&f.color_group_hex.length?f.color_group_hex:[f.color||"#23a3c7"];
             selectedIconType=Number(f.icon_type)||({gradient:1,luminous:3}[selectedFinishType]||0);
             selectedCatalogKey="";
             applySpoolFinish();renderOriginalColorPicker();scrollToColorSection(selectedFinishType);
+
+            // Feed & Unfeed button state hints based on filament detection
+            const feedBtn = document.getElementById("btn-modal-feed");
+            const unfeedBtn = document.getElementById("btn-modal-unfeed");
+            const hasFilament = f.available !== false && (f.status === undefined || f.status !== 4);
+            if (feedBtn) {
+                feedBtn.style.opacity = hasFilament ? "1" : "0.5";
+                feedBtn.title = hasFilament ? "Load this ACE slot's filament into the extruder." : "No filament inserted in this slot. Insert filament in ACE first.";
+            }
+            if (unfeedBtn) {
+                unfeedBtn.style.opacity = f.loaded ? "1" : "0.5";
+                unfeedBtn.title = f.loaded ? "Unload this ACE slot's filament from the extruder." : "Filament is not currently in the extruder.";
+            }
+
             document.getElementById("slot-modal").style.display="flex";
         }
 
         async function saveSlotFilament() {
             const btn=document.getElementById("btn-save-slot");btn.disabled=true;btn.innerText="Saving…";
-            const type=document.getElementById("modal-slot-type").value,brand=document.getElementById("modal-brand-select").value;
+            const type=document.getElementById("modal-slot-type").value;
+            let brand=(document.getElementById("modal-brand-select").value||"").trim() || "Custom";
+            if(brand.toLowerCase()==="custom") brand="Custom";
+            else if(brand.toLowerCase()==="generic") brand="Generic";
+            else if(brand.toLowerCase()==="anycubic") brand="Anycubic";
+            localStorage.setItem("orcacubic_brand_" + currentEditingSlot, brand);
             const current=filaments[currentEditingSlot]||{};
-            try{const response=await fetch("http://127.0.0.1:18988/sync_to_printer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({slots:[{index:Number(current.box_slot??currentEditingSlot),box_id:Number(current.box_id??-1),source:current.source||"ace",type,brand,color:selectedColorGroup[0],finish_type:selectedFinishType,icon_type:selectedIconType,color_group:selectedColorGroup}]})});const data=await response.json();if(data.status!=="ok")throw new Error(data.message||"Printer rejected setting");Object.assign(filaments[currentEditingSlot],{type,brand,color:selectedColorGroup[0],finish_type:selectedFinishType,icon_type:selectedIconType,color_group_hex:[...selectedColorGroup]});updateFilamentUI(filaments);closeSlotEditModal();setTimeout(pollTelemetry,500);}catch(e){alert("Failed to update slot: "+e.message);}finally{btn.disabled=false;btn.innerText="Save";}
+            try{
+                const response=await fetch("http://127.0.0.1:18988/sync_to_printer",{
+                    method:"POST",
+                    headers:{"Content-Type":"application/json"},
+                    body:JSON.stringify({slots:[{
+                        index:Number(current.box_slot??currentEditingSlot),
+                        box_id:Number(current.box_id??-1),
+                        source:current.source||"ace",
+                        type,
+                        brand,
+                        color:selectedColorGroup[0],
+                        finish_type:selectedFinishType,
+                        icon_type:selectedIconType,
+                        color_group:selectedColorGroup
+                    }]})
+                });
+                const data=await response.json();
+                if(data.status!=="ok")throw new Error(data.message||"Printer rejected setting");
+                Object.assign(filaments[currentEditingSlot],{type,brand,color:selectedColorGroup[0],finish_type:selectedFinishType,icon_type:selectedIconType,color_group_hex:[...selectedColorGroup]});
+                updateFilamentUI(filaments);
+                closeSlotEditModal();
+                setTimeout(pollTelemetry,500);
+            }catch(e){
+                alert("Failed to update slot: "+e.message);
+            }finally{
+                btn.disabled=false;
+                btn.innerText="Save";
+            }
         }
 
         function startInlineTempEdit(type) {

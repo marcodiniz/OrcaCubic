@@ -172,3 +172,141 @@ To eliminate the double purge:
 3. OrcaCubic publishes `extrudeControl:switchChannel` with `{"index": initial_slot}` over the persistent MQTT LAN bridge.
 4. The toolhead selector motor rotates and locks onto the correct channel *before* `G9111` heats and primes.
 5. When `G9111` executes, heating, wiping, and prime-line extrusion occur directly with the intended filament, completely avoiding the initial cut, switch, and secondary purge.
+
+---
+
+## 5. Mid-Print Toolchange & Autonomous Chute Purge Mechanism
+
+### Why Slicer G-Code Cannot Suppress Hardware Chute Purging
+A common goal in multi-color slicing is routing all transition purge volume into the **Prime Tower** on the bed rather than the waste chute ("poop box"). However, testing confirms that even when travel to `X-17.5`, `G1 E...` purge lines, and fan cycling are eliminated from `change_filament_gcode`:
+* The printer still travels to `X-17.5` (the left-side chute).
+* Turns the part cooling fan on (`M106 S255`).
+* Purges a substantial blob into the chute and wipes on the silicone pad.
+* Only then returns to the build plate to execute prime tower strokes.
+
+### Root Cause in `avata_main`
+1. On the Kobra X, `T0`, `T1`, `T2`, and `T3` are not merely tool identifiers; they are **monolithic internal C++ routines** compiled inside `avata_main`.
+2. When the motion core parses `T<next_tool>` and detects a slot change:
+   - It intercepts the command and takes complete control of the motion planner.
+   - It executes an internal motion sequence: traveling to the purge position (`X-17.5`), spinning up the cooling fan, commanding the ACE Pro unit to retract the outgoing spool, rotating the toolhead selector turret, and feeding the incoming spool.
+   - It calculates a hardware purge volume:
+     $$\text{hardware\_purge} = \text{base\_purge} \times \text{flush\_multiplier}$$
+   - It extrudes this volume into the chute, executes a mechanical wipe across the wiper brush, and only then yields execution back to the next line in the G-code stream.
+3. Because this entire hardware sequence is executed inside compiled firmware prior to returning to G-code, **no slicer script can stop the chute purge as long as `T<n>` is dispatched**.
+
+---
+
+## 6. Root Access, UART Interface & Firmware Capabilities
+
+### A. Network Security State
+A network port scan of the Kobra X reveals:
+* **Port 18088:** Camera / video streaming HTTP server.
+* **Port 18910:** LAN management API & G-code upload endpoint.
+* **Port 9883:** Local MQTT over TLS (mutual authentication).
+* **Port 22 (SSH):** **Closed / Disabled by default.** The vendor provides no touchscreen setting or network command to open SSH.
+
+### B. Hardware UART Serial Console Access
+Gaining shell access to the embedded Linux OS requires physical connection to the motherboard's debug UART header:
+* **Host Processor:** Rockchip SoC (RK3326 / RK3566 class).
+* **Motherboard Debug Header:** 3-pin connection (GND, RX, TX).
+* **Logic Voltage:** **Strictly 3.3V TTL.** *(5V will permanently damage the Rockchip SoC GPIO lines).*
+* **Serial Parameters:** `115200` baud (fallback `1500000`), 8 data bits, 1 stop bit, no parity, no flow control (`115200 8N1`).
+* **Hardware Wiring:**
+  * Adapter switch: **Set to 3.3V** (do not leave on 5V).
+  * Adapter **GND** $\leftrightarrow$ Motherboard **GND**
+  * Adapter **TX** $\leftrightarrow$ Motherboard **RX**
+  * Adapter **RX** $\leftrightarrow$ Motherboard **TX**
+  * **CRITICAL:** **NEVER connect VCC (3.3V or 5V).** Leave the VCC pin disconnected. The printer powers itself.
+* **Console Login Credentials:**
+  * **User:** `root`
+  * **Password:** `rockchip`
+
+### C. Step-by-Step: Enabling WiFi SSH Permanently
+
+Once connected via serial console (`115200 8N1`) and logged in as `root`:
+
+1. **Verify Network IP:**
+   ```bash
+   ip addr show wlan0
+   ```
+   Confirm your printer is connected to WiFi (e.g., `192.168.1.133`).
+
+2. **Check for Existing SSH Daemons (`dropbear` or `sshd`):**
+   ```bash
+   which dropbear sshd
+   ```
+   * *If SysVinit (Buildroot/Busybox):*
+     Check `/etc/init.d/`:
+     ```bash
+     ls /etc/init.d/*ssh* /etc/init.d/*dropbear*
+     ```
+     To start and enable dropbear:
+     ```bash
+     /etc/init.d/S50dropbear start
+     chmod +x /etc/init.d/S50dropbear
+     ```
+   * *If systemd:*
+     ```bash
+     systemctl enable --now dropbear || systemctl enable --now ssh
+     ```
+
+3. **Allow Root Password Login (if blocked):**
+   * If using `dropbear`, ensure `/etc/default/dropbear` or startup args don't have `-s` (which disables passwords).
+   * If using `OpenSSH` (`sshd`), edit `/etc/ssh/sshd_config`:
+     ```bash
+     sed -i 's/#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+     sed -i 's/#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+     /etc/init.d/S50sshd restart 2>/dev/null || systemctl restart ssh
+     ```
+
+4. **Verify Port 22 is Listening:**
+   ```bash
+   netstat -tlpn | grep 22
+   ```
+
+5. **Test SSH from your Windows PC:**
+   Open Git Bash / PowerShell on Windows:
+   ```bash
+   ssh root@192.168.1.133
+   ```
+   Enter password `rockchip`. Once successful, you can disconnect the UART adapter and close the printer.
+
+### D. Step-by-Step: Eliminating the Chute Purge (`flush_multiplier: 0.0`)
+
+With root access (via UART or WiFi SSH):
+
+1. Locate the configuration directory:
+   ```bash
+   ls -la /userdata/app/
+   ```
+2. Find `ams_config.cfg` or `printer.cfg`:
+   ```bash
+   find /userdata/ -name "*ams_config.cfg*" -o -name "printer.cfg"
+   ```
+3. Edit the file (or use `sed`):
+   ```bash
+   sed -i 's/"flush_multiplier": [0-9.]*/"flush_multiplier": 0.0/' /userdata/app/.../ams_config.cfg
+   ```
+4. Restart the motion service (`avata_main`):
+   ```bash
+   killall avata_main
+   ```
+   *(Or reboot with `reboot`).*
+
+### E. What Root Access Enables
+
+1. **Eliminate or Minimize Chute Pooping (`flush_multiplier`):**
+   * The motion engine reads `flush_multiplier` from `/userdata/app/...` configuration files (e.g. `ams_config.cfg` or `printer.cfg` under `[filament_hub]`).
+   * Setting `flush_multiplier: 0.0` suppresses the hardware purge entirely, allowing 100% of filament flushing to occur cleanly on the slicer's Prime Tower.
+2. **Persistent Network SSH:**
+   * Enable `sshd` or `dropbear` on boot, allowing wireless remote terminal access (`ssh root@<printer_ip>`) without needing the serial cable again.
+3. **Custom Toolchange Macro Overrides:**
+   * In Klipper configuration, custom `[gcode_macro T0] ... rename_existing: BASE_T0` definitions can intercept tool changes before `avata_main` triggers its chute sequence.
+4. **Direct Moonraker / Mainsail / Fluidd Web UI:**
+   * Deploy Moonraker to interact with the printer through standard modern Klipper web interfaces, providing interactive 3D bed mesh visualization heatmaps, live console access, and cloud independence.
+5. **Direct Camera Streaming:**
+   * Stream low-latency RTSP/MJPEG feeds directly to Home Assistant or OctoEverywhere without Anycubic token expiration limits.
+6. **Bypass OTA RSA Signature Barrier:**
+   * Anycubic locks `.swu` update packages with an RSA public key at `/etc/ssl/public_key.pem`. With root, this key or `setup.sh` can be patched, opening the path for community firmware overlays (such as Rinkhals).
+7. **Full eMMC System Backup:**
+   * Create raw block-level image backups (`dd if=/dev/mmcblk0 ...`) to USB storage for complete recovery against corrupted updates or software bricking.

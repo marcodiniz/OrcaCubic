@@ -83,6 +83,7 @@ device_id = ""
 pending_cleanup = []
 shutdown_event = threading.Event()
 server_instance = None
+slot_brand_overrides = {}
 
 def public_telemetry():
     """Return dashboard telemetry without exposing token-bearing printer URLs."""
@@ -131,6 +132,16 @@ def _normalize_slot(slot, box_id, source, loaded_slot=-1, slot_offset=0):
             color_group.append(rgb_to_hex(*_normalize_rgb(group_color)))
     icon_type = _as_int(slot.get("icon_type"), 0)
     global_slot = (slot_offset + local_index) if source not in ("external", "external_mcb") else -1
+    override_brand = slot_brand_overrides.get((box_id, local_index)) or slot_brand_overrides.get(local_index) or slot_brand_overrides.get(global_slot)
+    raw_brand = str(override_brand or slot.get("brand") or slot.get("brand_name") or "Anycubic").strip()
+    if raw_brand.lower() == "custom":
+        brand = "Custom"
+    elif raw_brand.lower() == "generic":
+        brand = "Generic"
+    elif raw_brand.lower() == "anycubic":
+        brand = "Anycubic"
+    else:
+        brand = raw_brand or "Anycubic"
     return {
         "slot": global_slot,
         "box_id": box_id,
@@ -141,7 +152,7 @@ def _normalize_slot(slot, box_id, source, loaded_slot=-1, slot_offset=0):
         "temp": 235 if "PETG" in material.upper() or "+" in material else 210,
         "loaded": bool(slot.get("loaded")) or local_index == loaded_slot or _as_int(slot.get("status"), -1) == 5,
         "available": _slot_has_material(slot),
-        "brand": slot.get("brand") or slot.get("brand_name") or "Anycubic",
+        "brand": brand,
         "icon_type": icon_type,
         "finish_type": "luminous" if icon_type == 3 else ("gradient" if icon_type in (1, 2) else "solid"),
         "color_group_hex": color_group or [rgb_to_hex(*color)],
@@ -1095,15 +1106,25 @@ class BridgeServer(BaseHTTPRequestHandler):
                             "id": box_id,
                             "feed_status": {
                                 "slot_index": slot_idx,
-                                "type": m_type
+                                "type": 1,
+                                "material_type": m_type
                             }
                         }]
                     }
                 }
+                topic_ext = f"anycubic/anycubicCloud/v1/web/printer/{model_id}/{device_id}/extrudeControl"
+                msg_ext = {
+                    "type": "extrudeControl",
+                    "action": "switchChannel",
+                    "msgid": "".join(random.choices(string.hexdigits.lower(), k=32)),
+                    "timestamp": int(time.time() * 1000),
+                    "data": {"index": slot_idx}
+                }
                 if mqtt_client:
                     mqtt_client.publish(topic_feed, json.dumps(msg))
+                    mqtt_client.publish(topic_ext, json.dumps(msg_ext))
                     telemetry["feed_status"] = {"box_id": box_id, "slot_index": slot_idx, "type": 1, "current_status": 1, "code": 0}
-                    print(f"[Bridge] Published feedFilament box {box_id} slot {slot_idx} ({m_type})")
+                    print(f"[Bridge] Published feedFilament box {box_id} slot {slot_idx} ({m_type}) and switchChannel {slot_idx}")
 
             elif action == "unfeed_filament":
                 slot_idx = int(data.get("slot", 0))
@@ -1229,6 +1250,13 @@ class BridgeServer(BaseHTTPRequestHandler):
 
         elif self.path.startswith("/sync_to_printer"):
             slots_data = data.get("slots", [])
+            for s in slots_data or []:
+                idx = int(s.get("index", 0))
+                box_id = int(s.get("box_id", -1))
+                b = str(s.get("brand") or "").strip()
+                if b:
+                    slot_brand_overrides[(box_id, idx)] = b
+                    slot_brand_overrides[idx] = b
             if slots_data and mqtt_client:
                 # Kobra X firmware accepts one material update per message.
                 for suffix, material_msg in build_material_update_messages(slots_data):

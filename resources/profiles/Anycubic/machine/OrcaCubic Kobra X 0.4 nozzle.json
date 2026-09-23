@@ -1,0 +1,231 @@
+{
+    "type": "machine",
+    "name": "OrcaCubic Kobra X",
+    "inherits": "fdm_machine_common",
+    "from": "system",
+    "setting_id": "OrcaCubic_Kobra_X_04",
+    "instantiation": "true",
+    "printer_technology": "FFF",
+    "printer_settings_id": "OrcaCubic Kobra X",
+    "printer_model": "OrcaCubic Kobra X",
+    "printer_variant": "0.4",
+    "nozzle_diameter": [
+        "0.4"
+    ],
+    "default_print_profile": "0.20mm Standard @Anycubic Kobra X 0.4 nozzle;0.08mm Standard @Anycubic Kobra X 0.4 nozzle",
+    "default_filament_profile": [
+        "Anycubic PLA @Anycubic Kobra X 0.4 nozzle;Anycubic ABS @Anycubic Kobra X 0.4 nozzle;Anycubic ASA @Anycubic Kobra X 0.4 nozzle;Anycubic PETG @Anycubic Kobra X 0.4 nozzle;Anycubic PLA+ @Anycubic Kobra X 0.4 nozzle;Anycubic PLA Glow @Anycubic Kobra X 0.4 nozzle;Anycubic PLA High Speed @Anycubic Kobra X 0.4 nozzle;Anycubic PLA Matte @Anycubic Kobra X 0.4 nozzle;Anycubic PLA Silk @Anycubic Kobra X 0.4 nozzle;Anycubic PVA @Anycubic Kobra X 0.4 nozzle;Anycubic TPU 95A @Anycubic Kobra X 0.4 nozzle;Anycubic TPU for ACE @Anycubic Kobra X 0.4 nozzle;Anycubic Generetic PETG @Anycubic Kobra X 0.4 nozzle"
+    ],
+    "disable_m73": "0",
+    "gcode_flavor": "klipper",
+    "printable_area": [
+        "0x0",
+        "260x0",
+        "260x260",
+        "0x260"
+    ],
+    "printable_height": "260",
+    "thumbnails": "260x260/PNG",
+    "thumbnails_format": "PNG",
+    "thumbnails_internal": "512x512/PNG/top",
+    "thumbnails_internal_switch": "1",
+    "adaptive_bed_mesh_margin": "0",
+    "auxiliary_fan": "0",
+    "bbl_use_printhost": "0",
+    "bed_custom_model": "",
+    "bed_custom_texture": "",
+    "bed_exclude_area": [],
+    "bed_mesh_max": "0,0",
+    "bed_mesh_min": "0,0",
+    "bed_mesh_probe_distance": "0,0",
+    "before_layer_change_gcode": "",
+    "best_object_pos": "0.5,0.5",
+    "change_extrusion_role_gcode": "",
+    "change_filament_gcode": "; FLUSH_START\n;@2026-04-03 17:46:45 3+n换料gcode\n;_GP_INLINE_ESTIMATED_PRINTING_TIME_PLACEHOLDER\n{if previous_extruder != -1}\n;;; SET_VELOCITY_LIMIT VELOCITY=350 ACCEL=10000\n;;; G1 E-2 F4800\n;;; G1 Z{toolchange_z+0.6} F1800\n;;; G1 X265 F21000\n;;; M400 P370\n;;; G1 X277.5 F600\n;;; G1 E-2 F300\n;;; M400 P361\n;;; G1 Z{toolchange_z+3} F1200\n;;; G1 X{x_after_toolchange} Y{y_after_toolchange} F18000\n;;; G1 Z{toolchange_z+0.6} F1200\n;;; G1 E5 F300\n;;; G1 E-33 F600\n\n{ local curr_t = current_extruder; local next_t = next_extruder;}\n{ local tab_step_time_   = (0, 850, 1350, 850, 850, 0, 1350, 1350, 1350, 1350, 0, 850, 850, 1350, 850, 0)};\n{ if (0 <= curr_t && curr_t < 3) then local step_from_=curr_t else local step_from_=3 endif};\n{ if (0 <= next_t && next_t < 3) then local step_into_=next_t else local step_into_=3 endif};\n;;; M400 P{tab_step_time_[step_from_ * 4 + step_into_]}\n\n{ local magic_mask_with_box = flush_length_4}\n{ if magic_mask_with_box == -1392 }\n    { local is_curr_in_box = size(ace_t_box_vector) > curr_t ? ace_t_box_vector[curr_t] >= 0 ? true : false : false};\n    { local is_next_in_box = size(ace_t_box_vector) > next_t ? ace_t_box_vector[next_t] >= 0 ? true : false : false};\n    { if ace_t_box_vector[curr_t] < 0 && ace_t_box_vector[next_t] < 0}\n;;; M400 P0\n    { elsif ace_t_box_vector[curr_t] < 0 && ace_t_box_vector[next_t] >= 0 }\n;;; M400 P40409\n    { elsif ace_t_box_vector[curr_t] >= 0 && ace_t_box_vector[next_t] < 0 }\n;;; M400 P51591\n    { elsif ace_t_box_vector[curr_t] >= 0 && ace_t_box_vector[next_t] == ace_t_box_vector[curr_t] }\n        { if 0 < ace_t_slot_vector[curr_t] && ace_t_slot_vector[curr_t] <= 4 && 0 < ace_t_slot_vector[next_t] && ace_t_slot_vector[next_t] <= 4}\n;;; M400 P2700\n        { else }\n;;; M400 P91279\n        { endif }\n    { elsif ace_t_box_vector[curr_t] >= 0 && ace_t_box_vector[next_t] != ace_t_box_vector[curr_t] }\n;;; M400 P93746\n    { else }\n    { endif }\n{ endif }\n{endif}\n\nT[next_extruder]\n\n;;; M400 P3643\n; FLUSH_END",
+    "cooling_tube_length": "0",
+    "cooling_tube_retraction": "0",
+    "deretraction_speed": [
+        "30"
+    ],
+    "emit_machine_limits_to_gcode": "1",
+    "enable_filament_ramming": "0",
+    "enable_long_retraction_when_cut": "0",
+    "extra_loading_move": "0",
+    "extruder_clearance_height_to_lid": "250",
+    "extruder_clearance_height_to_rod": "30",
+    "extruder_clearance_radius": "65",
+    "extruder_colour": [
+        "FF4D4F"
+    ],
+    "extruder_offset": [
+        "0x0"
+    ],
+    "fan_kickstart": "0",
+    "fan_speedup_overhangs": "1",
+    "fan_speedup_time": "0",
+    "head_wrap_detect_zone": [],
+    "high_current_on_filament_swap": "0",
+    "host_type": "anycubic",
+    "use_3mf": "1",
+    "layer_change_gcode": "; AFTER_LAYER_CHANGE [layer_num] @ [layer_z]mm",
+    "long_retractions_when_cut": [
+        "0"
+    ],
+    "machine_end_gcode": "M400\nM140 S0 ; turn off heatbed\nM104 S0 ; turn off temperature\nM107;turn off fan\nM84; disable motors\n; disable stepper motors",
+    "machine_load_filament_time": "0",
+    "machine_max_acceleration_e": [
+        "15000",
+        "6500"
+    ],
+    "machine_max_acceleration_extruding": [
+        "15000",
+        "6500"
+    ],
+    "machine_max_acceleration_retracting": [
+        "15000",
+        "6500"
+    ],
+    "machine_max_acceleration_travel": [
+        "10000"
+    ],
+    "machine_max_acceleration_x": [
+        "20000",
+        "10000"
+    ],
+    "machine_max_acceleration_y": [
+        "20000",
+        "10000"
+    ],
+    "machine_max_acceleration_z": [
+        "1000"
+    ],
+    "machine_max_jerk_e": [
+        "1"
+    ],
+    "machine_max_jerk_x": [
+        "20"
+    ],
+    "machine_max_jerk_y": [
+        "20"
+    ],
+    "machine_max_jerk_z": [
+        "20"
+    ],
+    "machine_max_speed_e": [
+        "250"
+    ],
+    "machine_max_speed_x": [
+        "450"
+    ],
+    "machine_max_speed_y": [
+        "450"
+    ],
+    "machine_max_speed_z": [
+        "12"
+    ],
+    "machine_min_extruding_rate": [
+        "0"
+    ],
+    "machine_min_travel_rate": [
+        "0"
+    ],
+    "machine_pause_gcode": "M600",
+    "machine_start_gcode": "; print_bed_min = {print_bed_min[0]},{print_bed_min[1]}\n; print_bed_max = {print_bed_max[0]},{print_bed_max[1]}\n; print_bed_size = {print_bed_size[0]},{print_bed_size[1]}\n; first_layer_print_min = {first_layer_print_min[0]},{first_layer_print_min[1]}\n; first_layer_print_max = {first_layer_print_max[0]},{first_layer_print_max[1]}\n; first_layer_print_size = {first_layer_print_size[0]},{first_layer_print_size[1]}\n\nM117 Heating Bed and Nozzle\nM140 S[first_layer_bed_temperature]\nM104 S150             ; Standby nozzle temp to prevent oozing\nM190 S[first_layer_bed_temperature] ; Wait for bed to heat so thermal expansion is stable\n\nG28                   ; Home all axes\nBED_MESH_PROFILE LOAD=\"default\" ; Load stored bed mesh\n\nM109 S[first_layer_temperature[initial_tool]] ; Heat nozzle to full print temperature\n\n; --- 2 passes on the cleaning rubber brush at the back of the build plate ---\nG90\nG1 Z5 F3000\nG1 X46 Y260 F9600\n; Pass 1\nG1 Z-0.8 F1200\nG1 X50 Y260 Z1 F9600\nG1 X86 Y260 Z1 F9600\nG1 X90 Y260 Z-0.8 F9600\nG1 X90 Y259 Z-0.8 F9600\nG1 X86 Y259 Z1 F9600\nG1 X50 Y259 Z1 F9600\nG1 X46 Y259 Z-0.8 F9600\n; Pass 2\nG1 X50 Y260 Z1 F9600\nG1 X86 Y260 Z1 F9600\nG1 X90 Y260 Z-0.8 F9600\nG1 X90 Y259 Z-0.8 F9600\nG1 X86 Y259 Z1 F9600\nG1 X50 Y259 Z1 F9600\nG1 X46 Y259 Z-0.8 F9600\nG1 Z10 F3000\n\nM117 Printing",
+    "machine_tool_change_time": "0",
+    "machine_unload_filament_time": "0",
+    "manual_filament_change": "0",
+    "max_layer_height": [
+        "0.4"
+    ],
+    "min_layer_height": [
+        "0.08"
+    ],
+    "nozzle_height": "4",
+    "nozzle_hrc": "0",
+    "nozzle_type": "hardened_steel",
+    "nozzle_volume": "79",
+    "parking_pos_retraction": "0",
+    "pellet_modded_printer": "0",
+    "preferred_orientation": "0",
+    "printer_flush_multiplier": "0.7",
+    "printer_notes": "",
+    "printer_structure": "i3",
+    "printhost_authorization_type": "key",
+    "printhost_ssl_ignore_revoke": "0",
+    "printing_by_object_gcode": "",
+    "purge_in_prime_tower": "1",
+    "retract_before_wipe": [
+        "0%"
+    ],
+    "retract_length_toolchange": [
+        "0"
+    ],
+    "retract_lift_above": [
+        "0"
+    ],
+    "retract_lift_below": [
+        "259"
+    ],
+    "retract_lift_enforce": [
+        "All Surfaces"
+    ],
+    "retract_on_top_layer": [
+        "1"
+    ],
+    "retract_restart_extra": [
+        "0"
+    ],
+    "retract_restart_extra_toolchange": [
+        "0"
+    ],
+    "retract_when_changing_layer": [
+        "1"
+    ],
+    "retraction_distances_when_cut": [
+        "0"
+    ],
+    "retraction_length": [
+        "1"
+    ],
+    "retraction_minimum_travel": [
+        "1"
+    ],
+    "retraction_speed": [
+        "30"
+    ],
+    "scan_first_layer": "0",
+    "silent_mode": "1",
+    "single_extruder_multi_material": "1",
+    "support_air_filtration": "0",
+    "support_chamber_temp_control": "0",
+    "support_multi_bed_types": "1",
+    "template_custom_gcode": "",
+    "time_cost": "0",
+    "time_lapse_gcode": "",
+    "travel_slope": [
+        "3"
+    ],
+    "upward_compatible_machine": [],
+    "use_firmware_retraction": "0",
+    "use_relative_e_distances": "1",
+    "wipe": [
+        "1"
+    ],
+    "wipe_distance": [
+        "3"
+    ],
+    "z_hop": [
+        "0.4"
+    ],
+    "z_hop_types": [
+        "Slope Lift"
+    ],
+    "z_offset": "0",
+    "printer_extruder_id": [
+        "1"
+    ],
+    "printer_extruder_variant": [
+        "Direct Drive Standard"
+    ],
+    "wipe_tower_type": "type1"
+}

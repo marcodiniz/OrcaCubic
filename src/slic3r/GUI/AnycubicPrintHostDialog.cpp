@@ -148,21 +148,30 @@ void AnycubicPrintHostSendDialog::init()
         auto* checkbox = new ::CheckBox(this);
         checkbox->SetValue(value_ptr ? *value_ptr : false);
         checkbox->SetToolTip(tooltip);
-        checkbox->Bind(wxEVT_TOGGLEBUTTON, [this, config_key, value_ptr, on_change](wxCommandEvent& event) {
-            bool checked = event.IsChecked();
+
+        auto apply_toggle = [this, checkbox, config_key, value_ptr, on_change](bool checked) {
+            checkbox->SetValue(checked);
             if (value_ptr)
                 *value_ptr = checked;
             AppConfig* config = wxGetApp().app_config;
             if (config && config_key) {
-                config->set("recent", config_key, checked ? "1" : "0");
+                config->set("recent", config_key, bool(checked));
                 config->save();
             }
             if (on_change)
                 on_change(checked);
+        };
+
+        checkbox->Bind(wxEVT_TOGGLEBUTTON, [checkbox, apply_toggle](wxCommandEvent& event) {
+            apply_toggle(checkbox->GetValue());
             event.Skip(); // Allow CheckBox's own handler to redraw the checked/unchecked bitmap.
         });
         auto* text = new wxStaticText(this, wxID_ANY, label);
         text->SetToolTip(tooltip);
+        text->Bind(wxEVT_LEFT_DOWN, [checkbox, apply_toggle](wxMouseEvent&) {
+            apply_toggle(!checkbox->GetValue());
+        });
+
         row->Add(checkbox, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(8));
         row->Add(text, 0, wxALIGN_CENTER_VERTICAL);
         content_sizer->Add(row, 0, wxBOTTOM, FromDIP(6));
@@ -175,13 +184,13 @@ void AnycubicPrintHostSendDialog::init()
     content_sizer->Add(purge_title, 0, wxBOTTOM, FromDIP(6));
 
     m_cb_skip_toolchange = nullptr;
-    add_toggle(CONFIG_KEY_PRE_ENGAGE, _L("Pre-engage Filament"), _L("Pre-engage the toolhead active channel to the starting tool slot before printing to prevent double purging."), &m_pre_engage_filament,
+    m_cb_pre_engage = add_toggle(CONFIG_KEY_PRE_ENGAGE, _L("Pre-engage Filament"), _L("Pre-engage the toolhead active channel to the starting tool slot before printing to prevent double purging."), &m_pre_engage_filament,
                [this](bool enabled) {
                    if (!enabled) {
                        m_skip_first_toolchange = false;
                        AppConfig* config = wxGetApp().app_config;
                        if (config) {
-                           config->set("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE, "0");
+                           config->set("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE, false);
                            config->save();
                        }
                        if (m_cb_skip_toolchange) {
@@ -215,11 +224,12 @@ void AnycubicPrintHostSendDialog::init()
         m_btn_edit_script->SetBackgroundColour(GetBackgroundColour());
         m_btn_edit_script->Enable(m_skip_first_toolchange);
 
-        m_cb_skip_toolchange->Bind(wxEVT_TOGGLEBUTTON, [this](wxCommandEvent& event) {
-            m_skip_first_toolchange = event.IsChecked();
+        auto apply_skip_toggle = [this](bool checked) {
+            m_cb_skip_toolchange->SetValue(checked);
+            m_skip_first_toolchange = checked;
             AppConfig* config = wxGetApp().app_config;
             if (config) {
-                config->set("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE, m_skip_first_toolchange ? "1" : "0");
+                config->set("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE, bool(m_skip_first_toolchange));
                 config->save();
             }
             if (m_btn_edit_script)
@@ -231,7 +241,15 @@ void AnycubicPrintHostSendDialog::init()
                     Layout();
                 }
             }
+        };
+
+        m_cb_skip_toolchange->Bind(wxEVT_TOGGLEBUTTON, [this, apply_skip_toggle](wxCommandEvent& event) {
+            apply_skip_toggle(m_cb_skip_toolchange->GetValue());
             event.Skip();
+        });
+
+        text->Bind(wxEVT_LEFT_DOWN, [this, apply_skip_toggle](wxMouseEvent&) {
+            apply_skip_toggle(!m_cb_skip_toolchange->GetValue());
         });
 
         m_btn_edit_script->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
@@ -276,19 +294,19 @@ void AnycubicPrintHostSendDialog::init()
     calibration_title->SetFont(::Label::Head_13);
     content_sizer->Add(calibration_title, 0, wxBOTTOM, FromDIP(6));
 
-    add_toggle(CONFIG_KEY_LEVELING, _L("Auto Leveling"), _L("Probe and compensate the build plate before this print."), &m_auto_leveling);
-    add_toggle(CONFIG_KEY_RESONANCE, _L("Resonance Compensation"), _L("Run vibration compensation before this print."), &m_resonance_compensation);
-    add_toggle(CONFIG_KEY_FLOW, _L("Flow Calibration"), _L("Calibrate extrusion flow before this print."), &m_flow_calibration);
-    add_toggle(CONFIG_KEY_TIMELAPSE, _L("Time-lapse"), _L("Capture a time-lapse while printing. The camera must be available."), &m_timelapse);
+    m_cb_auto_leveling = add_toggle(CONFIG_KEY_LEVELING, _L("Auto Leveling"), _L("Probe and compensate the build plate before this print."), &m_auto_leveling);
+    m_cb_resonance = add_toggle(CONFIG_KEY_RESONANCE, _L("Resonance Compensation"), _L("Run vibration compensation before this print."), &m_resonance_compensation);
+    m_cb_flow = add_toggle(CONFIG_KEY_FLOW, _L("Flow Calibration"), _L("Calibrate extrusion flow before this print."), &m_flow_calibration);
+    m_cb_timelapse = add_toggle(CONFIG_KEY_TIMELAPSE, _L("Time-lapse"), _L("Capture a time-lapse while printing. The camera must be available."), &m_timelapse);
 #ifdef ORCACUBIC_DEV_BUILD
-    add_toggle(CONFIG_KEY_SAVE_DEV_COPY, _L("Save dev G-code copy"), _L("Save a copy of the final post-processed G-code/3MF to the OrcaCubic repository directory (last_remote_print_processed.gcode) for inspection."), &m_save_dev_copy);
+    m_cb_save_dev_copy = add_toggle(CONFIG_KEY_SAVE_DEV_COPY, _L("Save dev G-code copy"), _L("Save a copy of the final post-processed G-code/3MF to the OrcaCubic repository directory (last_remote_print_processed.gcode) for inspection."), &m_save_dev_copy);
 #endif
 
     auto* start = add_button(wxID_YES, true, _L("Start Print"));
     start->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
         if (validate_before_close()) {
             post_upload_action = PrintHostPostUploadAction::StartPrint;
-            EndDialog(wxID_OK);
+            EndModal(wxID_OK);
         }
     });
     add_button(wxID_CANCEL, false, _L("Cancel"));
@@ -467,14 +485,25 @@ void AnycubicPrintHostSendDialog::EndModal(int ret)
         if (m_txt_custom_gcode) {
             m_skip_first_toolchange_script = m_txt_custom_gcode->GetValue().ToStdString();
         }
-        config->set("recent", CONFIG_KEY_LEVELING, m_auto_leveling ? "1" : "0");
-        config->set("recent", CONFIG_KEY_RESONANCE, m_resonance_compensation ? "1" : "0");
-        config->set("recent", CONFIG_KEY_FLOW, m_flow_calibration ? "1" : "0");
-        config->set("recent", CONFIG_KEY_TIMELAPSE, m_timelapse ? "1" : "0");
-        config->set("recent", CONFIG_KEY_PRE_ENGAGE, m_pre_engage_filament ? "1" : "0");
-        config->set("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE, m_skip_first_toolchange ? "1" : "0");
+        if (m_cb_auto_leveling) m_auto_leveling = m_cb_auto_leveling->GetValue();
+        if (m_cb_resonance) m_resonance_compensation = m_cb_resonance->GetValue();
+        if (m_cb_flow) m_flow_calibration = m_cb_flow->GetValue();
+        if (m_cb_timelapse) m_timelapse = m_cb_timelapse->GetValue();
+        if (m_cb_pre_engage) m_pre_engage_filament = m_cb_pre_engage->GetValue();
+        if (m_cb_skip_toolchange) m_skip_first_toolchange = m_cb_skip_toolchange->GetValue();
+#ifdef ORCACUBIC_DEV_BUILD
+        if (m_cb_save_dev_copy) m_save_dev_copy = m_cb_save_dev_copy->GetValue();
+#endif
+        config->set("recent", CONFIG_KEY_LEVELING, bool(m_auto_leveling));
+        config->set("recent", CONFIG_KEY_RESONANCE, bool(m_resonance_compensation));
+        config->set("recent", CONFIG_KEY_FLOW, bool(m_flow_calibration));
+        config->set("recent", CONFIG_KEY_TIMELAPSE, bool(m_timelapse));
+        config->set("recent", CONFIG_KEY_PRE_ENGAGE, bool(m_pre_engage_filament));
+        config->set("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE, bool(m_skip_first_toolchange));
         config->set("recent", CONFIG_KEY_SKIP_FIRST_TOOL_CHANGE_SCRIPT, m_skip_first_toolchange_script);
-        config->set("recent", CONFIG_KEY_SAVE_DEV_COPY, m_save_dev_copy ? "1" : "0");
+#ifdef ORCACUBIC_DEV_BUILD
+        config->set("recent", CONFIG_KEY_SAVE_DEV_COPY, bool(m_save_dev_copy));
+#endif
         config->save();
     }
     PrintHostSendDialog::EndModal(ret);

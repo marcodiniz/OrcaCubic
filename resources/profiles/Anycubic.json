@@ -1,6 +1,6 @@
 {
 	"name": "Anycubic",
-	"version": "02.04.00.02",
+	"version": "02.04.00.03",
 	"force_update": "0",
 	"description": "Anycubic configurations",
 	"machine_model_list": [
@@ -71,6 +71,10 @@
 		{
 			"name": "Anycubic Kobra X",
 			"sub_path": "machine/Anycubic Kobra X.json"
+		},
+		{
+			"name": "OrcaCubic Kobra X",
+			"sub_path": "machine/OrcaCubic Kobra X.json"
 		},
 		{
 			"name": "Anycubic Predator",
@@ -1217,6 +1221,10 @@
 		{
 			"name": "Anycubic Kobra X 0.4 nozzle",
 			"sub_path": "machine/Anycubic Kobra X 0.4 nozzle.json"
+		},
+		{
+			"name": "OrcaCubic Kobra X",
+			"sub_path": "machine/OrcaCubic Kobra X 0.4 nozzle.json"
 		},
 		{
 			"name": "Anycubic Predator 0.4 nozzle",
