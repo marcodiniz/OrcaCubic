@@ -10,25 +10,54 @@
 #include "GUI_App.hpp"
 #include "GUI_Preview.hpp"
 #include "MainFrame.hpp"
-#include "format.hpp"
 #include "Widgets/ProgressDialog.hpp"
 #include "Widgets/RoundedRectangle.hpp"
 #include "Widgets/StaticBox.hpp"
 #include "ConnectPrinter.hpp"
 
 
+#include <wx/event.h>
+#include <wx/gdicmn.h>
+#include <wx/panel.h>
+#include "slic3r/GUI/Widgets/StateColor.hpp"
+#include <wx/dcclient.h>
+#include <wx/dc.h>
+#include "slic3r/GUI/Widgets/Label.hpp"
+#include "slic3r/GUI/Widgets/PopupWindow.hpp"
+#include <wx/popupwin.h>
+#include <boost/log/trivial.hpp>
+#include <memory>
+#include "slic3r/GUI/Widgets/HyperLink.hpp"
+#include <wx/chartype.h>
+#include <vector>
+#include <utility>
+#include "slic3r/GUI/MsgDialog.hpp"
+#include "slic3r/GUI/ReleaseNote.hpp"
+#include "slic3r/GUI/GUI_Utils.hpp"
+#include "slic3r/GUI/Widgets/TextInput.hpp"
+#include "slic3r/GUI/Auxiliary.hpp"
+#include "libslic3r/Preset.hpp"
+#include <cstddef>
+#include <cstring>
 #include <wx/progdlg.h>
 #include <wx/clipbrd.h>
 #include <wx/dcgraph.h>
 #include <wx/mstream.h>
 #include <miniz.h>
 #include <algorithm>
+#include <wx/wx.h>
+#include <wx/timer.h>
+#include <wx/utils.h>
+#include <wx/toplevel.h>
+#include <wx/string.h>
 #include "Plater.hpp"
 #include "Notebook.hpp"
-#include "BitmapCache.hpp"
 #include "BindDialog.hpp"
+#include "libslic3r/AppConfig.hpp"
+#include <wx/msgdlg.h>
 
 #include "DeviceCore/DevManager.h"
+#include <wx/textctrl.h>
 
 namespace Slic3r { namespace GUI {
 
@@ -327,7 +356,7 @@ SelectMachinePopup::SelectMachinePopup(wxWindow *parent)
     m_scrolledWindow = new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition, SELECT_MACHINE_LIST_SIZE, wxHSCROLL | wxVSCROLL);
     m_scrolledWindow->SetBackgroundColour(*wxWHITE);
     m_scrolledWindow->SetMinSize(SELECT_MACHINE_LIST_SIZE);
-    m_scrolledWindow->SetScrollRate(0, 5);
+    m_scrolledWindow->SetScrollRate(0, SELECT_MACHINE_ITEM_SIZE.y);
     auto m_sizxer_scrolledWindow = new wxBoxSizer(wxVERTICAL);
     m_scrolledWindow->SetSizer(m_sizxer_scrolledWindow);
     m_scrolledWindow->Layout();
@@ -686,48 +715,68 @@ void SelectMachinePopup::update_user_devices()
         //set in lan
         if (mobj->is_lan_mode_printer()) {
             if (!mobj->is_online()) {
-                continue;
+                op->SetToolTip(_L("Offline"));
+                op->set_printer_state(PrinterState::OFFLINE);
             }
             else {
-                op->show_printer_bind(false, PrinterBindState::NONE);
-                op->show_edit_printer_name(false);
                 if (mobj->has_access_right() && mobj->is_avaliable()) {
                     op->set_printer_state(PrinterState::IN_LAN);
-                    op->show_printer_bind(true, PrinterBindState::ALLOW_UNBIND);
                     op->SetToolTip(_L("Online"));
                 }
                 else {
                     op->set_printer_state(PrinterState::LOCK);
                 }
             }
-            op->Bind(EVT_UNBIND_MACHINE, [dev, mobj](wxCommandEvent& e) {
-                dev->set_selected_machine("");
+            op->show_printer_bind(true, PrinterBindState::ALLOW_UNBIND);
+            op->show_edit_printer_name(true);
+
+            op->Bind(EVT_UNBIND_MACHINE, [this, dev, mobj](wxCommandEvent& e) {
+                wxMessageDialog confirm_dlg(
+                    this,
+                    _L("Are you sure you want to remove this printer?"),
+                    _L("Remove Printer"),
+                    wxYES_NO | wxNO_DEFAULT | wxICON_QUESTION);
+                if (confirm_dlg.ShowModal() != wxID_YES) {
+                    return;
+                }
+                if (dev && dev->get_selected_machine() == mobj) {
+                    dev->set_selected_machine("");
+                }
                 if (mobj) {
                     AppConfig* config = wxGetApp().app_config;
                     if (config) {
+                        config->clear_local_machine_access_code(mobj->get_dev_id(), mobj->printer_agent_id);
                         config->erase_local_machine(mobj->get_dev_id());
+                        config->save();
                     }
 
-                    mobj->set_access_code("");
+                    mobj->revoke_access();
+                    if (dev) {
+                        dev->erase_local_machine(mobj->get_dev_id());
+                    }
                 }
 
                 if (GUI::wxGetApp().plater())
                     GUI::wxGetApp().plater()->update_machine_sync_status();
 
-                MessageDialog msg_wingow(nullptr, _L("Log out successful."), "", wxAPPLY | wxOK);
-                if (msg_wingow.ShowModal() == wxOK) { return; }
-                });
+                wxCommandEvent update_event(EVT_UPDATE_USER_MACHINE_LIST);
+                update_event.SetEventObject(this);
+                wxPostEvent(this, update_event);
+            });
         }
         else {
             op->show_printer_bind(true, PrinterBindState::ALLOW_UNBIND);
-            op->Bind(EVT_UNBIND_MACHINE, [mobj, dev](wxCommandEvent& e) {
+            op->Bind(EVT_UNBIND_MACHINE, [this, mobj, dev](wxCommandEvent& e) {
                 // show_unbind_dialog
                 UnBindMachineDialog dlg;
                 dlg.update_machine_info(mobj);
                 if (dlg.ShowModal() == wxID_OK) {
                     dev->set_selected_machine("");
+                    wxCommandEvent update_event(EVT_UPDATE_USER_MACHINE_LIST);
+                    update_event.SetEventObject(this);
+                    wxPostEvent(this, update_event);
                 }
-                });
+            });
 
             if (!mobj->is_online()) {
                 op->SetToolTip(_L("Offline"));
@@ -759,11 +808,16 @@ void SelectMachinePopup::update_user_devices()
             }
         });
 
-         op->Bind(EVT_EDIT_PRINT_NAME, [mobj](wxCommandEvent &e) {
+        op->Bind(EVT_EDIT_PRINT_NAME, [this, mobj](wxCommandEvent &e) {
             EditDevNameDialog dlg;
             dlg.set_machine_obj(mobj);
-            dlg.ShowModal();
-         });
+            int res = dlg.ShowModal();
+            if (res == wxID_OK || res == wxID_DELETE) {
+                wxCommandEvent update_event(EVT_UPDATE_USER_MACHINE_LIST);
+                update_event.SetEventObject(this);
+                wxPostEvent(this, update_event);
+            }
+        });
     }
 
     for (int j = i; j < m_user_list_machine_panel.size(); j++) {
@@ -876,42 +930,91 @@ void SelectMachinePopup::OnLeftUp(wxMouseEvent &event)
 }
 
 EditDevNameDialog::EditDevNameDialog(Plater *plater /*= nullptr*/)
-    : DPIDialog(static_cast<wxWindow *>(wxGetApp().mainframe), wxID_ANY, _L("Modifying the device name"), wxDefaultPosition, wxDefaultSize, wxCAPTION | wxCLOSE_BOX)
+    : DPIDialog(static_cast<wxWindow *>(wxGetApp().mainframe), wxID_ANY, _L("Edit Printer"), wxDefaultPosition, wxDefaultSize, wxCAPTION | wxCLOSE_BOX)
 {
     SetBackgroundColour(*wxWHITE);
     wxBoxSizer *m_sizer_main = new wxBoxSizer(wxVERTICAL);
     auto        m_line_top   = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(-1, 1), wxTAB_TRAVERSAL);
     m_line_top->SetBackgroundColour(wxColour(166, 169, 170));
     m_sizer_main->Add(m_line_top, 0, wxEXPAND, 0);
-    m_sizer_main->Add(0, 0, 0, wxTOP, FromDIP(38));
-    m_textCtr = new ::TextInput(this, wxEmptyString, wxEmptyString, wxEmptyString, wxDefaultPosition, wxSize(FromDIP(260), FromDIP(40)), wxTE_PROCESS_ENTER);
-    m_textCtr->GetTextCtrl()->SetSize(wxSize(-1, FromDIP(22)));
-    m_textCtr->SetMinSize(wxSize(FromDIP(260), FromDIP(40)));
-    m_sizer_main->Add(m_textCtr, 0, wxALIGN_CENTER_HORIZONTAL | wxLEFT | wxRIGHT, FromDIP(40));
+    m_sizer_main->Add(0, 0, 0, wxTOP, FromDIP(20));
 
+    // Name label & input
+    m_label_name = new wxStaticText(this, wxID_ANY, _L("Printer Name"));
+    m_label_name->SetFont(::Label::Body_12);
+    m_label_name->SetForegroundColour(wxColour(120, 120, 120));
+    m_sizer_main->Add(m_label_name, 0, wxLEFT | wxRIGHT, FromDIP(30));
+    m_sizer_main->Add(0, 0, 0, wxTOP, FromDIP(4));
+
+    m_textCtr = new ::TextInput(this, wxEmptyString, wxEmptyString, wxEmptyString, wxDefaultPosition, wxSize(FromDIP(280), FromDIP(32)), wxTE_PROCESS_ENTER);
+    m_textCtr->GetTextCtrl()->SetSize(wxSize(-1, FromDIP(22)));
+    m_textCtr->SetMinSize(wxSize(FromDIP(280), FromDIP(32)));
+    m_sizer_main->Add(m_textCtr, 0, wxALIGN_CENTER_HORIZONTAL | wxLEFT | wxRIGHT, FromDIP(30));
+    m_sizer_main->Add(0, 0, 0, wxTOP, FromDIP(10));
+
+    // IP label & input
+    m_label_ip = new wxStaticText(this, wxID_ANY, _L("IP Address / Host"));
+    m_label_ip->SetFont(::Label::Body_12);
+    m_label_ip->SetForegroundColour(wxColour(120, 120, 120));
+    m_sizer_main->Add(m_label_ip, 0, wxLEFT | wxRIGHT, FromDIP(30));
+    m_sizer_main->Add(0, 0, 0, wxTOP, FromDIP(4));
+
+    m_textCtr_ip = new ::TextInput(this, wxEmptyString, wxEmptyString, wxEmptyString, wxDefaultPosition, wxSize(FromDIP(280), FromDIP(32)), wxTE_PROCESS_ENTER);
+    m_textCtr_ip->GetTextCtrl()->SetSize(wxSize(-1, FromDIP(22)));
+    m_textCtr_ip->SetMinSize(wxSize(FromDIP(280), FromDIP(32)));
+    m_sizer_main->Add(m_textCtr_ip, 0, wxALIGN_CENTER_HORIZONTAL | wxLEFT | wxRIGHT, FromDIP(30));
+    m_sizer_main->Add(0, 0, 0, wxTOP, FromDIP(10));
+
+    // Access Code label & input
+    m_label_code = new wxStaticText(this, wxID_ANY, _L("Access Code"));
+    m_label_code->SetFont(::Label::Body_12);
+    m_label_code->SetForegroundColour(wxColour(120, 120, 120));
+    m_sizer_main->Add(m_label_code, 0, wxLEFT | wxRIGHT, FromDIP(30));
+    m_sizer_main->Add(0, 0, 0, wxTOP, FromDIP(4));
+
+    m_textCtr_code = new ::TextInput(this, wxEmptyString, wxEmptyString, wxEmptyString, wxDefaultPosition, wxSize(FromDIP(280), FromDIP(32)), wxTE_PROCESS_ENTER);
+    m_textCtr_code->GetTextCtrl()->SetSize(wxSize(-1, FromDIP(22)));
+    m_textCtr_code->SetMinSize(wxSize(FromDIP(280), FromDIP(32)));
+    m_sizer_main->Add(m_textCtr_code, 0, wxALIGN_CENTER_HORIZONTAL | wxLEFT | wxRIGHT, FromDIP(30));
+
+    // Validation text
     m_static_valid = new wxStaticText(this, wxID_ANY, wxT(""), wxDefaultPosition, wxDefaultSize, 0);
     m_static_valid->Wrap(-1);
     m_static_valid->SetFont(::Label::Body_13);
     m_static_valid->SetForegroundColour(wxColour(255, 111, 0));
-    m_sizer_main->Add(m_static_valid, 0, wxALIGN_CENTER_HORIZONTAL | wxTOP | wxLEFT | wxRIGHT, FromDIP(10));
+    m_sizer_main->Add(m_static_valid, 0, wxALIGN_CENTER_HORIZONTAL | wxTOP | wxLEFT | wxRIGHT, FromDIP(8));
 
+    // Buttons
+    auto sizer_buttons = new wxBoxSizer(wxHORIZONTAL);
+
+    m_button_delete = new Button(this, _L("Delete"));
+    StateColor btn_bg_red(std::pair<wxColour, int>(wxColour(180, 40, 40), StateColor::Pressed), std::pair<wxColour, int>(wxColour(211, 47, 47), StateColor::Normal));
+    m_button_delete->SetBackgroundColor(btn_bg_red);
+    m_button_delete->SetBorderColor(wxColour(211, 47, 47));
+    m_button_delete->SetTextColor(wxColour(255, 255, 255));
+    m_button_delete->SetSize(wxSize(FromDIP(76), FromDIP(26)));
+    m_button_delete->SetMinSize(wxSize(FromDIP(76), FromDIP(26)));
+    m_button_delete->SetCornerRadius(FromDIP(13));
+    m_button_delete->Bind(wxEVT_BUTTON, &EditDevNameDialog::on_delete, this);
 
     m_button_confirm = new Button(this, _L("Confirm"));
     StateColor btn_bg_green(std::pair<wxColour, int>(wxColour(0, 137, 123), StateColor::Pressed), std::pair<wxColour, int>(wxColour(0, 150, 136), StateColor::Normal));
     m_button_confirm->SetBackgroundColor(btn_bg_green);
     m_button_confirm->SetBorderColor(wxColour(0, 150, 136));
     m_button_confirm->SetTextColor(wxColour(255, 255, 255));
-    m_button_confirm->SetSize(wxSize(FromDIP(72), FromDIP(24)));
-    m_button_confirm->SetMinSize(wxSize(FromDIP(72), FromDIP(24)));
-    m_button_confirm->SetCornerRadius(FromDIP(12));
+    m_button_confirm->SetSize(wxSize(FromDIP(76), FromDIP(26)));
+    m_button_confirm->SetMinSize(wxSize(FromDIP(76), FromDIP(26)));
+    m_button_confirm->SetCornerRadius(FromDIP(13));
     m_button_confirm->Bind(wxEVT_BUTTON, &EditDevNameDialog::on_edit_name, this);
 
-    m_sizer_main->Add(m_button_confirm, 0, wxALIGN_CENTER_HORIZONTAL | wxTOP, FromDIP(10));
-    m_sizer_main->Add(0, 0, 0, wxBOTTOM, FromDIP(38));
+    sizer_buttons->Add(m_button_delete, 0, wxALIGN_CENTER_VERTICAL);
+    sizer_buttons->AddSpacer(FromDIP(128));
+    sizer_buttons->Add(m_button_confirm, 0, wxALIGN_CENTER_VERTICAL);
 
-    SetSizer(m_sizer_main);
-    Layout();
-    Fit();
+    m_sizer_main->Add(sizer_buttons, 0, wxALIGN_CENTER_HORIZONTAL | wxTOP, FromDIP(14));
+    m_sizer_main->Add(0, 0, 0, wxBOTTOM, FromDIP(20));
+
+    SetSizerAndFit(m_sizer_main);
     Centre(wxBOTH);
     wxGetApp().UpdateDlgDarkUI(this);
 }
@@ -921,14 +1024,81 @@ EditDevNameDialog::~EditDevNameDialog() {}
 void EditDevNameDialog::set_machine_obj(MachineObject *obj)
 {
     m_info = obj;
-    if (m_info)
+    if (m_info) {
         m_textCtr->GetTextCtrl()->SetValue(from_u8(m_info->get_dev_name()));
+        bool is_lan = m_info->is_lan_mode_printer();
+        if (m_label_ip) m_label_ip->Show(is_lan);
+        if (m_textCtr_ip) {
+            m_textCtr_ip->Show(is_lan);
+            if (is_lan)
+                m_textCtr_ip->GetTextCtrl()->SetValue(from_u8(m_info->get_dev_ip()));
+        }
+        if (m_label_code) m_label_code->Show(is_lan);
+        if (m_textCtr_code) {
+            m_textCtr_code->Show(is_lan);
+            if (is_lan)
+                m_textCtr_code->GetTextCtrl()->SetValue(from_u8(m_info->get_access_code()));
+        }
+        Layout();
+        Fit();
+        Centre(wxBOTH);
+    }
 }
 
 void EditDevNameDialog::on_dpi_changed(const wxRect &suggested_rect)
 {
-    m_button_confirm->SetSize(wxSize(FromDIP(72), FromDIP(24)));
-    m_button_confirm->SetMinSize(wxSize(FromDIP(72), FromDIP(24)));
+    if (m_button_confirm) {
+        m_button_confirm->SetSize(wxSize(FromDIP(76), FromDIP(26)));
+        m_button_confirm->SetMinSize(wxSize(FromDIP(76), FromDIP(26)));
+    }
+    if (m_button_delete) {
+        m_button_delete->SetSize(wxSize(FromDIP(76), FromDIP(26)));
+        m_button_delete->SetMinSize(wxSize(FromDIP(76), FromDIP(26)));
+    }
+}
+
+void EditDevNameDialog::on_delete(wxCommandEvent &e)
+{
+    if (!m_info) return;
+    wxMessageDialog confirm_dlg(
+        this,
+        _L("Are you sure you want to remove this printer?"),
+        _L("Remove Printer"),
+        wxYES_NO | wxNO_DEFAULT | wxICON_QUESTION);
+    if (confirm_dlg.ShowModal() != wxID_YES) {
+        return;
+    }
+
+    DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
+    if (dev && dev->get_selected_machine() == m_info) {
+        dev->set_selected_machine("");
+    }
+
+    std::string dev_id = m_info->get_dev_id();
+    if (m_info->is_lan_mode_printer()) {
+        AppConfig* config = Slic3r::GUI::wxGetApp().app_config;
+        if (config) {
+            config->clear_local_machine_access_code(dev_id, m_info->printer_agent_id);
+            config->erase_local_machine(dev_id);
+            config->save();
+        }
+        m_info->revoke_access();
+        if (dev) {
+            dev->erase_local_machine(dev_id);
+        }
+    } else {
+        if (wxGetApp().is_user_login(wxGetApp().get_printer_cloud_provider())) {
+            wxGetApp().request_user_unbind(dev_id);
+        }
+        if (dev) {
+            dev->erase_user_machine(dev_id);
+        }
+    }
+
+    if (GUI::wxGetApp().plater())
+        GUI::wxGetApp().plater()->update_machine_sync_status();
+
+    DPIDialog::EndModal(wxID_DELETE);
 }
 
 void EditDevNameDialog::on_edit_name(wxCommandEvent &e)
@@ -975,22 +1145,78 @@ void EditDevNameDialog::on_edit_name(wxCommandEvent &e)
         m_valid_type = NoValid;
     }
 
+    if (m_valid_type == Valid && m_info && m_info->is_lan_mode_printer() && m_textCtr_ip) {
+        auto new_ip = m_textCtr_ip->GetTextCtrl()->GetValue().Trim().Trim(false);
+        if (new_ip.empty()) {
+            info_line = _L("The IP address field is not allowed to be empty.");
+            m_valid_type = NoValid;
+        }
+    }
+
     if (m_valid_type == NoValid) {
         m_static_valid->SetLabel(info_line);
         m_static_valid->Wrap(m_static_valid->GetSize().GetWidth());
         Layout();
+        Fit();
+        return;
     }
 
     if (m_valid_type == Valid) {
         m_static_valid->SetLabel(wxEmptyString);
         DeviceManager *dev      = Slic3r::GUI::wxGetApp().getDeviceManager();
-        if (dev) {
-            auto           utf8_str = new_dev_name.ToUTF8();
-            auto           name     = std::string(utf8_str.data(), utf8_str.length());
-            if (m_info)
+        AppConfig*     config   = Slic3r::GUI::wxGetApp().app_config;
+
+        if (m_info && m_info->is_lan_mode_printer()) {
+            std::string old_dev_id = m_info->get_dev_id();
+            std::string old_dev_ip = m_info->get_dev_ip();
+            std::string utf8_name  = new_dev_name.ToUTF8().data();
+            std::string new_ip     = m_textCtr_ip ? m_textCtr_ip->GetTextCtrl()->GetValue().Trim().Trim(false).ToStdString() : old_dev_ip;
+            std::string new_code   = m_textCtr_code ? m_textCtr_code->GetTextCtrl()->GetValue().Trim().Trim(false).ToStdString() : m_info->get_access_code();
+
+            m_info->set_dev_name(utf8_name);
+            m_info->set_dev_ip(new_ip);
+            m_info->set_access_code(new_code);
+
+            if (config) {
+                std::string new_dev_id = old_dev_id;
+                if (old_dev_id == old_dev_ip && old_dev_ip != new_ip) {
+                    new_dev_id = new_ip;
+                    config->erase_local_machine(old_dev_id);
+                    if (dev) {
+                        dev->erase_local_machine(old_dev_id);
+                    }
+                    m_info->set_dev_id(new_dev_id);
+                }
+
+                BBLocalMachine lm;
+                lm.dev_id           = new_dev_id;
+                lm.dev_name         = utf8_name;
+                lm.dev_ip           = new_ip;
+                lm.printer_type     = m_info->printer_type;
+                lm.printer_agent_id = m_info->printer_agent_id;
+                lm.access_code      = new_code;
+                config->update_local_machine(lm);
+                config->save();
+
+                if (dev) {
+                    dev->set_local_machine(new_dev_id, m_info);
+                    if (dev->get_selected_machine() == m_info) {
+                        dev->set_selected_machine(new_dev_id);
+                    }
+                }
+            }
+        } else if (m_info) {
+            if (dev) {
+                auto utf8_str = new_dev_name.ToUTF8();
+                auto name     = std::string(utf8_str.data(), utf8_str.length());
                 dev->modify_device_name(m_info->get_dev_id(), name, wxGetApp().get_printer_cloud_provider());
+            }
         }
-        DPIDialog::EndModal(wxID_CLOSE);
+
+        if (GUI::wxGetApp().plater())
+            GUI::wxGetApp().plater()->update_machine_sync_status();
+
+        DPIDialog::EndModal(wxID_OK);
     }
 }
 

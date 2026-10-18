@@ -7,7 +7,8 @@ set(SLIC3R_APP_KEY "OrcaCubic")
 if(NOT DEFINED BBL_INTERNAL_TESTING)
 set(BBL_INTERNAL_TESTING "0")
 endif()
-set(SoftFever_VERSION "2.5.0-orcacubic.7")
+# Based on OrcaSlicer v2.5.0-alpha (3880f2c58).
+set(SoftFever_VERSION "2.5.0-orcacubic.8")
 string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)"
        SoftFever_VERSION_MATCH ${SoftFever_VERSION})
 set(ORCA_VERSION_MAJOR ${CMAKE_MATCH_1})

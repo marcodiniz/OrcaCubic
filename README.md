@@ -4,6 +4,8 @@
 
 It combines OrcaSlicer's slicing workflow with selected printer-integration ideas from Anycubic Slicer Next and KX-Bridge. The goal is a single desktop application for slicing, material matching, LAN upload, print start, monitoring, and printer control.
 
+The current source is based on [OrcaSlicer 2.5.0 Alpha](https://github.com/OrcaSlicer/OrcaSlicer/releases/tag/v2.5.0-alpha). This is an experimental version; back up important projects and profiles before using it.
+
 > [!IMPORTANT]
 > OrcaCubic has been tested on an **Anycubic Kobra X running firmware 2.0.1.9**. Other Anycubic models and firmware versions are not yet validated.
 

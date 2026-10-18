@@ -57,3 +57,5 @@ __pycache__/
 # Local developer diagnostics (never release or commit)
 /last_remote_print_processed.gcode
 /last_remote_print_processed.3mf
+docs/superpowers/
+ctest_results.xml
