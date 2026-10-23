@@ -1,0 +1,21 @@
+{
+	"type": "process",
+	"name": "0.20mm Standard @Anycubic Kobra S1 (Rinkhals) 0.4 nozzle",
+	"inherits": "0.20mm Standard @Anycubic Kobra S1 0.4 nozzle",
+	"from": "system",
+	"setting_id": "BoHxqXqgsIsPHPB2",
+	"instantiation": "true",
+	"print_settings_id": "0.20mm Standard @Anycubic Kobra S1 (Rinkhals) 0.4 nozzle",
+	"compatible_printers": [
+		"Anycubic Kobra S1 (Rinkhals) 0.4 nozzle"
+	],
+	"enable_prime_tower": "0",
+	"skirt_loops": "2",
+	"default_acceleration": "3000",
+	"outer_wall_acceleration": "2000",
+	"inner_wall_acceleration": "3000",
+	"travel_acceleration": "3000",
+	"outer_wall_speed": "100",
+	"inner_wall_speed": "150",
+	"sparse_infill_speed": "150"
+}

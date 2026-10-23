@@ -1,0 +1,27 @@
+{
+	"type": "filament",
+	"name": "Anycubic PLA @Anycubic Kobra S1 (Rinkhals) 0.4 nozzle",
+	"inherits": "Anycubic PLA @Anycubic Kobra S1 0.4 nozzle",
+	"from": "system",
+	"setting_id": "s4lfPq7CoEFqgEqt",
+	"filament_id": "OFmjN2bc",
+	"instantiation": "true",
+	"filament_settings_id": [
+		"Anycubic PLA @Anycubic Kobra S1 (Rinkhals) 0.4 nozzle"
+	],
+	"compatible_printers": [
+		"Anycubic Kobra S1 (Rinkhals) 0.4 nozzle"
+	],
+	"activate_air_filtration": [
+		"0"
+	],
+	"additional_cooling_fan_speed": [
+		"0"
+	],
+	"complete_print_exhaust_fan_speed": [
+		"0"
+	],
+	"during_print_exhaust_fan_speed": [
+		"0"
+	]
+}

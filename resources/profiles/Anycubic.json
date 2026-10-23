@@ -1,6 +1,6 @@
 {
 	"name": "Anycubic",
-	"version": "02.04.00.10",
+	"version": "02.04.00.11",
 	"force_update": "0",
 	"description": "Anycubic configurations",
 	"machine_model_list": [
@@ -67,6 +67,10 @@
 		{
 			"name": "Anycubic Kobra S1",
 			"sub_path": "machine/Anycubic Kobra S1.json"
+		},
+		{
+			"name": "Anycubic Kobra S1 (Rinkhals)",
+			"sub_path": "machine/Anycubic Kobra S1 (Rinkhals).json"
 		},
 		{
 			"name": "Anycubic Kobra S1 Max",
@@ -533,6 +537,10 @@
 		{
 			"name": "0.20mm High Quality @Anycubic Kobra 3 V2 0.4 nozzle",
 			"sub_path": "process/0.20mm High Quality @Anycubic Kobra 3 V2 0.4 nozzle.json"
+		},
+		{
+			"name": "0.20mm Standard @Anycubic Kobra S1 (Rinkhals) 0.4 nozzle",
+			"sub_path": "process/0.20mm Standard @Anycubic Kobra S1 (Rinkhals) 0.4 nozzle.json"
 		},
 		{
 			"name": "0.24mm Standard @Anycubic Kobra 3 V2 0.6 nozzle",
@@ -1197,6 +1205,10 @@
 			"sub_path": "filament/Anycubic PLA Silk @Anycubic Kobra 3 V2 0.8 nozzle.json"
 		},
 		{
+			"name": "Anycubic PLA @Anycubic Kobra S1 (Rinkhals) 0.4 nozzle",
+			"sub_path": "filament/Anycubic PLA @Anycubic Kobra S1 (Rinkhals) 0.4 nozzle.json"
+		},
+		{
 			"name": "Anycubic PLA @Anycubic Kobra 2 Max 0.4 nozzle",
 			"sub_path": "filament/Anycubic PLA @Anycubic Kobra 2 Max 0.4 nozzle.json"
 		},
@@ -1421,6 +1433,10 @@
 		{
 			"name": "OrcaCubic Kobra X",
 			"sub_path": "machine/OrcaCubic Kobra X 0.4 nozzle.json"
+		},
+		{
+			"name": "Anycubic Kobra S1 (Rinkhals) 0.4 nozzle",
+			"sub_path": "machine/Anycubic Kobra S1 (Rinkhals) 0.4 nozzle.json"
 		}
 	]
 }

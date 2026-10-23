@@ -1,0 +1,26 @@
+{
+	"type": "machine",
+	"name": "Anycubic Kobra S1 (Rinkhals) 0.4 nozzle",
+	"inherits": "Anycubic Kobra S1 0.4 nozzle",
+	"from": "system",
+	"setting_id": "lp2X4XF7DTczH5JK",
+	"instantiation": "true",
+	"printer_settings_id": "Anycubic Kobra S1 (Rinkhals) 0.4 nozzle",
+	"printer_model": "Anycubic Kobra S1 (Rinkhals)",
+	"host_type": "moonraker",
+	"use_3mf": "0",
+	"default_print_profile": "0.20mm Standard @Anycubic Kobra S1 (Rinkhals) 0.4 nozzle",
+	"default_filament_profile": [
+		"Anycubic PLA @Anycubic Kobra S1 (Rinkhals) 0.4 nozzle"
+	],
+	"single_extruder_multi_material": "0",
+	"change_filament_gcode": "",
+	"machine_pause_gcode": "PAUSE",
+	"machine_start_gcode": "G90\nM83\nM140 S[first_layer_bed_temperature]\nM104 S150\nG28\nBED_MESH_PROFILE LOAD=default\nM190 S[first_layer_bed_temperature]\nM109 S[first_layer_temperature[initial_tool]]\nG92 E0\nG1 Z2 F1200\nM117 Printing...",
+	"machine_end_gcode": "M400\nM104 S0\nM140 S0\nM107\nM84",
+	"printer_notes": "Experimental Rinkhals beta, single-material only. Requires a saved bed mesh named default and a PAUSE macro. Load and prime the filament manually before printing. Verify homing, mesh, fan controls and Z-offset on your firmware. No automatic print-start retries. Not for stock firmware or KX-Bridge.",
+	"thumbnails_internal_switch": "0",
+	"auxiliary_fan": "0",
+	"support_air_filtration": "0",
+	"default_bed_type": "Textured PEI Plate"
+}
